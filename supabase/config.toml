@@ -1,0 +1,30 @@
+# Configuração do Supabase CLI.
+# Referência: https://supabase.com/docs/guides/local-development/cli/config
+project_id = "fast-operation-cockpit"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+# URL base do site para os links de e-mail (confirmação, recuperação de senha).
+site_url = "http://localhost:3000"
+# URLs adicionais permitidas em redirects pós-login.
+additional_redirect_urls = ["http://localhost:3000"]
+# Habilita login por e-mail + senha.
+[auth.email]
+enable_signup = true
+enable_confirmations = false

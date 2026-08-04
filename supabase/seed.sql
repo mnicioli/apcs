@@ -1,0 +1,10 @@
+-- ============================================================================
+-- Seed — dados iniciais para desenvolvimento local (`supabase db reset`).
+-- ----------------------------------------------------------------------------
+-- Vazio de propósito por enquanto. Usuários são criados pelo fluxo de signup
+-- (que dispara o trigger `handle_new_user`). Para promover o primeiro usuário
+-- a admin, rode no SQL Editor do Supabase (trocando o e-mail):
+--
+--   update public.profiles set role = 'admin'
+--   where email = 'voce@empresa.com';
+-- ============================================================================

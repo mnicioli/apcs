@@ -1,0 +1,42 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# testing
+/coverage
+
+# supabase (artefatos locais — NUNCA commitar)
+/supabase/.branches
+/supabase/.temp
+/supabase/.env
+
+# env files (segredos — NUNCA commitar)
+.env
+.env.*
+!.env.example
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# os / editor
+.DS_Store
+*.pem
+.idea/
+
+# vercel
+.vercel
+
+# typescript build info
+*.tsbuildinfo
