@@ -20,7 +20,22 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return user ? toSessionUser(user) : null;
+
+  if (!user) return null;
+
+  // O nome e o avatar vêm de `profiles`, não de `user_metadata`: é em
+  // `profiles` que `updateProfileAction` escreve. Sem esta consulta, quem
+  // editasse o nome em /profile continuaria vendo o e-mail no cabeçalho.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, avatar_url")
+    .eq("id", user.id)
+    .returns<{ full_name: string | null; avatar_url: string | null }[]>()
+    .maybeSingle();
+
+  // Perfil ausente não é motivo para derrubar a sessão: `toSessionUser` cai no
+  // metadata e, em último caso, no e-mail.
+  return toSessionUser(user, profile);
 });
 
 /**

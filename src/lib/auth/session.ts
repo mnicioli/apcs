@@ -25,17 +25,37 @@ function isAllowedAvatarUrl(url: string): boolean {
   return ALLOWED_AVATAR_HOSTS.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
 }
 
-export function toSessionUser(user: {
-  id: string;
-  email?: string | null;
-  user_metadata?: Record<string, unknown> | null;
-}): SessionUser {
+/** Linha de `profiles` — a fonte da verdade do nome e do avatar. */
+export interface ProfileIdentity {
+  full_name?: string | null;
+  avatar_url?: string | null;
+}
+
+function trimmed(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * Monta o usuário da sessão a partir da conta de auth e do perfil.
+ *
+ * A ORDEM importa: `profiles` vem primeiro porque é onde `updateProfileAction`
+ * grava. Lendo só de `user_metadata`, editar o nome em /profile não mudaria
+ * nada no cabeçalho — o valor ficaria guardado num lugar que a UI não lê.
+ * O metadata continua como fallback: em signup por OAuth ele chega preenchido
+ * antes de o perfil existir. O e-mail é o último recurso.
+ */
+export function toSessionUser(
+  user: {
+    id: string;
+    email?: string | null;
+    user_metadata?: Record<string, unknown> | null;
+  },
+  profile?: ProfileIdentity | null,
+): SessionUser {
   const metadata = user.user_metadata ?? {};
-  const fullName =
-    typeof metadata.full_name === "string" && metadata.full_name.trim().length
-      ? metadata.full_name
-      : (user.email ?? "");
-  const rawAvatar = typeof metadata.avatar_url === "string" ? metadata.avatar_url : null;
+  const fullName = trimmed(profile?.full_name) || trimmed(metadata.full_name) || (user.email ?? "");
+
+  const rawAvatar = trimmed(profile?.avatar_url) || trimmed(metadata.avatar_url);
   const avatarUrl = rawAvatar && isAllowedAvatarUrl(rawAvatar) ? rawAvatar : null;
 
   return {
