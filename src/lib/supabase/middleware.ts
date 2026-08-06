@@ -7,7 +7,25 @@ import { type NextRequest, NextResponse } from "next/server";
  * Chamado pelo `src/middleware.ts`. Sem isto, a sessão expira no meio do uso
  * e Server Components começam a ver o usuário como deslogado.
  */
+/**
+ * Atendimento público: a página do chat e sua API. Não têm sessão para renovar
+ * nem usuário para proteger — a conversa é identificada por um cookie httpOnly
+ * próprio, e as tabelas do chat têm RLS fechada para `anon`.
+ */
+function isChatRoute(pathname: string): boolean {
+  return pathname === "/chat" || pathname.startsWith("/chat/") || pathname === "/api/chat";
+}
+
 export async function updateSession(request: NextRequest) {
+  // O atendimento público sai ANTES de tocar no Supabase: criar um cliente e
+  // chamar `getUser()` a cada mensagem do chat seria trabalho jogado fora no
+  // caminho mais quente do sistema — e acopla o canal público à camada de auth.
+  // `/login` e `/auth` continuam passando pelo fluxo abaixo porque precisam da
+  // sessão para redirecionar quem já está logado.
+  if (isChatRoute(request.nextUrl.pathname)) {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -56,6 +74,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl;
+  // O chat já saiu lá em cima; aqui restam as rotas de autenticação.
   const isPublicRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
 
   // Não logado tentando acessar rota protegida → manda para o login.
