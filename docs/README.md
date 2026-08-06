@@ -13,10 +13,11 @@ gerais) e pelo [SETUP.md](../SETUP.md) (como rodar).
 | Entender a arquitetura               | [ARCHITECTURE.md](./ARCHITECTURE.md)                     |
 | Criar um módulo novo (passo a passo) | [HOW-TO-CREATE-A-MODULE.md](./HOW-TO-CREATE-A-MODULE.md) |
 | Entender leitura vs escrita          | [SERVICE-ACTION-PATTERN.md](./SERVICE-ACTION-PATTERN.md) |
+| Mexer no chat / criar um fluxo novo  | [CHAT.md](./CHAT.md)                                     |
 | Mexer no banco (tabelas, RLS)        | [SUPABASE.md](./SUPABASE.md)                             |
 | Saber as convenções de código        | [CONVENTIONS.md](./CONVENTIONS.md)                       |
 | Escrever testes                      | [TESTING.md](./TESTING.md)                               |
-| Ver o roadmap dos 13 módulos         | [ROADMAP.md](./ROADMAP.md)                               |
+| Ver o roadmap da plataforma          | [ROADMAP.md](./ROADMAP.md)                               |
 
 ## Skills (use no Claude Code com `/`)
 
