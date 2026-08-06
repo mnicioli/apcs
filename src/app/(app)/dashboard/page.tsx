@@ -17,8 +17,8 @@ export default async function DashboardPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Olá, {firstName} 👋</h1>
         <p className="text-muted-foreground mt-1">
-          Este é o ponto de partida do FAST Operation Cockpit. Os módulos abaixo são o roadmap do
-          produto — implemente um de cada vez seguindo o padrão de referência.
+          Este é o backoffice da Plataforma de Atendimento Inteligente da APCS. Os módulos abaixo
+          são o roadmap do produto — implemente um de cada vez seguindo o padrão de referência.
         </p>
       </div>
 

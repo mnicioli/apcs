@@ -1,19 +1,17 @@
 import {
-  Boxes,
+  BookOpen,
   Brain,
-  Building2,
-  CalendarRange,
-  Cloud,
-  DollarSign,
-  FolderKanban,
-  Gauge,
-  HeartPulse,
+  Contact,
+  FileText,
+  Inbox,
   LayoutDashboard,
   LineChart,
+  ListOrdered,
+  MessagesSquare,
   Settings,
-  TrendingUp,
+  Ticket,
+  Timer,
   Users,
-  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/rbac/rbac.types";
@@ -39,10 +37,10 @@ export interface NavSection {
 }
 
 /**
- * Navegação principal. Os 13 módulos do escopo (ver docs/ROADMAP.md) já
- * aparecem aqui como roadmap (`available: false`). Conforme cada módulo for
- * construído, marque `available: true` — a navegação é a fonte da verdade da
- * estrutura do produto.
+ * Navegação principal. Espelha o roadmap da Plataforma de Atendimento
+ * Inteligente APCS (ver docs/ROADMAP.md). Conforme cada módulo for construído,
+ * marque `available: true` — a navegação é a fonte da verdade da estrutura do
+ * produto.
  */
 export const NAV_SECTIONS: NavSection[] = [
   {
@@ -50,67 +48,48 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [{ title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, available: true }],
   },
   {
-    title: "Operação",
+    title: "Atendimento",
     items: [
       {
-        title: "Clientes",
-        href: "/clients",
-        icon: Building2,
-        permission: "clients.read",
+        title: "Leads do CSP",
+        href: "/leads",
+        icon: Contact,
+        permission: "leads.read",
+        available: true,
+      },
+      {
+        title: "Central de Atendimento",
+        href: "/attendances",
+        icon: Inbox,
+        permission: "leads.read",
         available: false,
       },
       {
-        title: "Projetos",
-        href: "/projects",
-        icon: FolderKanban,
-        permission: "projects.read",
+        title: "Conversas",
+        href: "/conversations",
+        icon: MessagesSquare,
+        permission: "leads.read",
         available: false,
       },
       {
-        title: "Recursos",
-        href: "/resources",
-        icon: UsersRound,
-        permission: "resources.read",
+        title: "Tickets",
+        href: "/tickets",
+        icon: Ticket,
+        permission: "leads.read",
         available: false,
       },
       {
-        title: "Alocação",
-        href: "/allocation",
-        icon: CalendarRange,
-        permission: "allocation.read",
+        title: "Filas",
+        href: "/queues",
+        icon: ListOrdered,
+        permission: "leads.write",
         available: false,
       },
       {
-        title: "Infraestrutura",
-        href: "/infrastructure",
-        icon: Cloud,
-        permission: "infrastructure.read",
-        available: false,
-      },
-    ],
-  },
-  {
-    title: "Financeiro",
-    items: [
-      {
-        title: "Financeiro",
-        href: "/finance",
-        icon: DollarSign,
-        permission: "finance.read",
-        available: false,
-      },
-      {
-        title: "Rentabilidade",
-        href: "/profitability",
-        icon: TrendingUp,
-        permission: "finance.read",
-        available: false,
-      },
-      {
-        title: "Forecast",
-        href: "/forecast",
-        icon: LineChart,
-        permission: "finance.read",
+        title: "SLA",
+        href: "/sla",
+        icon: Timer,
+        permission: "leads.write",
         available: false,
       },
     ],
@@ -119,30 +98,30 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Inteligência",
     items: [
       {
-        title: "Health Score",
-        href: "/health-score",
-        icon: HeartPulse,
+        title: "Base de Conhecimento",
+        href: "/knowledge",
+        icon: BookOpen,
         permission: "analytics.read",
         available: false,
       },
       {
-        title: "Capacity Planning",
-        href: "/capacity",
-        icon: Gauge,
-        permission: "analytics.read",
-        available: false,
-      },
-      {
-        title: "Simulador Comercial",
-        href: "/simulator",
-        icon: Boxes,
-        permission: "analytics.read",
-        available: false,
-      },
-      {
-        title: "IA Consultiva",
-        href: "/ai-assistant",
+        title: "Prompts",
+        href: "/ai/prompts",
         icon: Brain,
+        permission: "analytics.read",
+        available: false,
+      },
+      {
+        title: "Analytics",
+        href: "/analytics",
+        icon: LineChart,
+        permission: "analytics.read",
+        available: false,
+      },
+      {
+        title: "Relatórios",
+        href: "/reports",
+        icon: FileText,
         permission: "analytics.read",
         available: false,
       },
