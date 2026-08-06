@@ -33,6 +33,9 @@ export const ROLE_LABELS: Record<Role, string> = {
  * Os domínios seguem os módulos do produto (ver docs/ROADMAP.md).
  */
 export type Permission =
+  // Atendimento (chat + leads dos fluxos)
+  | "leads.read"
+  | "leads.write"
   | "clients.read"
   | "clients.write"
   | "projects.read"

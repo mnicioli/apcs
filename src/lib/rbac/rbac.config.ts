@@ -11,6 +11,11 @@ import type { Permission, Role } from "./rbac.types";
  * empresa. Ao mudar aqui, lembre de refletir nas policies RLS das tabelas.
  */
 export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
+  // Atendimento — leads gerados pelos fluxos do chat (ver docs/ROADMAP.md).
+  // Deve bater com as policies de `csp_leads` na migration do chat.
+  "leads.read": ["admin", "ceo", "comercial"],
+  "leads.write": ["admin", "comercial"],
+
   // Módulo 01 — Clientes
   "clients.read": ["admin", "ceo", "comercial", "pm"],
   "clients.write": ["admin", "comercial"],
