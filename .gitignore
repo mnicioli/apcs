@@ -38,5 +38,12 @@ pnpm-debug.log*
 # vercel
 .vercel
 
+# skills instaladas por conta própria (ferramenta pessoal, não do time).
+# As skills do projeto — new-feature, new-migration, pre-pr, review... — são
+# versionadas e continuam entrando normalmente; a exclusão é só desta, cuja
+# orientação (tipografia e paleta próprias por tela) contraria o design system
+# fechado descrito no CLAUDE.md.
+/.claude/skills/frontend-design/
+
 # typescript build info
 *.tsbuildinfo
