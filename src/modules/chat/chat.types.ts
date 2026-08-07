@@ -117,6 +117,18 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+/**
+ * Contagem de leads por status, para o painel de abertura.
+ *
+ * `byStatus` cobre TODOS os status do enum, inclusive os zerados: um painel que
+ * esconde a linha quando o valor é zero faz a pessoa duvidar se o dado sumiu ou
+ * se não existe.
+ */
+export interface CspLeadsSummary {
+  total: number;
+  byStatus: Record<LeadStatus, number>;
+}
+
 /** Lead do CSP, como exibido no backoffice. */
 export interface CspLead {
   id: string;
