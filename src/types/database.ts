@@ -77,6 +77,8 @@ export type Database = {
       };
       chat_conversations: {
         Row: {
+          assigned_at: string | null;
+          assigned_to: string | null;
           collected: Json;
           consent_given_at: string | null;
           consent_policy_version: string | null;
@@ -84,14 +86,18 @@ export type Database = {
           created_at: string;
           flow_key: Database["public"]["Enums"]["chat_flow_key"];
           id: string;
+          internal_notes: string | null;
           ip_hash: string | null;
           last_message_at: string;
+          resolved_at: string | null;
           session_token_hash: string;
           status: Database["public"]["Enums"]["chat_conversation_status"];
           updated_at: string;
           user_agent: string | null;
         };
         Insert: {
+          assigned_at?: string | null;
+          assigned_to?: string | null;
           collected?: Json;
           consent_given_at?: string | null;
           consent_policy_version?: string | null;
@@ -99,14 +105,18 @@ export type Database = {
           created_at?: string;
           flow_key?: Database["public"]["Enums"]["chat_flow_key"];
           id?: string;
+          internal_notes?: string | null;
           ip_hash?: string | null;
           last_message_at?: string;
+          resolved_at?: string | null;
           session_token_hash: string;
           status?: Database["public"]["Enums"]["chat_conversation_status"];
           updated_at?: string;
           user_agent?: string | null;
         };
         Update: {
+          assigned_at?: string | null;
+          assigned_to?: string | null;
           collected?: Json;
           consent_given_at?: string | null;
           consent_policy_version?: string | null;
@@ -114,14 +124,23 @@ export type Database = {
           created_at?: string;
           flow_key?: Database["public"]["Enums"]["chat_flow_key"];
           id?: string;
+          internal_notes?: string | null;
           ip_hash?: string | null;
           last_message_at?: string;
+          resolved_at?: string | null;
           session_token_hash?: string;
           status?: Database["public"]["Enums"]["chat_conversation_status"];
           updated_at?: string;
           user_agent?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "chat_conversations_assigned_to_fkey";
+            columns: ["assigned_to"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "chat_conversations_contact_id_fkey";
             columns: ["contact_id"];

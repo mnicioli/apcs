@@ -36,6 +36,8 @@ export type Permission =
   // Atendimento (chat + leads dos fluxos)
   | "leads.read"
   | "leads.write"
+  | "attendances.read"
+  | "attendances.write"
   | "clients.read"
   | "clients.write"
   | "projects.read"

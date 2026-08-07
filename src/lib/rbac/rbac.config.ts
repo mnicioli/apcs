@@ -16,6 +16,13 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "leads.read": ["admin", "ceo", "comercial"],
   "leads.write": ["admin", "comercial"],
 
+  // Central de Atendimento — a fila de conversas que precisam de uma pessoa.
+  // Chave própria (e não `leads.*`) porque os dois vão divergir: o operador de
+  // atendimento precisa da fila sem necessariamente ver a carteira comercial.
+  // Deve bater com as policies de `chat_conversations` na migration do módulo.
+  "attendances.read": ["admin", "ceo", "comercial"],
+  "attendances.write": ["admin", "comercial"],
+
   // Módulo 01 — Clientes
   "clients.read": ["admin", "ceo", "comercial", "pm"],
   "clients.write": ["admin", "comercial"],

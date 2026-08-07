@@ -4,7 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
-import { getConversationMessages, getCspLead } from "@/lib/services/leads";
+import { getConversationMessages } from "@/lib/services/conversations";
+import { getCspLead } from "@/lib/services/leads";
 import { formatDateTime } from "@/lib/utils";
 import {
   CONTACT_CHANNEL_LABELS,

@@ -37,6 +37,22 @@ export const CSP_SLOT_KEYS = [
 
 export type CspSlotKey = (typeof CSP_SLOT_KEYS)[number];
 
+/**
+ * Nome de cada campo para o backoffice — é assim que a Central de Atendimento
+ * diz "a triagem parou em Porte da granja". Não são as perguntas do bot (essas
+ * vivem no catálogo aprovado), são rótulos de tela.
+ */
+export const CSP_SLOT_LABELS: Record<CspSlotKey, string> = {
+  fullName: "Nome",
+  location: "Cidade e estado",
+  contactProfile: "Perfil",
+  interest: "Interesse",
+  volumeRange: "Porte da granja",
+  contactChannel: "Canal de contato",
+  contactValue: "Telefone ou e-mail",
+  preferredTime: "Melhor horário",
+};
+
 export interface CspSlot {
   key: CspSlotKey;
   /** Pergunta aprovada usada para preencher este campo. */

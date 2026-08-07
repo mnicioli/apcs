@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatRelativeDate } from "@/lib/utils";
+import { formatDateTime, formatRelativeDate, formatRelativeTime } from "@/lib/utils";
 
 // Todas as datas abaixo estão em UTC. São Paulo é UTC-3, então 03:00Z é
 // meia-noite daqui — é nessa faixa que os erros de fuso aparecem.
@@ -43,6 +43,39 @@ describe("formatRelativeDate", () => {
 
   it("devolve travessão para data inválida", () => {
     expect(formatRelativeDate("nao é uma data", agora)).toBe("—");
+  });
+});
+
+describe("formatRelativeTime", () => {
+  const agora = new Date("2026-08-07T14:00:00Z"); // 11h de 07/08 em São Paulo
+
+  it("chama de 'agora' o que acabou de acontecer", () => {
+    expect(formatRelativeTime("2026-08-07T13:59:30Z", agora)).toBe("agora");
+  });
+
+  it("conta os minutos dentro da primeira hora", () => {
+    expect(formatRelativeTime("2026-08-07T13:48:00Z", agora)).toBe("há 12 min");
+    expect(formatRelativeTime("2026-08-07T13:01:00Z", agora)).toBe("há 59 min");
+  });
+
+  it("vira hora ao completar sessenta minutos", () => {
+    expect(formatRelativeTime("2026-08-07T13:00:00Z", agora)).toBe("há 1 h");
+    expect(formatRelativeTime("2026-08-07T05:00:00Z", agora)).toBe("há 9 h");
+  });
+
+  // Passado um dia a precisão de relógio não ajuda mais a priorizar nada.
+  it("passa a bola para a data relativa depois de um dia", () => {
+    expect(formatRelativeTime("2026-08-06T10:00:00Z", agora)).toBe("ontem");
+    expect(formatRelativeTime("2026-07-26T12:00:00Z", agora)).toBe("26/07/2026");
+  });
+
+  // Relógio do servidor adiantado não pode produzir "há -3 min" na tela.
+  it("trata data no futuro como agora", () => {
+    expect(formatRelativeTime("2026-08-07T15:00:00Z", agora)).toBe("agora");
+  });
+
+  it("devolve travessão para data inválida", () => {
+    expect(formatRelativeTime("nao é uma data", agora)).toBe("—");
   });
 });
 

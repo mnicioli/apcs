@@ -2,7 +2,6 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import {
   LEAD_STATUSES,
-  type ChatMessage,
   type CspLead,
   type CspLeadsSummary,
   type LeadStatus,
@@ -132,39 +131,4 @@ export async function getCspLead(id: string): Promise<CspLead | null> {
     throw error;
   }
   return data ? toLead(data) : null;
-}
-
-/** Transcrição da conversa que gerou o lead. */
-export async function getConversationMessages(conversationId: string): Promise<ChatMessage[]> {
-  const supabase = await createClient();
-
-  // Ordena por `seq`: as mensagens que o bot grava num mesmo insert dividem o
-  // `created_at` (timestamp da transação) e sairiam fora de ordem.
-  const { data, error } = await supabase
-    .from("chat_messages")
-    .select("id, role, content, content_key, created_at")
-    .eq("conversation_id", conversationId)
-    .order("seq", { ascending: true })
-    .returns<
-      {
-        id: string;
-        role: ChatMessage["role"];
-        content: string;
-        content_key: string | null;
-        created_at: string;
-      }[]
-    >();
-
-  if (error) {
-    console.error(`[leads] getConversationMessages falhou: ${error.message}`);
-    throw error;
-  }
-
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    role: row.role,
-    content: row.content,
-    contentKey: row.content_key,
-    createdAt: row.created_at,
-  }));
 }

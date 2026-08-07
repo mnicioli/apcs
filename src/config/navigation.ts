@@ -61,8 +61,8 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Central de Atendimento",
         href: "/attendances",
         icon: Inbox,
-        permission: "leads.read",
-        available: false,
+        permission: "attendances.read",
+        available: true,
       },
       {
         title: "Conversas",

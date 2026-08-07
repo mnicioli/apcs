@@ -2,6 +2,7 @@ import type {
   ChatContactChannel,
   ChatContactProfile,
   ChatContactTime,
+  ChatConversationStatus,
   CspInterest,
   CspVolumeRange,
   LeadStatus,
@@ -46,6 +47,18 @@ export const CONTACT_TIME_LABELS: Record<ChatContactTime, string> = {
   afternoon: "Tarde",
   evening: "Fim do dia",
   any: "Qualquer horário",
+};
+
+/**
+ * O que o BOT fez com a conversa. Descreve o desfecho da triagem, não o
+ * atendimento humano — esse é derivado e vive em `src/modules/attendance/`.
+ */
+export const CONVERSATION_STATUS_LABELS: Record<ChatConversationStatus, string> = {
+  active: "Em andamento",
+  completed: "Triagem concluída",
+  handoff: "Encaminhada ao time",
+  declined: "Consentimento recusado",
+  abandoned: "Encerrada pelo limite",
 };
 
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {

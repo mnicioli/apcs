@@ -69,3 +69,29 @@ export function formatRelativeDate(isoDate: string, now: Date = new Date()): str
   if (days < 7) return `${days} dias`;
   return dateFormatter.format(date);
 }
+
+/**
+ * Mesma ideia, com resolução de relógio: "agora", "há 12 min", "há 3 h".
+ *
+ * Existe por causa da fila da Central de Atendimento. Ali "hoje" não ajuda
+ * ninguém a decidir o que fazer primeiro — a diferença entre alguém que pediu
+ * atendimento há dez minutos e alguém que pediu de manhã é o dia inteiro do
+ * operador. Passado um dia, a precisão deixa de importar e cai em
+ * `formatRelativeDate`.
+ */
+export function formatRelativeTime(isoDate: string, now: Date = new Date()): string {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  const minutes = Math.floor((now.getTime() - date.getTime()) / 60_000);
+
+  // Negativo = data no futuro (relógio do servidor fora de sincronia). "agora"
+  // é a leitura honesta; "há -3 min" seria só um bug exposto na tela.
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `há ${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `há ${hours} h`;
+
+  return formatRelativeDate(isoDate, now);
+}
