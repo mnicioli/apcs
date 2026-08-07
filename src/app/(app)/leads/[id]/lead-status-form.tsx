@@ -90,7 +90,7 @@ export function LeadStatusForm({
         <p
           role="status"
           className={
-            feedback.type === "success" ? "text-primary text-sm" : "text-destructive text-sm"
+            feedback.type === "success" ? "text-primary-strong text-sm" : "text-destructive text-sm"
           }
         >
           {feedback.text}

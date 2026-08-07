@@ -4,68 +4,92 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design tokens do FAST Operation Cockpit.
- * Edite as cores aqui (NÃO use cores fixas como `bg-blue-500` nos componentes —
+ * Design tokens da APCS.
+ *
+ * Edite as cores AQUI (NÃO use cores fixas como `bg-blue-500` nos componentes —
  * use sempre os tokens semânticos: bg-background, text-foreground, bg-primary...).
+ *
+ * Base da marca:
+ *   Porcelain    #FFFCF4  — fundo
+ *   Neon Orange  #FF6115  — cor da aplicação
+ *
+ * Os neutros são QUENTES de propósito. Cinza-azulado (slate) sobre um fundo
+ * creme fica sujo: as duas temperaturas brigam e o resultado parece papel
+ * velho em vez de escolha. Cada neutro abaixo mantém a mesma relação de
+ * luminosidade da escala anterior, só deslocada para o quente.
  */
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
+  --background: #fffcf4; /* Porcelain */
+  --foreground: #1f1a17; /* carvão quente — 16,8:1 sobre o fundo */
 
+  /* Branco puro sobre a porcelana: a diferença sutil de temperatura é o que
+     eleva o cartão da página, sem precisar de sombra pesada. */
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #1f1a17;
 
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
+  --popover-foreground: #1f1a17;
 
-  --primary: #2563eb;
-  --primary-foreground: #ffffff;
+  /* PREENCHIMENTO (botão, item ativo, balão do chat). O par com carvão dá
+     5,7:1; com branco daria 3,0:1, que reprova no AA para texto normal. */
+  --primary: #ff6115; /* Neon Orange */
+  --primary-foreground: #1f1a17;
 
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
+  /* TEXTO da marca sobre fundo claro (links, feedback). O Neon Orange puro dá
+     2,9:1 sobre a porcelana — bonito e ilegível. Esta variante dá 5,2:1 e é a
+     mesma cor percebida, só resolvida para o contexto em que vira texto. */
+  --primary-strong: #c2410c;
 
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  --secondary: #f6f1e6;
+  --secondary-foreground: #1f1a17;
 
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
+  --muted: #f6f1e6;
+  --muted-foreground: #7a6e63; /* 4,8:1 sobre o fundo */
 
-  --destructive: #dc2626;
+  --accent: #fff0e6; /* laranja lavado, para hover */
+  --accent-foreground: #1f1a17;
+
+  /* Vermelho deslocado para o frio para não ser confundido com o laranja da
+     marca: "excluir" e "salvar" não podem parecer a mesma cor. */
+  --destructive: #c81e1e;
   --destructive-foreground: #ffffff;
 
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #2563eb;
+  --border: #eae3d5;
+  --input: #eae3d5;
+  --ring: #ff6115;
 }
 
 .dark {
-  --background: #0b1220;
-  --foreground: #e2e8f0;
+  --background: #17130f;
+  --foreground: #f2ece1;
 
-  --card: #111a2b;
-  --card-foreground: #e2e8f0;
+  --card: #211b15;
+  --card-foreground: #f2ece1;
 
-  --popover: #111a2b;
-  --popover-foreground: #e2e8f0;
+  --popover: #211b15;
+  --popover-foreground: #f2ece1;
 
-  --primary: #3b82f6;
-  --primary-foreground: #0b1220;
+  /* No escuro o laranja clareia: #FF6115 sobre fundo quase preto fica pesado,
+     e o par inverte — o carvão volta a ser o texto legível em cima dele. */
+  --primary: #ff7a3d;
+  --primary-foreground: #17130f;
+  --primary-strong: #ff9a66; /* aqui o texto precisa ser CLARO, não escuro */
 
-  --secondary: #1e293b;
-  --secondary-foreground: #e2e8f0;
+  --secondary: #2c241c;
+  --secondary-foreground: #f2ece1;
 
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
+  --muted: #2c241c;
+  --muted-foreground: #a99c8c;
 
-  --accent: #1e293b;
-  --accent-foreground: #e2e8f0;
+  --accent: #2c241c;
+  --accent-foreground: #f2ece1;
 
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
+  --destructive: #f05252;
+  --destructive-foreground: #17130f;
 
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #3b82f6;
+  --border: #2c241c;
+  --input: #2c241c;
+  --ring: #ff7a3d;
 }
 
 /* Mapeia os tokens para utilitários do Tailwind (bg-background, text-primary, ...). */
@@ -78,6 +102,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-strong: var(--primary-strong);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);

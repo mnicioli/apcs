@@ -79,7 +79,10 @@ export default async function LeadsPage() {
                       className="border-border hover:bg-muted/50 border-b last:border-0"
                     >
                       <td className="px-4 py-3">
-                        <Link href={`/leads/${lead.id}`} className="text-primary hover:underline">
+                        <Link
+                          href={`/leads/${lead.id}`}
+                          className="text-primary-strong hover:underline"
+                        >
                           {lead.fullName}
                         </Link>
                       </td>
