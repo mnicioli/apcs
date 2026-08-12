@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition, type DragEvent } from "react";
+import { useId, useRef, useState, useTransition, type DragEvent } from "react";
 import { FileUp, Upload } from "lucide-react";
 import { createDocumentVersionAction, requestDocumentUploadAction } from "@/lib/actions/documents";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
@@ -49,6 +49,9 @@ export function UploadVersionDialog({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  // A grid monta um destes por linha: um id fixo faria todos os `<Label>` da
+  // página apontarem para o campo de data da primeira normativa.
+  const dateId = useId();
 
   function reset() {
     setStep("pick");
@@ -218,9 +221,9 @@ export function UploadVersionDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="effective-date">Data de vigência</Label>
+              <Label htmlFor={dateId}>Data de vigência</Label>
               <Input
-                id="effective-date"
+                id={dateId}
                 type="date"
                 value={effectiveDate}
                 onChange={(event) => setEffectiveDate(event.target.value)}

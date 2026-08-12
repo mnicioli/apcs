@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
@@ -26,6 +26,10 @@ export function NewDocumentDialog() {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // A grid renderiza este botão no cabeçalho E no estado vazio — as duas
+  // instâncias coexistem quando não há normativa cadastrada.
+  const nameId = useId();
+  const descriptionId = useId();
 
   const {
     register,
@@ -78,9 +82,9 @@ export function NewDocumentDialog() {
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="document-name">Nome</Label>
+            <Label htmlFor={nameId}>Nome</Label>
             <Input
-              id="document-name"
+              id={nameId}
               aria-invalid={!!errors.name}
               placeholder="Ex.: Câmara Ambiental"
               {...register("name")}
@@ -93,9 +97,9 @@ export function NewDocumentDialog() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="document-description">Descrição (opcional)</Label>
+            <Label htmlFor={descriptionId}>Descrição (opcional)</Label>
             <Textarea
-              id="document-description"
+              id={descriptionId}
               rows={3}
               aria-invalid={!!errors.description}
               placeholder="Do que trata esta normativa."

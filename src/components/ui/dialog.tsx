@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, type MouseEvent, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,10 @@ export function Dialog({
   className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Cada linha da grid monta os seus próprios diálogos, então um id fixo se
+  // repetiria pela página inteira e o `aria-labelledby` de todos apontaria para
+  // o título do primeiro — o leitor de tela anunciaria a normativa errada.
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -75,7 +79,7 @@ export function Dialog({
     <dialog
       ref={ref}
       onClick={handleBackdropClick}
-      aria-labelledby="dialog-title"
+      aria-labelledby={titleId}
       className={cn(
         "bg-card text-foreground m-auto w-[min(92vw,32rem)] rounded-lg p-0 shadow-lg",
         "backdrop:bg-foreground/40",
@@ -85,7 +89,7 @@ export function Dialog({
       <div className="flex max-h-[85vh] flex-col">
         <div className="border-border flex items-start justify-between gap-4 border-b px-6 py-4">
           <div className="space-y-1">
-            <h2 id="dialog-title" className="text-base font-semibold tracking-tight">
+            <h2 id={titleId} className="text-base font-semibold tracking-tight">
               {title}
             </h2>
             {description && <div className="text-muted-foreground text-sm">{description}</div>}
