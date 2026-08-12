@@ -24,7 +24,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { DocumentsFilters } from "./documents-filters";
+import { NewDocumentDialog } from "./new-document-dialog";
+import { UploadVersionDialog } from "./upload-version-dialog";
 import { VersionAccess } from "./version-access";
+import { VersionStatusActions } from "./version-status-actions";
 
 export const metadata: Metadata = { title: "Normativas" };
 
@@ -56,27 +59,32 @@ export default async function NormativesPage({
   };
 
   const documents = await listDocuments("normative", filters);
+  const canWrite = hasPermission(role, "documents.write");
   const isFiltered = filters.query.trim() !== "" || filters.status !== "all";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Normativas</h1>
-        <p className="text-muted-foreground text-sm">
-          Os documentos oficiais da APCS. A versão ativa é a que o chatbot pode citar.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Normativas</h1>
+          <p className="text-muted-foreground text-sm">
+            Os documentos oficiais da APCS. A versão ativa é a que o chatbot pode citar.
+          </p>
+        </div>
+        {canWrite && <NewDocumentDialog />}
       </div>
 
       <DocumentsFilters query={filters.query} status={filters.status} />
 
       {documents.length === 0 ? (
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="space-y-4 p-6">
             <p className="text-muted-foreground text-sm">
               {isFiltered
                 ? "Nenhuma normativa encontrada para os filtros selecionados."
                 : "Nenhuma normativa cadastrada."}
             </p>
+            {canWrite && !isFiltered && <NewDocumentDialog />}
           </CardContent>
         </Card>
       ) : (
@@ -112,7 +120,7 @@ export default async function NormativesPage({
                 </thead>
                 <tbody>
                   {documents.map((document) => (
-                    <DocumentRow key={document.id} document={document} />
+                    <DocumentRow key={document.id} document={document} canWrite={canWrite} />
                   ))}
                 </tbody>
               </table>
@@ -124,8 +132,13 @@ export default async function NormativesPage({
   );
 }
 
-function DocumentRow({ document }: { document: DocumentSummary }) {
+function DocumentRow({ document, canWrite }: { document: DocumentSummary; canWrite: boolean }) {
   const version = document.currentVersion;
+  // A versão ATIVA, que pode ser diferente da exibida: quando nenhuma está
+  // ativa, a grid mostra a mais recente. É este número que aparece nos avisos
+  // de substituição — dizer "a v3 será inativada" quando ela já está inativa
+  // seria informação errada na hora da decisão.
+  const activeVersion = document.status === "active" ? (version?.version ?? null) : null;
 
   return (
     <tr className="border-border hover:bg-muted/50 border-b align-middle last:border-0">
@@ -165,13 +178,29 @@ function DocumentRow({ document }: { document: DocumentSummary }) {
           </td>
           <td className="px-4 py-3">{chatbotAvailabilityLabel(version.availableForChatbot)}</td>
           <td className="px-4 py-3">
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               <VersionAccess
                 versionId={version.id}
                 version={version.version}
                 documentName={document.name}
                 originalFilename={version.originalFilename}
               />
+              {canWrite && (
+                <>
+                  <VersionStatusActions
+                    versionId={version.id}
+                    version={version.version}
+                    status={version.status}
+                    activeVersion={activeVersion}
+                  />
+                  <UploadVersionDialog
+                    documentId={document.id}
+                    documentName={document.name}
+                    currentVersion={activeVersion}
+                    trigger="menu"
+                  />
+                </>
+              )}
               <HistoryLink documentId={document.id} />
             </div>
           </td>
@@ -186,7 +215,17 @@ function DocumentRow({ document }: { document: DocumentSummary }) {
           </td>
           <td className="px-4 py-3">{chatbotAvailabilityLabel(false)}</td>
           <td className="px-4 py-3">
-            <HistoryLink documentId={document.id} />
+            <div className="flex flex-wrap items-center gap-1">
+              {canWrite && (
+                <UploadVersionDialog
+                  documentId={document.id}
+                  documentName={document.name}
+                  currentVersion={null}
+                  trigger="menu"
+                />
+              )}
+              <HistoryLink documentId={document.id} />
+            </div>
           </td>
         </>
       )}

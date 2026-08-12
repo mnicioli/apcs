@@ -18,7 +18,9 @@ import {
 import type { DocumentVersion } from "@/modules/document/document.types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { UploadVersionDialog } from "../upload-version-dialog";
 import { VersionAccess } from "../version-access";
+import { VersionStatusActions } from "../version-status-actions";
 
 export const metadata: Metadata = { title: "Histórico da normativa" };
 
@@ -45,6 +47,9 @@ export default async function NormativeHistoryPage({
   const document = await getDocument(id);
   if (!document) notFound();
 
+  const canWrite = hasPermission(role, "documents.write");
+  const activeVersion = document.versions.find((version) => version.status === "active") ?? null;
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -56,7 +61,16 @@ export default async function NormativeHistoryPage({
           Voltar para as normativas
         </Link>
 
-        <h1 className="text-2xl font-semibold tracking-tight">{document.name}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <h1 className="text-2xl font-semibold tracking-tight">{document.name}</h1>
+          {canWrite && (
+            <UploadVersionDialog
+              documentId={document.id}
+              documentName={document.name}
+              currentVersion={activeVersion?.version ?? null}
+            />
+          )}
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={document.status === "active" ? "attention" : "done"}>
@@ -128,7 +142,13 @@ export default async function NormativeHistoryPage({
                 </thead>
                 <tbody>
                   {document.versions.map((version) => (
-                    <VersionRow key={version.id} version={version} documentName={document.name} />
+                    <VersionRow
+                      key={version.id}
+                      version={version}
+                      documentName={document.name}
+                      canWrite={canWrite}
+                      activeVersion={activeVersion?.version ?? null}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -140,7 +160,17 @@ export default async function NormativeHistoryPage({
   );
 }
 
-function VersionRow({ version, documentName }: { version: DocumentVersion; documentName: string }) {
+function VersionRow({
+  version,
+  documentName,
+  canWrite,
+  activeVersion,
+}: {
+  version: DocumentVersion;
+  documentName: string;
+  canWrite: boolean;
+  activeVersion: number | null;
+}) {
   return (
     <tr className="border-border hover:bg-muted/50 border-b align-middle last:border-0">
       <td className="px-4 py-3 font-medium whitespace-nowrap tabular-nums">
@@ -166,12 +196,22 @@ function VersionRow({ version, documentName }: { version: DocumentVersion; docum
         {version.uploadedBy?.fullName ?? "—"}
       </td>
       <td className="px-4 py-3">
-        <VersionAccess
-          versionId={version.id}
-          version={version.version}
-          documentName={documentName}
-          originalFilename={version.originalFilename}
-        />
+        <div className="flex flex-wrap items-center gap-1">
+          <VersionAccess
+            versionId={version.id}
+            version={version.version}
+            documentName={documentName}
+            originalFilename={version.originalFilename}
+          />
+          {canWrite && (
+            <VersionStatusActions
+              versionId={version.id}
+              version={version.version}
+              status={version.status}
+              activeVersion={activeVersion}
+            />
+          )}
+        </div>
       </td>
     </tr>
   );
