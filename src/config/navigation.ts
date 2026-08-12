@@ -8,6 +8,7 @@ import {
   LineChart,
   ListOrdered,
   MessagesSquare,
+  ScrollText,
   Settings,
   Ticket,
   Timer,
@@ -91,6 +92,18 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Timer,
         permission: "leads.write",
         available: false,
+      },
+    ],
+  },
+  {
+    title: "Documentos",
+    items: [
+      {
+        title: "Normativas",
+        href: "/documents/normatives",
+        icon: ScrollText,
+        permission: "documents.read",
+        available: true,
       },
     ],
   },
