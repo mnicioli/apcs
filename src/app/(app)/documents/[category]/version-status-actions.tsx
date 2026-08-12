@@ -14,8 +14,8 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
  * Ativar/reativar e inativar uma versão, sempre com confirmação.
  *
  * A confirmação nomeia as DUAS versões envolvidas — a que entra e a que sai —
- * porque a consequência real não é "esta versão fica ativa", é "a normativa que
- * o chatbot cita passa a ser outra". Quem clica precisa reconhecer a versão que
+ * porque a consequência real não é "esta versão fica ativa", é "o arquivo que o
+ * chatbot usa passa a ser outro". Quem clica precisa reconhecer a versão que
  * está saindo do ar para saber se é isso mesmo que quer (item 23 do escopo).
  */
 export function VersionStatusActions({
@@ -27,7 +27,7 @@ export function VersionStatusActions({
   versionId: string;
   version: number;
   status: DocumentVersionStatus;
-  /** A versão ativa hoje na normativa, ou `null` se nenhuma estiver. */
+  /** A versão ativa hoje no documento, ou `null` se nenhuma estiver. */
   activeVersion: number | null;
 }) {
   const [command, setCommand] = useState<VersionCommand | null>(null);
@@ -83,9 +83,9 @@ export function VersionStatusActions({
           <p className="text-sm">
             {command === "deactivate" ? (
               <>
-                A versão <strong>{versionLabel(version)}</strong> sairá do ar. A normativa ficará
+                A versão <strong>{versionLabel(version)}</strong> sairá do ar. O documento ficará
                 sem versão ativa, e o chatbot passará a encaminhar essas perguntas para uma pessoa
-                em vez de citar um documento antigo.
+                em vez de usar um arquivo antigo.
               </>
             ) : activeVersion === null ? (
               <>

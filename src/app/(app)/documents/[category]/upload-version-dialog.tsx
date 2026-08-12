@@ -89,7 +89,7 @@ export function UploadVersionDialog({
 
   function goToConfirm() {
     if (!file) {
-      setError("Selecione o arquivo PDF da normativa.");
+      setError("Selecione o arquivo PDF do documento.");
       return;
     }
     if (!effectiveDateSchema.safeParse(effectiveDate).success) {

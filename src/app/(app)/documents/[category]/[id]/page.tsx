@@ -124,7 +124,7 @@ export default async function DocumentHistoryPage({
         <CardContent className="p-0">
           {document.versions.length === 0 ? (
             <p className="text-muted-foreground px-6 pb-6 text-sm">
-              Nenhum arquivo foi enviado para esta normativa ainda.
+              Nenhum arquivo foi enviado para esta {categoryLabel} ainda.
             </p>
           ) : (
             <div className="overflow-x-auto">

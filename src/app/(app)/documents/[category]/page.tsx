@@ -95,7 +95,11 @@ export default async function DocumentsCategoryPage({
         {canWrite && <NewDocumentDialog category={category} />}
       </div>
 
-      <DocumentsFilters query={filters.query} status={filters.status} />
+      <DocumentsFilters
+        query={filters.query}
+        status={filters.status}
+        searchPlaceholder={copy.searchPlaceholder}
+      />
 
       {documents.length === 0 ? (
         <Card>

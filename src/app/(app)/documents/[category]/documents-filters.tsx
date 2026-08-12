@@ -25,9 +25,11 @@ const DEBOUNCE_MS = 300;
 export function DocumentsFilters({
   query,
   status,
+  searchPlaceholder,
 }: {
   query: string;
   status: DocumentStatusFilter;
+  searchPlaceholder: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -73,7 +75,7 @@ export function DocumentsFilters({
             type="search"
             value={term}
             onChange={(event) => setTerm(event.target.value)}
-            placeholder="Buscar por nome da normativa"
+            placeholder={searchPlaceholder}
             className="pl-9"
           />
         </div>

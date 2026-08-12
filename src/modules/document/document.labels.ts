@@ -56,6 +56,7 @@ export interface DocumentCategoryCopy {
   newDocumentHint: string;
   /** Exemplo no campo de nome — usa um documento real da categoria. */
   namePlaceholder: string;
+  searchPlaceholder: string;
   backToList: string;
 }
 
@@ -69,6 +70,7 @@ export const DOCUMENT_CATEGORY_COPY: Record<DocumentCategory, DocumentCategoryCo
     newDocumentLabel: "Nova normativa",
     newDocumentHint: "O cadastro nasce sem arquivo. O primeiro upload vira a v1.",
     namePlaceholder: "Ex.: Câmara Ambiental",
+    searchPlaceholder: "Buscar por nome da normativa",
     backToList: "Voltar para as normativas",
   },
   communication: {
@@ -81,6 +83,7 @@ export const DOCUMENT_CATEGORY_COPY: Record<DocumentCategory, DocumentCategoryCo
     newDocumentLabel: "Novo documento",
     newDocumentHint: "O cadastro nasce sem arquivo. O primeiro upload vira a v1.",
     namePlaceholder: "Ex.: Revista",
+    searchPlaceholder: "Buscar por nome do documento",
     backToList: "Voltar para Comunicação",
   },
 };
