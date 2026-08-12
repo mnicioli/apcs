@@ -23,6 +23,14 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "attendances.read": ["admin", "ceo", "comercial"],
   "attendances.write": ["admin", "comercial"],
 
+  // Gestão documental — as normativas que o chatbot vai citar.
+  // A escrita é mais estreita que a de atendimentos de propósito: quem responde
+  // no dia a dia (`comercial`, o "Atendente") precisa CONSULTAR a normativa
+  // vigente, mas publicar uma versão nova é decisão de quem responde pela
+  // norma. Deve bater com as policies de `documents` / `document_versions`.
+  "documents.read": ["admin", "ceo", "comercial"],
+  "documents.write": ["admin", "ceo"],
+
   // Módulo 01 — Clientes
   "clients.read": ["admin", "ceo", "comercial", "pm"],
   "clients.write": ["admin", "comercial"],

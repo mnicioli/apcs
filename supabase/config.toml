@@ -18,6 +18,14 @@ major_version = 17
 enabled = true
 port = 54323
 
+# Necessário para o módulo de documentos: os PDFs das normativas ficam no
+# bucket privado `documents`. Sem isto, `supabase db reset` local sobe sem
+# storage e a migration de documentos falha ao criar o bucket.
+[storage]
+enabled = true
+# 5 MB — o mesmo teto do bucket e do CHECK em document_versions.
+file_size_limit = "5MiB"
+
 [auth]
 enabled = true
 # URL base do site para os links de e-mail (confirmação, recuperação de senha).

@@ -38,6 +38,9 @@ export type Permission =
   | "leads.write"
   | "attendances.read"
   | "attendances.write"
+  // Gestão documental (normativas e, no futuro, procedimentos e manuais)
+  | "documents.read"
+  | "documents.write"
   | "clients.read"
   | "clients.write"
   | "projects.read"

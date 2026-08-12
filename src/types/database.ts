@@ -266,6 +266,182 @@ export type Database = {
           },
         ];
       };
+      document_audit_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["document_audit_action"];
+          actor_id: string | null;
+          created_at: string;
+          document_id: string | null;
+          id: number;
+          metadata: Json;
+          version_id: string | null;
+        };
+        Insert: {
+          action: Database["public"]["Enums"]["document_audit_action"];
+          actor_id?: string | null;
+          created_at?: string;
+          document_id?: string | null;
+          id?: never;
+          metadata?: Json;
+          version_id?: string | null;
+        };
+        Update: {
+          action?: Database["public"]["Enums"]["document_audit_action"];
+          actor_id?: string | null;
+          created_at?: string;
+          document_id?: string | null;
+          id?: never;
+          metadata?: Json;
+          version_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "document_audit_logs_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "document_audit_logs_document_id_fkey";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "documents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "document_audit_logs_version_id_fkey";
+            columns: ["version_id"];
+            isOneToOne: false;
+            referencedRelation: "document_versions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      document_versions: {
+        Row: {
+          activated_at: string | null;
+          activated_by: string | null;
+          available_for_chatbot: boolean;
+          deactivated_at: string | null;
+          deactivated_by: string | null;
+          document_id: string;
+          effective_date: string;
+          file_size_bytes: number;
+          id: string;
+          mime_type: string;
+          original_filename: string;
+          status: Database["public"]["Enums"]["document_version_status"];
+          storage_path: string;
+          uploaded_at: string;
+          uploaded_by: string | null;
+          version: number;
+        };
+        Insert: {
+          activated_at?: string | null;
+          activated_by?: string | null;
+          available_for_chatbot?: boolean;
+          deactivated_at?: string | null;
+          deactivated_by?: string | null;
+          document_id: string;
+          effective_date: string;
+          file_size_bytes: number;
+          id?: string;
+          mime_type?: string;
+          original_filename: string;
+          status?: Database["public"]["Enums"]["document_version_status"];
+          storage_path: string;
+          uploaded_at?: string;
+          uploaded_by?: string | null;
+          version: number;
+        };
+        Update: {
+          activated_at?: string | null;
+          activated_by?: string | null;
+          available_for_chatbot?: boolean;
+          deactivated_at?: string | null;
+          deactivated_by?: string | null;
+          document_id?: string;
+          effective_date?: string;
+          file_size_bytes?: number;
+          id?: string;
+          mime_type?: string;
+          original_filename?: string;
+          status?: Database["public"]["Enums"]["document_version_status"];
+          storage_path?: string;
+          uploaded_at?: string;
+          uploaded_by?: string | null;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "document_versions_activated_by_fkey";
+            columns: ["activated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "document_versions_deactivated_by_fkey";
+            columns: ["deactivated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "document_versions_document_id_fkey";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "documents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "document_versions_uploaded_by_fkey";
+            columns: ["uploaded_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      documents: {
+        Row: {
+          category: Database["public"]["Enums"]["document_category"];
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          name: string;
+          updated_at: string;
+        };
+        Insert: {
+          category?: Database["public"]["Enums"]["document_category"];
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          name: string;
+          updated_at?: string;
+        };
+        Update: {
+          category?: Database["public"]["Enums"]["document_category"];
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          name?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "documents_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
@@ -301,11 +477,99 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      activate_document_version: {
+        Args: { p_version_id: string };
+        Returns: {
+          activated_at: string | null;
+          activated_by: string | null;
+          available_for_chatbot: boolean;
+          deactivated_at: string | null;
+          deactivated_by: string | null;
+          document_id: string;
+          effective_date: string;
+          file_size_bytes: number;
+          id: string;
+          mime_type: string;
+          original_filename: string;
+          status: Database["public"]["Enums"]["document_version_status"];
+          storage_path: string;
+          uploaded_at: string;
+          uploaded_by: string | null;
+          version: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "document_versions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_document_version: {
+        Args: {
+          p_document_id: string;
+          p_effective_date: string;
+          p_file_size_bytes: number;
+          p_original_filename: string;
+          p_storage_path: string;
+        };
+        Returns: {
+          activated_at: string | null;
+          activated_by: string | null;
+          available_for_chatbot: boolean;
+          deactivated_at: string | null;
+          deactivated_by: string | null;
+          document_id: string;
+          effective_date: string;
+          file_size_bytes: number;
+          id: string;
+          mime_type: string;
+          original_filename: string;
+          status: Database["public"]["Enums"]["document_version_status"];
+          storage_path: string;
+          uploaded_at: string;
+          uploaded_by: string | null;
+          version: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "document_versions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       current_app_role: {
         Args: never;
         Returns: Database["public"]["Enums"]["app_role"];
       };
+      deactivate_document_version: {
+        Args: { p_version_id: string };
+        Returns: {
+          activated_at: string | null;
+          activated_by: string | null;
+          available_for_chatbot: boolean;
+          deactivated_at: string | null;
+          deactivated_by: string | null;
+          document_id: string;
+          effective_date: string;
+          file_size_bytes: number;
+          id: string;
+          mime_type: string;
+          original_filename: string;
+          status: Database["public"]["Enums"]["document_version_status"];
+          storage_path: string;
+          uploaded_at: string;
+          uploaded_by: string | null;
+          version: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "document_versions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       is_admin: { Args: never; Returns: boolean };
+      lock_document: { Args: { p_document_id: string }; Returns: undefined };
     };
     Enums: {
       app_role: "admin" | "ceo" | "pm" | "tech_lead" | "comercial" | "financeiro" | "viewer";
@@ -322,6 +586,15 @@ export type Database = {
         | "from_200_to_1000"
         | "above_1000"
         | "not_applicable";
+      document_audit_action:
+        | "document_created"
+        | "version_uploaded"
+        | "version_activated"
+        | "version_deactivated"
+        | "version_viewed"
+        | "version_downloaded";
+      document_category: "normative";
+      document_version_status: "active" | "inactive";
       lead_status: "new" | "in_contact" | "qualified" | "discarded";
     };
     CompositeTypes: {
@@ -466,6 +739,16 @@ export const Constants = {
         "above_1000",
         "not_applicable",
       ],
+      document_audit_action: [
+        "document_created",
+        "version_uploaded",
+        "version_activated",
+        "version_deactivated",
+        "version_viewed",
+        "version_downloaded",
+      ],
+      document_category: ["normative"],
+      document_version_status: ["active", "inactive"],
       lead_status: ["new", "in_contact", "qualified", "discarded"],
     },
   },

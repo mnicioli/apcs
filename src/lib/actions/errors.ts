@@ -14,6 +14,13 @@ export type ActionErrorCode =
   | "invalidInput" // validação (Zod ou CHECK do banco)
   | "forbidden" // sem permissão (RBAC ou RLS bloqueou)
   | "notFound" // registro não encontrado
+  // Upload de arquivo. São códigos próprios porque `invalidInput` não distingue
+  // "mande um PDF" de "o arquivo está grande demais" de "tire a senha" — e a
+  // diferença entre eles é exatamente o que a pessoa precisa saber para
+  // conseguir enviar o documento na segunda tentativa.
+  | "fileNotPdf"
+  | "fileTooLarge"
+  | "fileEncrypted"
   | "unexpected"; // erro não previsto (logar no servidor!)
 
 export interface ActionErrorBody {
@@ -39,6 +46,9 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   invalidInput: "Dados inválidos. Verifique os campos e tente novamente.",
   forbidden: "Você não tem permissão para esta ação.",
   notFound: "Registro não encontrado.",
+  fileNotPdf: "Apenas arquivos PDF são permitidos.",
+  fileTooLarge: "O arquivo não pode ultrapassar o tamanho máximo de 5 MB.",
+  fileEncrypted: "Não é permitido enviar arquivos PDF protegidos por senha.",
   unexpected: "Ocorreu um erro inesperado. Tente novamente.",
 };
 
@@ -67,6 +77,11 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
     case "42501":
       return { code: "forbidden" };
     case "PGRST116":
+      return { code: "notFound" };
+    // `no_data_found`, levantado pelas funções transacionais de documentos
+    // quando o id não existe. Sem este caso viraria "erro inesperado", e a tela
+    // pediria para tentar de novo algo que nunca vai funcionar.
+    case "P0002":
       return { code: "notFound" };
     default:
       return { code: "unexpected" };
