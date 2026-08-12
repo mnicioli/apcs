@@ -149,6 +149,28 @@ describe("matchesDocumentFilters", () => {
   it("filtro vazio não esconde nada", () => {
     expect(matchesDocumentFilters(selo, { query: "   ", status: "all" })).toBe(true);
   });
+
+  // As duas categorias compartilham a mesma tela e as mesmas regras de busca;
+  // quem separa uma da outra é a consulta do service, por `category`.
+  it("busca parcial funciona igual em Comunicação", () => {
+    const revista = normativa({ id: "r", category: "communication", name: "Revista" });
+    const calendario = normativa({
+      id: "c",
+      category: "communication",
+      name: "Calendário Anual",
+    });
+
+    const achados = [revista, calendario, ambiental]
+      .filter((d) => matchesDocumentFilters(d, { query: "Rev", status: "all" }))
+      .map((d) => d.name);
+
+    expect(achados).toEqual(["Revista"]);
+  });
+
+  it("acha o Calendário sem o acento", () => {
+    const calendario = normativa({ category: "communication", name: "Calendário Anual" });
+    expect(matchesDocumentFilters(calendario, { query: "calendario", status: "all" })).toBe(true);
+  });
 });
 
 describe("compareDocuments", () => {

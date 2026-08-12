@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { History } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
@@ -8,8 +8,10 @@ import { listDocuments } from "@/lib/services/documents";
 import { formatDateTime } from "@/lib/utils";
 import {
   chatbotAvailabilityLabel,
+  DOCUMENT_CATEGORY_COPY,
   DOCUMENT_STATUS_LABELS,
 } from "@/modules/document/document.labels";
+import { categoryFromSlug, documentsHref } from "@/modules/document/document.routes";
 import {
   formatCalendarDate,
   formatFileSize,
@@ -18,6 +20,7 @@ import {
 import {
   DEFAULT_DOCUMENT_STATUS_FILTER,
   isDocumentStatusFilter,
+  type DocumentCategory,
   type DocumentFilters,
   type DocumentSummary,
 } from "@/modules/document/document.types";
@@ -29,26 +32,46 @@ import { UploadVersionDialog } from "./upload-version-dialog";
 import { VersionAccess } from "./version-access";
 import { VersionStatusActions } from "./version-status-actions";
 
-export const metadata: Metadata = { title: "Normativas" };
+interface CategoryParams {
+  params: Promise<{ category: string }>;
+}
+
+export async function generateMetadata({ params }: CategoryParams): Promise<Metadata> {
+  const { category: slug } = await params;
+  const category = categoryFromSlug(slug);
+  return { title: category ? DOCUMENT_CATEGORY_COPY[category].title : "Documentos" };
+}
 
 /**
- * Grid das normativas da APCS.
+ * Grid de uma categoria de documentos (Normativas, Comunicação, ...).
  *
- * Mostra a SITUAÇÃO ATUAL de cada normativa — uma linha por cadastro, com a
+ * Mostra a SITUAÇÃO ATUAL de cada documento — uma linha por cadastro, com a
  * versão que vale hoje. As versões antigas ficam no histórico: uma lista com
- * todas as versões de todas as normativas responderia a pergunta errada, que é
- * "qual documento eu cito agora?".
+ * todas as versões de todos os documentos responderia a pergunta errada, que é
+ * "qual documento eu uso agora?".
+ *
+ * Uma rota só serve todas as categorias. Duplicar a página por submenu
+ * duplicaria grid, filtros, diálogos e estados vazios a cada categoria nova.
  *
  * A permissão é checada aqui (1ª camada) e a RLS de `documents` filtra no banco
  * (2ª camada) — as duas contam a mesma história.
  */
-export default async function NormativesPage({
+export default async function DocumentsCategoryPage({
+  params,
   searchParams,
-}: {
+}: CategoryParams & {
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
   const role = await getCurrentUserRole();
   if (!hasPermission(role, "documents.read")) redirect("/dashboard");
+
+  const { category: slug } = await params;
+  const category = categoryFromSlug(slug);
+  // Segmento desconhecido é 404, e não uma grid vazia: "nenhum documento
+  // cadastrado" faria a pessoa achar que o dado sumiu.
+  if (!category) notFound();
+
+  const copy = DOCUMENT_CATEGORY_COPY[category];
 
   const { q, status } = await searchParams;
   const filters: DocumentFilters = {
@@ -58,7 +81,7 @@ export default async function NormativesPage({
     status: status && isDocumentStatusFilter(status) ? status : DEFAULT_DOCUMENT_STATUS_FILTER,
   };
 
-  const documents = await listDocuments("normative", filters);
+  const documents = await listDocuments(category, filters);
   const canWrite = hasPermission(role, "documents.write");
   const isFiltered = filters.query.trim() !== "" || filters.status !== "all";
 
@@ -66,12 +89,10 @@ export default async function NormativesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Normativas</h1>
-          <p className="text-muted-foreground text-sm">
-            Os documentos oficiais da APCS. A versão ativa é a que o chatbot pode citar.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{copy.title}</h1>
+          <p className="text-muted-foreground text-sm">{copy.subtitle}</p>
         </div>
-        {canWrite && <NewDocumentDialog />}
+        {canWrite && <NewDocumentDialog category={category} />}
       </div>
 
       <DocumentsFilters query={filters.query} status={filters.status} />
@@ -80,11 +101,9 @@ export default async function NormativesPage({
         <Card>
           <CardContent className="space-y-4 p-6">
             <p className="text-muted-foreground text-sm">
-              {isFiltered
-                ? "Nenhuma normativa encontrada para os filtros selecionados."
-                : "Nenhuma normativa cadastrada."}
+              {isFiltered ? copy.emptyFiltered : copy.emptyList}
             </p>
-            {canWrite && !isFiltered && <NewDocumentDialog />}
+            {canWrite && !isFiltered && <NewDocumentDialog category={category} />}
           </CardContent>
         </Card>
       ) : (
@@ -93,12 +112,12 @@ export default async function NormativesPage({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <caption className="sr-only">
-                  Normativas da APCS e a situação atual de cada uma
+                  {copy.title} da APCS e a situação atual de cada documento
                 </caption>
                 <thead className="text-muted-foreground border-border border-b text-left">
                   <tr>
                     {[
-                      "Normativa",
+                      copy.columnLabel,
                       "Versão",
                       "Arquivo",
                       "Status",
@@ -120,7 +139,12 @@ export default async function NormativesPage({
                 </thead>
                 <tbody>
                   {documents.map((document) => (
-                    <DocumentRow key={document.id} document={document} canWrite={canWrite} />
+                    <DocumentRow
+                      key={document.id}
+                      document={document}
+                      category={category}
+                      canWrite={canWrite}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -132,7 +156,15 @@ export default async function NormativesPage({
   );
 }
 
-function DocumentRow({ document, canWrite }: { document: DocumentSummary; canWrite: boolean }) {
+function DocumentRow({
+  document,
+  category,
+  canWrite,
+}: {
+  document: DocumentSummary;
+  category: DocumentCategory;
+  canWrite: boolean;
+}) {
   const version = document.currentVersion;
   // A versão ATIVA, que pode ser diferente da exibida: quando nenhuma está
   // ativa, a grid mostra a mais recente. É este número que aparece nos avisos
@@ -144,7 +176,7 @@ function DocumentRow({ document, canWrite }: { document: DocumentSummary; canWri
     <tr className="border-border hover:bg-muted/50 border-b align-middle last:border-0">
       <td className="px-4 py-3">
         <Link
-          href={`/documents/normatives/${document.id}`}
+          href={documentsHref(category, document.id)}
           className="text-primary-strong hover:underline"
         >
           {document.name}
@@ -201,13 +233,13 @@ function DocumentRow({ document, canWrite }: { document: DocumentSummary; canWri
                   />
                 </>
               )}
-              <HistoryLink documentId={document.id} />
+              <HistoryLink category={category} documentId={document.id} />
             </div>
           </td>
         </>
       ) : (
-        /* Normativa cadastrada e ainda sem nenhum arquivo. A linha existe para
-           quem pode publicar saber que ela está esperando um documento — e não
+        /* Documento cadastrado e ainda sem nenhum arquivo. A linha existe para
+           quem pode publicar saber que ela está esperando um arquivo — e não
            some da grid só por estar incompleta. */
         <>
           <td className="text-muted-foreground px-4 py-3" colSpan={6}>
@@ -224,7 +256,7 @@ function DocumentRow({ document, canWrite }: { document: DocumentSummary; canWri
                   trigger="menu"
                 />
               )}
-              <HistoryLink documentId={document.id} />
+              <HistoryLink category={category} documentId={document.id} />
             </div>
           </td>
         </>
@@ -233,10 +265,10 @@ function DocumentRow({ document, canWrite }: { document: DocumentSummary; canWri
   );
 }
 
-function HistoryLink({ documentId }: { documentId: string }) {
+function HistoryLink({ category, documentId }: { category: DocumentCategory; documentId: string }) {
   return (
     <Link
-      href={`/documents/normatives/${documentId}`}
+      href={documentsHref(category, documentId)}
       className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs transition-colors"
     >
       <History className="h-4 w-4" aria-hidden="true" />

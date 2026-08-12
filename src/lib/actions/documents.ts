@@ -10,6 +10,8 @@ import {
   DOCUMENTS_BUCKET,
   SIGNED_URL_TTL_SECONDS,
 } from "@/lib/documents/storage";
+import { DOCUMENT_ROUTE_PATTERNS } from "@/modules/document/document.routes";
+import { DOCUMENT_CATEGORIES, type DocumentCategory } from "@/modules/document/document.types";
 import {
   createVersionSchema,
   documentFormSchema,
@@ -52,9 +54,16 @@ interface VersionRpcResult {
   version: number;
 }
 
-function revalidateDocument(documentId: string): void {
-  revalidatePath("/documents/normatives");
-  revalidatePath(`/documents/normatives/${documentId}`);
+/**
+ * Invalida o cache das telas de documentos.
+ *
+ * Usa os PADRÕES de rota (`/documents/[category]`), e não endereços concretos:
+ * as funções transacionais devolvem `document_id`, não a categoria, e ir ao
+ * banco de novo só para descobrir isso custaria uma consulta por operação.
+ * Invalidar as duas categorias numa tela de backoffice não custa nada.
+ */
+function revalidateDocuments(): void {
+  for (const pattern of DOCUMENT_ROUTE_PATTERNS) revalidatePath(pattern, "page");
 }
 
 /**
@@ -153,10 +162,14 @@ async function recordAccess(
 // Escrita — exige `documents.write` (Administrador e Gestor)
 // ----------------------------------------------------------------------------
 
-/** Cadastra uma normativa nova. Ela nasce sem arquivo, esperando a v1. */
+/** Cadastra um documento novo na categoria. Ele nasce sem arquivo, esperando a v1. */
 export async function createDocumentAction(
+  category: DocumentCategory,
   input: DocumentFormData,
 ): Promise<ActionResult<{ id: string }>> {
+  // A categoria vem da tela, então é validada como qualquer outra entrada.
+  if (!(DOCUMENT_CATEGORIES as readonly string[]).includes(category)) return fail("invalidInput");
+
   const parsed = documentFormSchema.safeParse(input);
   if (!parsed.success) return fail("invalidInput");
 
@@ -170,7 +183,7 @@ export async function createDocumentAction(
   const { data, error } = await supabase
     .from("documents")
     .insert({
-      category: "normative",
+      category,
       name: parsed.data.name,
       description: parsed.data.description || null,
     } as never)
@@ -179,7 +192,7 @@ export async function createDocumentAction(
     .maybeSingle();
 
   if (error) {
-    console.error(`[documents] cadastro de normativa falhou: ${error.message}`);
+    console.error(`[documents] cadastro de documento falhou: ${error.message}`);
     return { ok: false, error: mapPostgresError(error) };
   }
   if (!data) return fail("unexpected");
@@ -197,7 +210,7 @@ export async function createDocumentAction(
     console.error(`[documents] auditoria de cadastro não registrada: ${auditError.message}`);
   }
 
-  revalidatePath("/documents/normatives");
+  revalidateDocuments();
   return ok({ id: data.id });
 }
 
@@ -327,7 +340,7 @@ export async function createDocumentVersionAction(
   }
 
   const created = data as VersionRpcResult;
-  revalidateDocument(documentId);
+  revalidateDocuments();
   return ok({ id: created.id, version: created.version });
 }
 
@@ -378,6 +391,6 @@ export async function setVersionStatusAction(
   }
 
   const changed = data as VersionRpcResult;
-  revalidateDocument(changed.document_id);
+  revalidateDocuments();
   return ok({ id: changed.id, version: changed.version });
 }

@@ -8,8 +8,11 @@ import { getDocument } from "@/lib/services/documents";
 import { formatDateTime } from "@/lib/utils";
 import {
   chatbotAvailabilityLabel,
+  DOCUMENT_CATEGORY_COPY,
+  DOCUMENT_CATEGORY_LABELS,
   DOCUMENT_STATUS_LABELS,
 } from "@/modules/document/document.labels";
+import { categoryFromSlug, documentsHref } from "@/modules/document/document.routes";
 import {
   formatCalendarDate,
   formatFileSize,
@@ -22,10 +25,10 @@ import { UploadVersionDialog } from "../upload-version-dialog";
 import { VersionAccess } from "../version-access";
 import { VersionStatusActions } from "../version-status-actions";
 
-export const metadata: Metadata = { title: "Histórico da normativa" };
+export const metadata: Metadata = { title: "Histórico de versões" };
 
 /**
- * Histórico de versões de uma normativa.
+ * Histórico de versões de um documento.
  *
  * É página e não modal porque segue o padrão do projeto (`/leads/[id]`,
  * `/attendances/[id]`): dá para mandar o link para alguém, sobrevive ao F5 e não
@@ -35,18 +38,29 @@ export const metadata: Metadata = { title: "Histórico da normativa" };
  * Documento errado se corrige com um upload novo, que vira a próxima versão. O
  * banco impõe isso: `document_versions` não concede UPDATE nessas colunas.
  */
-export default async function NormativeHistoryPage({
+export default async function DocumentHistoryPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ category: string; id: string }>;
 }) {
   const role = await getCurrentUserRole();
   if (!hasPermission(role, "documents.read")) redirect("/dashboard");
 
-  const { id } = await params;
+  const { category: slug, id } = await params;
+  const category = categoryFromSlug(slug);
+  if (!category) notFound();
+
   const document = await getDocument(id);
   if (!document) notFound();
 
+  // O documento existe, mas não nesta categoria. Sem esta checagem,
+  // /documents/communication/<id-de-normativa> abriria a normativa sob o menu
+  // errado, com o texto errado e um "voltar" que leva para a lista onde ela não
+  // está.
+  if (document.category !== category) notFound();
+
+  const copy = DOCUMENT_CATEGORY_COPY[category];
+  const categoryLabel = DOCUMENT_CATEGORY_LABELS[category];
   const canWrite = hasPermission(role, "documents.write");
   const activeVersion = document.versions.find((version) => version.status === "active") ?? null;
 
@@ -54,11 +68,11 @@ export default async function NormativeHistoryPage({
     <div className="space-y-6">
       <div className="space-y-2">
         <Link
-          href="/documents/normatives"
+          href={documentsHref(category)}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Voltar para as normativas
+          {copy.backToList}
         </Link>
 
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -92,8 +106,8 @@ export default async function NormativeHistoryPage({
         <Card>
           <CardContent className="p-4">
             <p className="text-sm">
-              Esta normativa não tem versão ativa. O chatbot não vai citar nenhum documento dela —
-              vai encaminhar o atendimento para uma pessoa.
+              Esta {categoryLabel} não tem versão ativa. O chatbot não vai usar nenhum arquivo dela
+              — vai encaminhar o atendimento para uma pessoa.
             </p>
           </CardContent>
         </Card>

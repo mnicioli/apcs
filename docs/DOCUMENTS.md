@@ -1,30 +1,58 @@
-# Documentos e Normativas
+# Documentos
 
-Como funciona o módulo de gestão documental — o que guarda as normativas da APCS
-e responde qual arquivo é o oficial hoje.
+Como funciona o módulo de gestão documental — o que guarda os documentos
+oficiais da APCS e responde qual arquivo é o vigente hoje.
 
 ---
 
-## Os dois conceitos
+## Três conceitos
 
 Não confunda, porque quase todo erro no módulo vem daqui:
 
-|               | O que é                                                                  | Tabela              |
-| ------------- | ------------------------------------------------------------------------ | ------------------- |
-| **Documento** | O cadastro lógico: "Selo Suíno Paulista". Um por normativa, para sempre. | `documents`         |
-| **Versão**    | Cada arquivo enviado: v1, v2, v3. Imutável depois de criada.             | `document_versions` |
+|               | O que é                                                                | Onde vive                |
+| ------------- | ---------------------------------------------------------------------- | ------------------------ |
+| **Categoria** | O submenu: Normativas, Comunicação. Define a tela e os textos dela.    | enum `document_category` |
+| **Documento** | O cadastro lógico: "Selo Suíno Paulista", "Revista". Um por documento. | `documents`              |
+| **Versão**    | Cada arquivo enviado: v1, v2, v3. Imutável depois de criada.           | `document_versions`      |
 
-Um upload novo **não duplica a normativa** — cria uma versão dela.
+Um upload novo **não duplica o documento** — cria uma versão dele.
 
-A tabela se chama `documents` (e não `normatives`) porque a coluna `category` já
-prevê Procedimentos, Manuais e Políticas. A tela `/documents/normatives` filtra
-por `category = 'normative'`.
+### As categorias hoje
+
+```
+Documentos
+├── Normativas    Câmara Ambiental · Câmara Setorial · Selo Suíno Paulista
+└── Comunicação   ISP · Revista · Calendário Anual · Custo de Produção
+```
+
+Os documentos são **linhas no banco**, não código: a tela tem um botão para
+cadastrar outros sem deploy. As categorias, sim, são código — cada uma precisa de
+um item de menu e dos textos próprios.
+
+### Acrescentar uma categoria
+
+Uma rota só (`/documents/[category]`) serve todas. Para somar Procedimentos ou
+Manuais:
+
+1. **duas** migrations: uma com `alter type ... add value`, outra com o seed
+   (o Postgres não deixa usar um valor de enum na transação em que ele foi criado);
+2. `pnpm db:types`;
+3. o valor em `DOCUMENT_CATEGORIES` (`document.types.ts`);
+4. o slug em `DOCUMENT_CATEGORY_SLUGS` (`document.routes.ts`);
+5. os textos em `DOCUMENT_CATEGORY_COPY` (`document.labels.ts`);
+6. o item em `config/navigation.ts`.
+
+Os passos 3–5 são `Record<DocumentCategory, …>`: o TypeScript **cobra** cada um.
+Nenhuma tabela, policy, grant ou tela nova.
+
+> O slug faz parte do endereço público — `normatives` já está em links salvos.
+> Por isso o mapa é explícito, e não derivado do nome da categoria.
 
 ---
 
 ## A regra que sustenta tudo
 
-**No máximo uma versão ativa por normativa.**
+**No máximo uma versão ativa por documento.**
 
 Isso não é uma verificação na tela nem na Server Action. É um índice:
 
@@ -36,8 +64,8 @@ create unique index document_versions_one_active_idx
 Duas pessoas ativando versões diferentes ao mesmo tempo não conseguem furar isso:
 a segunda transação aborta. As telas podem ter bugs; esta regra não pode falhar.
 
-**Uma normativa pode ficar SEM versão ativa** — é um estado válido. Significa que
-não há documento oficial publicado, e o chatbot deve encaminhar para uma pessoa.
+**Um documento pode ficar SEM versão ativa** — é um estado válido. Significa que
+não há arquivo oficial publicado, e o chatbot deve encaminhar para uma pessoa.
 
 ---
 
@@ -73,7 +101,7 @@ de várias chamadas, então isso precisa ser uma unidade no Postgres.
 
 Duas coisas dentro delas que parecem detalhe e não são:
 
-- **Um lock consultivo por normativa** (`lock_document`). Sem ele, dois uploads
+- **Um lock consultivo por documento** (`lock_document`). Sem ele, dois uploads
   simultâneos leem o mesmo `max(version)` e disputam o mesmo número.
 - **A ordem: inativar antes de ativar.** O índice único parcial é verificado ao
   fim de cada statement. Inverter a ordem levanta `unique_violation`.
@@ -125,7 +153,8 @@ lidos na documentação da biblioteca:
   `load()` lança é um `Error` comum. Por isso a detecção de senha é feita nos
   bytes (`/Encrypt` no trailer), e o tipo do erro é só plano B.
 - **`%PDF-1.7` seguido de lixo CARREGA sem erro.** Só estoura ao pedir
-  `getPageCount()`. Se alguém remover essa chamada, arquivo sujo vira normativa.
+  `getPageCount()`. Se alguém remover essa chamada, arquivo sujo vira documento
+  oficial.
 
 PDF de texto e PDF escaneado são os dois aceitos: a checagem é estrutural. OCR é
 problema do pipeline do chatbot.
@@ -145,16 +174,22 @@ que elimina traversal e colisão de nomes.
 
 ## Permissões
 
-| Ação                                      | `admin` |    `ceo`    | `comercial` |
-| ----------------------------------------- | :-----: | :---------: | :---------: |
-| Visualizar, histórico, download           |   ✅    |     ✅      |     ✅      |
-| Upload, criar normativa, ativar, inativar |   ✅    | ❌ ver nota |     ❌      |
+| Ação                                      | `admin` | `ceo` | `comercial` |
+| ----------------------------------------- | :-----: | :---: | :---------: |
+| Visualizar, histórico, download           |   ✅    |  ✅   |     ✅      |
+| Upload, criar documento, ativar, inativar |   ✅    |  ✅   |     ❌      |
 
 > **Nota sobre papéis:** o escopo original fala em Administrador / Gestor /
 > Atendente. O enum `app_role` não tem esses nomes, então o mapeamento é
-> `admin` → Administrador, `ceo` → Gestor, `comercial` → Atendente. `documents.write`
-> é `["admin", "ceo"]`. Trocar o enum para a nomenclatura da APCS é uma tarefa
-> separada, que mexe em toda a matriz de permissões.
+> `admin` → Administrador, `ceo` → Gestor, `comercial` → Atendente. Trocar o enum
+> para a nomenclatura da APCS é uma tarefa separada, que mexe em toda a matriz
+> de permissões.
+
+**A permissão é uma só para todas as categorias.** Quem publica normativa publica
+Comunicação também. Se um dia marketing precisar cuidar da Revista sem tocar em
+normativa, isso exige permissão nova (`communications.write`) e policies RLS
+filtrando por categoria — hoje as policies são sobre a TABELA, e é por isso que
+Comunicação nasceu com o mesmo controle de acesso sem nenhuma migration.
 
 Três camadas independentes, todas verificadas contra o banco:
 
@@ -190,10 +225,17 @@ getActiveChatbotVersion(documentId): Promise<DocumentVersion | null>
 ```
 
 Filtra `status = 'active' AND available_for_chatbot = true`. **Não existe caminho
-que devolva "a mais recente" ou "a de maior número"** — citar uma normativa
-revogada é pior do que não responder.
+que devolva "a mais recente" ou "a de maior número"** — citar um documento
+revogado é pior do que não responder.
 
-`null` **não** significa "use a anterior". Significa que não há documento oficial,
+O chatbot pergunta por NOME, não por uuid — ele não conhece (nem deve conhecer)
+os ids do banco. Para isso existe a variante:
+
+```ts
+getActiveChatbotVersionByName(category, name): Promise<DocumentVersion | null>
+```
+
+`null` **não** significa "use a anterior". Significa que não há arquivo oficial,
 e o atendimento deve ir para uma pessoa (`contentKey: "handoff"`).
 
 **Ainda não está ligada ao motor do chat.** Hoje todo texto do bot sai do catálogo

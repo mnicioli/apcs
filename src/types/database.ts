@@ -593,7 +593,7 @@ export type Database = {
         | "version_deactivated"
         | "version_viewed"
         | "version_downloaded";
-      document_category: "normative";
+      document_category: "normative" | "communication";
       document_version_status: "active" | "inactive";
       lead_status: "new" | "in_contact" | "qualified" | "discarded";
     };
@@ -747,7 +747,7 @@ export const Constants = {
         "version_viewed",
         "version_downloaded",
       ],
-      document_category: ["normative"],
+      document_category: ["normative", "communication"],
       document_version_status: ["active", "inactive"],
       lead_status: ["new", "in_contact", "qualified", "discarded"],
     },

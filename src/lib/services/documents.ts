@@ -194,3 +194,39 @@ export async function getActiveChatbotVersion(documentId: string): Promise<Docum
 
   return data ? toVersion(data) : null;
 }
+
+/**
+ * A mesma porta, procurando pelo NOME dentro de uma categoria.
+ *
+ * Existe porque o chatbot vai perguntar por "ISP" ou "Revista", não por uuid —
+ * ele não conhece (nem deve conhecer) os ids do banco.
+ *
+ * A comparação ignora caixa pelo mesmo motivo do índice
+ * `documents_category_name_key`: "revista" e "Revista" são o mesmo documento, e
+ * a unicidade por categoria garante que a busca não fique ambígua.
+ *
+ * Vale a mesma regra: só devolve versão ATIVA e disponível. `null` significa
+ * encaminhar para atendimento humano, nunca "usar a anterior".
+ */
+export async function getActiveChatbotVersionByName(
+  category: DocumentCategory,
+  name: string,
+): Promise<DocumentVersion | null> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id")
+    .eq("category", category)
+    .ilike("name", name.trim())
+    .returns<{ id: string }[]>()
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[documents] getActiveChatbotVersionByName falhou: ${error.message}`);
+    throw error;
+  }
+  if (!data) return null;
+
+  return getActiveChatbotVersion(data.id);
+}

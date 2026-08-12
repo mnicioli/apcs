@@ -1,0 +1,22 @@
+-- ============================================================================
+-- Categoria "Comunicação" na gestão documental
+-- ----------------------------------------------------------------------------
+-- Segundo submenu de Documentos, ao lado de Normativas. Recebe ISP, Revista,
+-- Calendário Anual e Custo de Produção.
+--
+-- Esta migration faz UMA COISA SÓ, e isso é obrigatório: o Postgres permite
+-- `alter type ... add value` dentro de uma transação, mas PROÍBE usar o valor
+-- novo na mesma transação. Como o CLI do Supabase roda cada arquivo numa
+-- transação, juntar isto com o seed faria o `db push` falhar com
+-- "unsafe use of new value of enum type". O seed vem na migration seguinte.
+--
+-- ⚠️ Valor de enum não se remove: o Postgres não tem `drop value`. O nome
+-- 'communication' é permanente.
+--
+-- Nada mais precisa mudar no banco. As policies e os grants de coluna de
+-- `documents` e `document_versions` são sobre a TABELA, não sobre a categoria —
+-- então Comunicação já nasce com o mesmo controle de acesso, a mesma
+-- imutabilidade e a mesma auditoria das Normativas. Ver docs/DOCUMENTS.md.
+-- ============================================================================
+
+alter type public.document_category add value 'communication';

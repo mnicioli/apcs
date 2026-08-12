@@ -11,7 +11,14 @@
  * versão, nunca duplica o documento.
  */
 
-export const DOCUMENT_CATEGORIES = ["normative"] as const;
+/**
+ * As categorias são os submenus de Documentos. Acrescentar uma exige, além do
+ * valor aqui, o valor no enum do Postgres (em DUAS migrations — ver
+ * `20260812000000_add_communication_category.sql`), um slug de rota, os rótulos
+ * e o item de menu. Os `Record<DocumentCategory, …>` espalhados pelo módulo
+ * fazem o TypeScript apontar cada um desses lugares.
+ */
+export const DOCUMENT_CATEGORIES = ["normative", "communication"] as const;
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
 
 export const DOCUMENT_VERSION_STATUSES = ["active", "inactive"] as const;
