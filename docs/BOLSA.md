@@ -370,6 +370,11 @@ substituta na mesma operação. A segunda leitura é a que faz o enum
 `status_reason = 'manual'` — hoje inalcançável — passar a ser gravado, sem
 migration.
 
+**Status em 13/08/2026:** mantido como está, em caráter PROVISÓRIO, para o
+PROMPT 2/3 seguir. A validação do negócio ainda não aconteceu. Enquanto isso, as
+telas devem tratar "Inativar" como indisponível na publicação ativa — é o que
+`canDeactivateVersion()` já responde.
+
 ### P2 — GAP: valor inicial de `chatbot_enabled`
 
 O escopo (§46) manda **não assumir silenciosamente**. Decisão de MVP tomada e
@@ -379,6 +384,11 @@ provável de passar despercebida. O campo é editável e aparece no formulário.
 
 **Precisa de confirmação do negócio.** Se a resposta for "nasce desligada", muda
 um `.default()` no schema e um `default` na coluna.
+
+**Status em 13/08/2026:** mantido ligado, em caráter PROVISÓRIO. Reverter é
+barato — dois defaults —, e o teste
+"chatbotEnabled nasce LIGADO quando não informado" em `market.schema.test.ts` é
+onde a mudança aparece.
 
 ### P3 — GAP: quem publica a Bolsa?
 
@@ -433,3 +443,32 @@ Não há índice por `effective_date` nem por `chatbot_enabled`, e isso é
 deliberado: a consulta do chatbot é `bulletin_id = ? and status = 'active'`, que
 o índice único parcial resolve em **uma** linha; a vigência é testada sobre essa
 linha só. Índice que nenhuma consulta usa é custo de escrita sem retorno.
+
+---
+
+## 14. O que conferir quando for validar
+
+As regras foram exercitadas contra o banco (78 casos) e as puras têm teste
+(357 no total). O que **nenhum** dos dois alcança é o caminho de ponta a ponta,
+porque as telas só chegam no PROMPT 2/3. Quando for validar com as telas na mão,
+estes são os pontos onde uma falha seria silenciosa:
+
+1. **O par sobrevive ao upload real.** Enviar imagem e PDF e conferir que os dois
+   caem em `<bolsa>/<publicação>/`. Se o caminho sair diferente, o CHECK recusa —
+   falha barulhenta, fácil.
+2. **Recusa no meio não deixa lixo.** Enviar um PDF com senha junto de uma imagem
+   boa: a publicação tem de ser recusada e **os dois** arquivos sumirem do bucket.
+3. **`getBulletin` respeita o limite aninhado.** Depende de o PostgREST resolver o
+   APELIDO do embed (`versions.limit`), não o nome da tabela. Errar aqui não dá
+   erro — o limite simplesmente não vale.
+4. **`getBulletinForChatbot` filtra pelo apelido** (`bulletin.chatbot_enabled`).
+   Mesmo risco: desligar o chatbot de uma Bolsa e conferir que ela some da
+   resposta. Se continuar aparecendo, é este filtro.
+5. **Vigência futura.** Publicar hoje com vigência para daqui a três dias: a
+   publicação aparece como **Programada** e o chatbot **não** a entrega.
+6. **Dois envios no mesmo dia.** O segundo tem de virar `-2` e o primeiro
+   continuar no acervo.
+7. **Papel de Atendente.** Entrar como `comercial` e confirmar que vê e baixa, mas
+   não publica, não ativa e não vê a trilha.
+
+As decisões **provisórias** a revisitar estão em P1 e P2 da seção 12.
