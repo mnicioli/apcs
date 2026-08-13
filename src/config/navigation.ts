@@ -1,6 +1,7 @@
 import {
   BookOpen,
   Brain,
+  CalendarDays,
   Contact,
   FileText,
   Inbox,
@@ -111,6 +112,21 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/documents/communication",
         icon: Megaphone,
         permission: "documents.read",
+        available: true,
+      },
+    ],
+  },
+  {
+    // Seção própria, e não um item dentro de outra: Evento é menu principal do
+    // CRM (RN01). Nasce com um item só — quando a comunicação segmentada
+    // chegar, ela entra aqui ao lado, sem remexer na navegação.
+    title: "Eventos",
+    items: [
+      {
+        title: "Eventos",
+        href: "/events",
+        icon: CalendarDays,
+        permission: "events.read",
         available: true,
       },
     ],

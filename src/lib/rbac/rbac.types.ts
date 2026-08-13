@@ -41,6 +41,9 @@ export type Permission =
   // Gestão documental (normativas e, no futuro, procedimentos e manuais)
   | "documents.read"
   | "documents.write"
+  // Eventos da APCS
+  | "events.read"
+  | "events.write"
   | "clients.read"
   | "clients.write"
   | "projects.read"

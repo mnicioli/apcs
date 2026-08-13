@@ -21,6 +21,13 @@ export type ActionErrorCode =
   | "fileNotPdf"
   | "fileTooLarge"
   | "fileEncrypted"
+  | "fileNotImage"
+  // Regras de negócio de Eventos. Códigos próprios porque cada uma tem um texto
+  // que diz à pessoa O QUE FAZER — "dados inválidos" mandaria procurar o campo
+  // errado num formulário de nove campos.
+  | "eventExpired"
+  | "eventDateInPast"
+  | "invalidSegment"
   | "unexpected"; // erro não previsto (logar no servidor!)
 
 export interface ActionErrorBody {
@@ -49,6 +56,10 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   fileNotPdf: "Apenas arquivos PDF são permitidos.",
   fileTooLarge: "O arquivo não pode ultrapassar o tamanho máximo de 5 MB.",
   fileEncrypted: "Não é permitido enviar arquivos PDF protegidos por senha.",
+  fileNotImage: "Envie uma imagem JPG, PNG ou WEBP válida.",
+  eventExpired: "Não é possível ativar um evento cuja data já passou.",
+  eventDateInPast: "Não é possível cadastrar um evento com data anterior à data atual.",
+  invalidSegment: "Selecione um público-alvo válido.",
   unexpected: "Ocorreu um erro inesperado. Tente novamente.",
 };
 
@@ -78,11 +89,21 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "forbidden" };
     case "PGRST116":
       return { code: "notFound" };
-    // `no_data_found`, levantado pelas funções transacionais de documentos
-    // quando o id não existe. Sem este caso viraria "erro inesperado", e a tela
-    // pediria para tentar de novo algo que nunca vai funcionar.
+    // `no_data_found`, levantado pelas funções transacionais de documentos e de
+    // eventos quando o id não existe. Sem este caso viraria "erro inesperado", e
+    // a tela pediria para tentar de novo algo que nunca vai funcionar.
     case "P0002":
       return { code: "notFound" };
+    // Classe `EV` — regras de negócio de Eventos, levantadas pelas funções do
+    // Postgres. A classe é própria porque a `P0` é RESERVADA pelo PL/pgSQL: o
+    // P0004 é `assert_failure`, que `exception when others` não captura. Ver
+    // supabase/migrations/20260813000200_fix_event_error_codes.sql.
+    case "EV001":
+      return { code: "eventExpired" };
+    case "EV002":
+      return { code: "invalidSegment" };
+    case "EV003":
+      return { code: "eventDateInPast" };
     default:
       return { code: "unexpected" };
   }

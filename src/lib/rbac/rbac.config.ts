@@ -31,6 +31,18 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "documents.read": ["admin", "ceo", "comercial"],
   "documents.write": ["admin", "ceo"],
 
+  // Eventos — o que a APCS promove aos associados.
+  // Mesmo recorte da gestão documental, e pelo mesmo motivo: quem atende
+  // (`comercial`, o "Atendente") precisa CONSULTAR a agenda para responder, mas
+  // publicar um evento é decisão de quem responde pela agenda. Deve bater com
+  // as policies de `events` / `event_segment_links` / `event_audit_logs`.
+  //
+  // A trilha de auditoria é mais estreita que a leitura: só admin e ceo a leem,
+  // conforme a matriz do escopo. Isso está na RLS de `event_audit_logs` e é
+  // checado nas telas por `events.write`.
+  "events.read": ["admin", "ceo", "comercial"],
+  "events.write": ["admin", "ceo"],
+
   // Módulo 01 — Clientes
   "clients.read": ["admin", "ceo", "comercial", "pm"],
   "clients.write": ["admin", "comercial"],

@@ -15,6 +15,7 @@ gerais) e pelo [SETUP.md](../SETUP.md) (como rodar).
 | Entender leitura vs escrita          | [SERVICE-ACTION-PATTERN.md](./SERVICE-ACTION-PATTERN.md) |
 | Mexer no chat / criar um fluxo novo  | [CHAT.md](./CHAT.md)                                     |
 | Mexer nas normativas / documentos    | [DOCUMENTS.md](./DOCUMENTS.md)                           |
+| Mexer nos eventos / segmentação      | [EVENTS.md](./EVENTS.md)                                 |
 | Mexer no banco (tabelas, RLS)        | [SUPABASE.md](./SUPABASE.md)                             |
 | Saber as convenções de código        | [CONVENTIONS.md](./CONVENTIONS.md)                       |
 | Escrever testes                      | [TESTING.md](./TESTING.md)                               |
