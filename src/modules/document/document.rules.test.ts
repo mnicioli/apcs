@@ -4,11 +4,8 @@ import {
   compareVersionsDesc,
   currentVersion,
   documentStatus,
-  formatCalendarDate,
-  formatFileSize,
   matchesDocumentFilters,
   nextVersionNumber,
-  normalizeForSearch,
   versionLabel,
 } from "./document.rules";
 import type { DocumentSummary, DocumentVersion, DocumentVersionStatus } from "./document.types";
@@ -113,17 +110,6 @@ describe("compareVersionsDesc", () => {
   });
 });
 
-describe("normalizeForSearch", () => {
-  // Ninguém digita acento numa caixa de busca.
-  it("ignora acento e caixa", () => {
-    expect(normalizeForSearch("  CÂMARA Ambiental ")).toBe("camara ambiental");
-  });
-
-  it("mantém o ç legível", () => {
-    expect(normalizeForSearch("Produção")).toBe("producao");
-  });
-});
-
 describe("matchesDocumentFilters", () => {
   const ambiental = normativa({ id: "a", name: "Câmara Ambiental", status: "active" });
   const setorial = normativa({ id: "s", name: "Câmara Setorial", status: "inactive" });
@@ -184,39 +170,5 @@ describe("compareDocuments", () => {
       .map((d) => d.name);
 
     expect(ordenado).toEqual(["Área de Manejo", "Câmara Ambiental", "Selo Suíno Paulista"]);
-  });
-});
-
-describe("formatCalendarDate", () => {
-  // O bug que esta função existe para evitar: `new Date("2026-08-15")` é
-  // meia-noite UTC, que em São Paulo é 21h de 14/08. A tela mostraria a
-  // vigência um dia antes do que está escrito no documento.
-  it("não desloca o dia por causa de fuso", () => {
-    expect(formatCalendarDate("2026-08-15")).toBe("15/08/2026");
-    expect(formatCalendarDate("2026-01-01")).toBe("01/01/2026");
-  });
-
-  it("devolve travessão para valor que não é data", () => {
-    expect(formatCalendarDate("15/08/2026")).toBe("—");
-    expect(formatCalendarDate("")).toBe("—");
-  });
-});
-
-describe("formatFileSize", () => {
-  it("usa a unidade que a pessoa consegue ler", () => {
-    expect(formatFileSize(512)).toBe("512 B");
-    expect(formatFileSize(2048)).toBe("2 KB");
-  });
-
-  // Uma casa decimal perto do teto: "5 MB" para 4,9 e para 5,4 não explicaria
-  // por que um passou e o outro foi recusado.
-  it("mostra a casa decimal perto do limite de 5 MB", () => {
-    expect(formatFileSize(5 * 1024 * 1024)).toBe("5,0 MB");
-    expect(formatFileSize(Math.round(4.9 * 1024 * 1024))).toBe("4,9 MB");
-  });
-
-  it("não inventa tamanho para valor inválido", () => {
-    expect(formatFileSize(Number.NaN)).toBe("—");
-    expect(formatFileSize(-1)).toBe("—");
   });
 });

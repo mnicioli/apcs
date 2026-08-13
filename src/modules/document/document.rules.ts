@@ -1,3 +1,4 @@
+import { normalizeForSearch } from "@/lib/utils";
 import type {
   DocumentFilters,
   DocumentSummary,
@@ -63,21 +64,6 @@ export function documentStatus(versions: readonly DocumentVersion[]): DocumentVe
   return versions.some((v) => v.status === "active") ? "active" : "inactive";
 }
 
-/**
- * Normaliza para busca: sem acento e sem caixa.
- *
- * Sem isto, procurar "camara" não acharia "Câmara" — e ninguém digita acento
- * numa caixa de busca. `NFD` separa a letra do acento e a faixa `\p{Diacritic}`
- * remove só os acentos, preservando "ç" → "c" e mantendo o resto intacto.
- */
-export function normalizeForSearch(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .trim();
-}
-
 /** Busca parcial por nome + status. Vazio em ambos = passa tudo. */
 export function matchesDocumentFilters(
   document: DocumentSummary,
@@ -94,33 +80,4 @@ export function matchesDocumentFilters(
 /** Ordem alfabética pelo nome, com as regras do português. */
 export function compareDocuments(a: DocumentSummary, b: DocumentSummary): number {
   return a.name.localeCompare(b.name, "pt-BR");
-}
-
-/**
- * Data de vigência formatada SEM passar por `Date`.
- *
- * `effective_date` é `date` no Postgres e chega como "2026-08-15", sem hora.
- * `new Date("2026-08-15")` vira meia-noite UTC, que em São Paulo é 21h do dia
- * ANTERIOR — a tela mostraria 14/08 para uma vigência que começa em 15/08.
- * Um recorte de string não tem fuso, então não tem como errar o dia.
- */
-export function formatCalendarDate(isoDate: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
-  if (!match) return "—";
-
-  const [, year, month, day] = match;
-  return `${day}/${month}/${year}`;
-}
-
-/** Tamanho legível na grid: "842 KB", "3,4 MB". */
-export function formatFileSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes < 0) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${Math.round(kb)} KB`;
-
-  // Uma casa decimal: entre 4,9 MB e 5 MB está a diferença entre passar e ser
-  // recusado, e "5 MB" nos dois casos não explicaria a recusa a ninguém.
-  return `${(kb / 1024).toFixed(1).replace(".", ",")} MB`;
 }

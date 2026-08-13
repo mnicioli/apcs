@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import { getDocument } from "@/lib/services/documents";
-import { formatDateTime } from "@/lib/utils";
+import { formatCalendarDate, formatDateTime, formatFileSize } from "@/lib/utils";
 import {
   chatbotAvailabilityLabel,
   DOCUMENT_CATEGORY_COPY,
@@ -13,11 +13,7 @@ import {
   DOCUMENT_STATUS_LABELS,
 } from "@/modules/document/document.labels";
 import { categoryFromSlug, documentsHref } from "@/modules/document/document.routes";
-import {
-  formatCalendarDate,
-  formatFileSize,
-  versionLabel,
-} from "@/modules/document/document.rules";
+import { versionLabel } from "@/modules/document/document.rules";
 import type { DocumentVersion } from "@/modules/document/document.types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

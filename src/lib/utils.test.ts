@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatRelativeDate, formatRelativeTime } from "@/lib/utils";
+import {
+  formatCalendarDate,
+  formatDateTime,
+  formatFileSize,
+  formatRelativeDate,
+  formatRelativeTime,
+  normalizeForSearch,
+  todayInSaoPaulo,
+} from "@/lib/utils";
 
 // Todas as datas abaixo estão em UTC. São Paulo é UTC-3, então 03:00Z é
 // meia-noite daqui — é nessa faixa que os erros de fuso aparecem.
@@ -86,5 +94,64 @@ describe("formatDateTime", () => {
 
   it("devolve travessão para data inválida", () => {
     expect(formatDateTime("")).toBe("—");
+  });
+});
+
+describe("todayInSaoPaulo", () => {
+  it("devolve o dia no formato ordenável AAAA-MM-DD", () => {
+    expect(todayInSaoPaulo(new Date("2026-08-12T15:00:00Z"))).toBe("2026-08-12");
+  });
+
+  // ⚠️ O teste que justifica a função existir. Às 02:00Z de 13/08 ainda são
+  // 23:00 de 12/08 em São Paulo. Um `toISOString().slice(0,10)` diria "13" e um
+  // evento marcado para hoje apareceria como expirado três horas antes da hora.
+  it("não vira o dia antes da meia-noite de São Paulo", () => {
+    expect(todayInSaoPaulo(new Date("2026-08-13T02:00:00Z"))).toBe("2026-08-12");
+    expect(todayInSaoPaulo(new Date("2026-08-13T03:00:00Z"))).toBe("2026-08-13");
+  });
+});
+
+describe("formatCalendarDate", () => {
+  // O bug que esta função existe para evitar: `new Date("2026-08-15")` é
+  // meia-noite UTC, que em São Paulo é 21h de 14/08. A tela mostraria a data um
+  // dia antes do que está escrito no cadastro.
+  it("não desloca o dia por causa de fuso", () => {
+    expect(formatCalendarDate("2026-08-15")).toBe("15/08/2026");
+    expect(formatCalendarDate("2026-01-01")).toBe("01/01/2026");
+  });
+
+  it("devolve travessão para valor que não é data", () => {
+    expect(formatCalendarDate("15/08/2026")).toBe("—");
+    expect(formatCalendarDate("")).toBe("—");
+  });
+});
+
+describe("normalizeForSearch", () => {
+  // Ninguém digita acento numa caixa de busca.
+  it("ignora acento e caixa", () => {
+    expect(normalizeForSearch("  CÂMARA Ambiental ")).toBe("camara ambiental");
+  });
+
+  it("mantém o ç legível", () => {
+    expect(normalizeForSearch("Produção")).toBe("producao");
+  });
+});
+
+describe("formatFileSize", () => {
+  it("usa a unidade que a pessoa consegue ler", () => {
+    expect(formatFileSize(512)).toBe("512 B");
+    expect(formatFileSize(2048)).toBe("2 KB");
+  });
+
+  // Uma casa decimal perto do teto: "5 MB" para 4,9 e para 5,4 não explicaria
+  // por que um passou e o outro foi recusado.
+  it("mostra a casa decimal perto do limite de 5 MB", () => {
+    expect(formatFileSize(5 * 1024 * 1024)).toBe("5,0 MB");
+    expect(formatFileSize(Math.round(4.9 * 1024 * 1024))).toBe("4,9 MB");
+  });
+
+  it("não inventa tamanho para valor inválido", () => {
+    expect(formatFileSize(Number.NaN)).toBe("—");
+    expect(formatFileSize(-1)).toBe("—");
   });
 });

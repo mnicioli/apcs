@@ -5,18 +5,14 @@ import { History } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import { listDocuments } from "@/lib/services/documents";
-import { formatDateTime } from "@/lib/utils";
+import { formatCalendarDate, formatDateTime, formatFileSize } from "@/lib/utils";
 import {
   chatbotAvailabilityLabel,
   DOCUMENT_CATEGORY_COPY,
   DOCUMENT_STATUS_LABELS,
 } from "@/modules/document/document.labels";
 import { categoryFromSlug, documentsHref } from "@/modules/document/document.routes";
-import {
-  formatCalendarDate,
-  formatFileSize,
-  versionLabel,
-} from "@/modules/document/document.rules";
+import { versionLabel } from "@/modules/document/document.rules";
 import {
   DEFAULT_DOCUMENT_STATUS_FILTER,
   isDocumentStatusFilter,

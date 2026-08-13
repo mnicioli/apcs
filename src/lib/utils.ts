@@ -38,6 +38,69 @@ const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
+/**
+ * A data de HOJE no fuso da APCS, em AAAA-MM-DD.
+ *
+ * É a referência de "hoje" de todo o sistema — em particular, é ela que decide
+ * se um evento já expirou. Sem o `timeZone` explícito, a virada do dia seguiria
+ * o relógio do SERVIDOR (UTC na Vercel), e das 21h à meia-noite o Brasil
+ * enxergaria o dia seguinte: um evento de hoje apareceria como expirado.
+ *
+ * Espelha `public.event_today()` no Postgres. As duas pontas precisam concordar,
+ * porque uma decide o que a tela mostra e a outra decide o que o banco aceita.
+ */
+export function todayInSaoPaulo(now: Date = new Date()): string {
+  return dayKeyFormatter.format(now);
+}
+
+/**
+ * Data de calendário formatada SEM passar por `Date`.
+ *
+ * Colunas `date` do Postgres chegam como "2026-08-15", sem hora.
+ * `new Date("2026-08-15")` vira meia-noite UTC, que em São Paulo é 21h do dia
+ * ANTERIOR — a tela mostraria 14/08 para algo que acontece em 15/08. Um recorte
+ * de string não tem fuso, então não tem como errar o dia.
+ */
+export function formatCalendarDate(isoDate: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!match) return "—";
+
+  const [, year, month, day] = match;
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Normaliza para busca: sem acento e sem caixa.
+ *
+ * Sem isto, procurar "camara" não acharia "Câmara" — e ninguém digita acento
+ * numa caixa de busca. `NFD` separa a letra do acento e a faixa `\p{Diacritic}`
+ * remove só os acentos, preservando "ç" → "c" e mantendo o resto intacto.
+ */
+export function normalizeForSearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Tamanho de arquivo legível: "842 KB", "3,4 MB".
+ *
+ * Uma casa decimal nos megabytes: entre 4,9 MB e 5 MB está a diferença entre
+ * passar e ser recusado no upload, e "5 MB" nos dois casos não explicaria a
+ * recusa a ninguém.
+ */
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+
+  return `${(kb / 1024).toFixed(1).replace(".", ",")} MB`;
+}
+
 function calendarDaysBetween(from: Date, to: Date): number {
   // A conta é feita sobre a DATA DO CALENDÁRIO em São Paulo, não sobre a
   // diferença de milissegundos. Um lead criado às 23h30 daqui é 02h30 UTC do

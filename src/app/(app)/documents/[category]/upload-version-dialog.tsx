@@ -5,7 +5,8 @@ import { FileUp, Upload } from "lucide-react";
 import { createDocumentVersionAction, requestDocumentUploadAction } from "@/lib/actions/documents";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
 import { cn } from "@/lib/utils";
-import { formatFileSize, versionLabel } from "@/modules/document/document.rules";
+import { formatFileSize } from "@/lib/utils";
+import { versionLabel } from "@/modules/document/document.rules";
 import {
   ACCEPTED_EXTENSION,
   ACCEPTED_MIME_TYPE,
