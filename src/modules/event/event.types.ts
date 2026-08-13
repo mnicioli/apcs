@@ -64,6 +64,23 @@ export interface EventSegment {
 }
 
 /**
+ * O atalho "Toda a base".
+ *
+ * Não é um público como os outros: escolhê-lo faz o BANCO trocá-lo pelos
+ * públicos reais na hora de gravar (`expand_event_segments`), e ele mesmo nunca
+ * fica vinculado a evento nenhum.
+ *
+ * O slug é `all-members` por história — foi o primeiro público do catálogo, e
+ * renomeá-lo na tela não muda a chave. É exatamente para isso que o slug é
+ * imutável.
+ *
+ * ⚠️ Só a APRESENTAÇÃO conhece este valor, para pôr o atalho no topo da lista.
+ * Nenhuma regra de elegibilidade o consulta: `matchesAnySegment` continua sem
+ * caso especial, e é disso que vem a confiança nela.
+ */
+export const AUDIENCE_SHORTCUT_SLUG = "all-members";
+
+/**
  * Um evento, na forma que as telas e o chatbot consomem.
  *
  * `imagePath` NÃO está aqui de propósito — o caminho no bucket nunca precisa

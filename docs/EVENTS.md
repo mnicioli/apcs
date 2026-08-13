@@ -113,8 +113,69 @@ tabela e não enum — um enum exigiria duas migrations por público (o valor n�
 pode ser usado na mesma transação em que é criado) e o Postgres **não permite
 remover valor de enum**: um nome errado seria permanente.
 
-> Hoje o catálogo tem **um** público ("Todos os associados"). Enquanto for
-> assim, a segmentação rotula mas não separa ninguém.
+### O catálogo hoje
+
+| Slug            | Nome          | O que é                           |
+| --------------- | ------------- | --------------------------------- |
+| `all-members`   | Toda a base   | **Atalho** — vira os cinco abaixo |
+| `associados`    | Associados    | público                           |
+| `empresas`      | Empresas      | público                           |
+| `produtores`    | Produtores    | público                           |
+| `universidades` | Universidades | público                           |
+| `tecnicos`      | Técnicos      | público                           |
+
+O slug `all-members` é herança do primeiro público do catálogo. Renomeá-lo na
+tela não muda a chave — é exatamente para isso que o slug é imutável.
+
+As descrições dos cinco estão vazias de propósito: elas aparecem embaixo de cada
+caixa de seleção, e o que distingue "Associados" de "Produtores" é definição de
+negócio da APCS, não do código. Preencher é um `update` de uma linha.
+
+### "Toda a base" é expandido na GRAVAÇÃO
+
+```
+seleção: [Toda a base]
+gravado: [Associados, Empresas, Produtores, Universidades, Técnicos]
+```
+
+O próprio atalho nunca fica vinculado a evento nenhum. A expansão acontece
+dentro de `create_event` / `update_event` (via `expand_event_segments`), que são
+o único caminho de escrita — vale mesmo para quem chame a API por fora.
+
+**Por que não guardar o atalho e resolvê-lo na leitura:** `matchesAnySegment`
+não tem caso especial nenhum, e é disso que vem a confiança nela. Um slug mágico
+obrigaria toda leitura futura — chatbot, campanha, exportação, relatório — a
+conhecer a exceção, e a primeira que esquecesse mandaria comunicação para menos
+gente do que devia, **em silêncio**. Expandindo na gravação, o que está no banco
+diz exatamente quem é alcançado, e a auditoria registra os cinco ids.
+
+**O que isso custa, dito na cara:**
+
+1. **A seleção não volta como foi feita.** Quem salvar com "Toda a base" e
+   reabrir a edição verá os cinco marcados, não o atalho. É a informação
+   verdadeira, mas não é o clique que a pessoa deu.
+2. **A expansão é uma fotografia.** Um sexto público no catálogo amanhã não
+   entra nos eventos salvos hoje. Eventos novos pegam os seis. Para um evento já
+   cadastrado — muitas vezes já divulgado — congelar o público decidido é o
+   comportamento certo.
+
+⚠️ A ordem importa dentro das funções: `assert_event_segments` roda **antes** da
+expansão. Invertida, um id inválido seria descartado silenciosamente pela
+expansão e a validação passaria sobre uma lista já limpa.
+
+Na tela, o atalho aparece **em primeiro**, fora da ordem alfabética
+(`compareSegmentsForForm`): por nome ele cairia entre "Técnicos" e
+"Universidades", no meio das caixas comuns, sendo a única com semântica
+diferente. Só a apresentação conhece o slug; nenhuma regra de elegibilidade o
+consulta.
+
+### Desativar um público
+
+`active = false`, nunca `delete`. A FK de `event_segment_links` é
+`on delete restrict` (apagar um público em uso deixaria um evento sem
+destinatário) e a auditoria grava **ids** de segmento — apagar a linha
+transformaria o histórico num id órfão. Ver a seção 9.3 para o efeito colateral
+em eventos que ainda usam o público desativado.
 
 ---
 
@@ -471,6 +532,7 @@ compare strings ISO, cuja ordem lexicográfica já é a ordem do calendário.
 supabase/migrations/20260813000000_create_events.sql       tabelas, RLS, grants, bucket, RPCs
 supabase/migrations/20260813000100_seed_event_segments.sql catálogo de públicos
 supabase/migrations/20260813000200_fix_event_error_codes.sql  SQLSTATE da classe EV
+supabase/migrations/20260813000300_seed_event_audience_segments.sql os 5 públicos reais
 
 src/modules/event/event.types.ts    tipos + enums espelhados
 src/modules/event/event.rules.ts    effectiveStatus, ordenação, filtros (puro)
@@ -618,6 +680,7 @@ nunca vai ao frontend.
 20260813000000_create_events.sql        tabelas, RLS, grants, bucket, RPCs
 20260813000100_seed_event_segments.sql  catálogo de públicos
 20260813000200_fix_event_error_codes.sql  SQLSTATE da classe EV
+20260813000300_seed_event_audience_segments.sql  os 5 públicos reais
 ```
 
 ⚠️ A `000200` **precisa** ser aplicada junto: sem ela, "Público-alvo inválido."

@@ -4,13 +4,14 @@ import { EVENTS_BUCKET, IMAGE_SIGNED_URL_TTL_SECONDS } from "@/lib/events/storag
 import { todayInSaoPaulo } from "@/lib/utils";
 import { matchesAnySegment } from "@/modules/event/event.audience";
 import { compareEvents, formatTime, matchesEventFilters } from "@/modules/event/event.rules";
-import type {
-  EventAuditAction,
-  EventAuditEntry,
-  EventFilters,
-  EventSegment,
-  EventStatus,
-  EventSummary,
+import {
+  AUDIENCE_SHORTCUT_SLUG,
+  type EventAuditAction,
+  type EventAuditEntry,
+  type EventFilters,
+  type EventSegment,
+  type EventStatus,
+  type EventSummary,
 } from "@/modules/event/event.types";
 
 /**
@@ -259,7 +260,14 @@ export async function getEvent(eventId: string): Promise<EventSummary | null> {
   return event ?? null;
 }
 
-/** O catálogo de públicos-alvo, para o formulário. Só os ativos. */
+/**
+ * O catálogo de públicos-alvo, para o formulário. Só os ativos.
+ *
+ * O atalho "Toda a base" vai PRIMEIRO, fora da ordem alfabética. Por nome ele
+ * cairia entre "Técnicos" e "Universidades" — no meio das caixas de seleção
+ * comuns, sendo a única com semântica diferente (escolhê-lo grava os outros
+ * cinco). Um controle que faz outra coisa não pode parecer igual aos vizinhos.
+ */
 export async function listEventSegments(): Promise<EventSegment[]> {
   const supabase = await createClient();
 
@@ -275,7 +283,15 @@ export async function listEventSegments(): Promise<EventSegment[]> {
     throw error;
   }
 
-  return (data ?? []).map(toSegment);
+  return (data ?? []).map(toSegment).sort(compareSegmentsForForm);
+}
+
+/** Atalho primeiro; o resto em ordem alfabética de PT-BR. */
+function compareSegmentsForForm(a: EventSegment, b: EventSegment): number {
+  const aShortcut = a.slug === AUDIENCE_SHORTCUT_SLUG;
+  const bShortcut = b.slug === AUDIENCE_SHORTCUT_SLUG;
+  if (aShortcut !== bShortcut) return aShortcut ? -1 : 1;
+  return a.name.localeCompare(b.name, "pt-BR");
 }
 
 interface AuditRow {

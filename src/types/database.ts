@@ -782,6 +782,10 @@ export type Database = {
         };
       };
       event_today: { Args: never; Returns: string };
+      expand_event_segments: {
+        Args: { p_segment_ids: string[] };
+        Returns: string[];
+      };
       is_admin: { Args: never; Returns: boolean };
       lock_document: { Args: { p_document_id: string }; Returns: undefined };
       lock_event: { Args: { p_event_id: string }; Returns: undefined };
