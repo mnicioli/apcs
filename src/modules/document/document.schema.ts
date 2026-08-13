@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  MAX_PDF_SIZE_BYTES,
+  PDF_EXTENSION,
+  PDF_MIME_TYPE,
+  validatePdfCandidate,
+  type PdfUploadIssue,
+} from "@/lib/files/pdf";
 
 /**
  * Contratos de entrada da gestão documental. Os mesmos schemas rodam no cliente
@@ -6,17 +13,18 @@ import { z } from "zod";
  */
 
 /**
- * 5 MB exatos. O item 13 do escopo é explícito: um arquivo com exatamente 5 MB
- * deve ser ACEITO, então a comparação é `<=`, nunca `<`.
+ * As regras de ARQUIVO moram em `src/lib/files/pdf.ts`, porque Documentos e
+ * Bolsa fazem a mesma pergunta sobre o mesmo formato. O que fica aqui é o
+ * CONTRATO do módulo: as telas continuam importando destes nomes, e o dia em
+ * que o limite mudar ele muda num lugar só.
  *
- * Este mesmo número aparece em outros três lugares — o `file_size_limit` do
- * bucket, o CHECK de `document_versions` e o `accept` do dropzone. Quatro
+ * O limite de 5 MB ainda aparece em outros três lugares — o `file_size_limit`
+ * do bucket, o CHECK de `document_versions` e o `accept` do dropzone. Quatro
  * barreiras independentes: se uma for contornada, as outras seguem de pé.
  */
-export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-
-export const ACCEPTED_MIME_TYPE = "application/pdf";
-export const ACCEPTED_EXTENSION = ".pdf";
+export const MAX_FILE_SIZE_BYTES = MAX_PDF_SIZE_BYTES;
+export const ACCEPTED_MIME_TYPE = PDF_MIME_TYPE;
+export const ACCEPTED_EXTENSION = PDF_EXTENSION;
 
 /** Cadastro de uma nova normativa. Os limites batem com os CHECKs da tabela. */
 export const documentFormSchema = z.object({
@@ -112,27 +120,9 @@ export type VersionUrlInput = z.infer<typeof versionUrlSchema>;
  * o mesmo arquivo é como o usuário descobre que o sistema se contradiz.
  *
  * Aqui só dá para checar o que o navegador informa. Se o arquivo é mesmo um PDF
- * e se pede senha, só o servidor descobre — ver `src/lib/documents/pdf.ts`.
+ * e se pede senha, só o servidor descobre — ver `inspectPdf` em
+ * `src/lib/files/pdf.ts`.
  */
-export type UploadIssue = "fileNotPdf" | "fileTooLarge";
+export type UploadIssue = PdfUploadIssue;
 
-export function validateUploadCandidate(file: {
-  name: string;
-  size: number;
-  type: string;
-}): UploadIssue | null {
-  const hasPdfExtension = file.name.toLowerCase().endsWith(ACCEPTED_EXTENSION);
-  // `type` vem vazio em alguns navegadores/sistemas; nesse caso a extensão é o
-  // que sobra. Reprovar por MIME ausente barraria upload legítimo, e a
-  // verificação que vale mesmo acontece no servidor.
-  const hasPdfMime = file.type === "" || file.type === ACCEPTED_MIME_TYPE;
-  if (!hasPdfExtension || !hasPdfMime) return "fileNotPdf";
-
-  // Arquivo vazio é "não é PDF", não "é grande demais": nenhum PDF tem zero
-  // bytes, e dizer o contrário mandaria a pessoa procurar um problema de
-  // tamanho que não existe.
-  if (file.size <= 0) return "fileNotPdf";
-  if (file.size > MAX_FILE_SIZE_BYTES) return "fileTooLarge";
-
-  return null;
-}
+export const validateUploadCandidate = validatePdfCandidate;

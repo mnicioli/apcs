@@ -28,6 +28,10 @@ export type ActionErrorCode =
   | "eventExpired"
   | "eventDateInPast"
   | "invalidSegment"
+  // Regras de negócio da Bolsa. Mesmo raciocínio: cada uma tem um texto que diz
+  // O QUE FAZER em seguida.
+  | "bulletinNeedsActiveVersion"
+  | "versionNotInBulletin"
   | "unexpected"; // erro não previsto (logar no servidor!)
 
 export interface ActionErrorBody {
@@ -60,6 +64,9 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   eventExpired: "Não é possível ativar um evento cuja data já passou.",
   eventDateInPast: "Não é possível cadastrar um evento com data anterior à data atual.",
   invalidSegment: "Selecione um público-alvo válido.",
+  bulletinNeedsActiveVersion:
+    "A Bolsa não pode ficar sem uma publicação ativa. Para trocar a publicação oficial, ative a desejada — a atual sai do ar automaticamente.",
+  versionNotInBulletin: "Esta publicação não pertence a esta Bolsa.",
   unexpected: "Ocorreu um erro inesperado. Tente novamente.",
 };
 
@@ -104,6 +111,13 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "invalidSegment" };
     case "EV003":
       return { code: "eventDateInPast" };
+    // Classe `MB` — regras de negócio da Bolsa, pela mesma razão da `EV`: a
+    // classe `P0` é RESERVADA pelo PL/pgSQL. Ver
+    // supabase/migrations/20260814000000_create_market_bulletins.sql.
+    case "MB001":
+      return { code: "bulletinNeedsActiveVersion" };
+    case "MB002":
+      return { code: "versionNotInBulletin" };
     default:
       return { code: "unexpected" };
   }

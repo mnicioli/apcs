@@ -43,6 +43,23 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "events.read": ["admin", "ceo", "comercial"],
   "events.write": ["admin", "ceo"],
 
+  // Bolsa — os boletins de preço da APCS.
+  // Mesmo recorte da gestão documental, e pelo mesmo motivo: quem atende
+  // (`comercial`, o "Atendente") precisa CONSULTAR e BAIXAR o boletim vigente
+  // para responder, mas publicar uma versão nova é decisão de quem responde
+  // pelo boletim. Deve bater com as policies de `market_bulletins` /
+  // `market_bulletin_versions` / `market_bulletin_audit_logs`.
+  //
+  // Chave própria (e não `documents.*`) mesmo com a mesma lista de papéis: são
+  // decisões de negócio distintas, e um dia restringir quem publica a Bolsa não
+  // pode mexer em quem publica normativa.
+  //
+  // A trilha de auditoria é mais estreita que a leitura: só admin e ceo a leem.
+  // Isso está na RLS de `market_bulletin_audit_logs` e é checado nas telas por
+  // `market.write`.
+  "market.read": ["admin", "ceo", "comercial"],
+  "market.write": ["admin", "ceo"],
+
   // Módulo 01 — Clientes
   "clients.read": ["admin", "ceo", "comercial", "pm"],
   "clients.write": ["admin", "comercial"],

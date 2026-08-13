@@ -6,82 +6,26 @@ import { z } from "zod";
  */
 
 /**
- * 5 MB exatos. O escopo é explícito: um arquivo com exatamente 5 MB deve ser
- * ACEITO, então a comparação é `<=`, nunca `<`.
+ * As regras de IMAGEM moram em `src/lib/files/image.ts`, porque Eventos e Bolsa
+ * fazem a mesma pergunta sobre os mesmos formatos. O que fica aqui é o CONTRATO
+ * do módulo: as telas continuam importando destes nomes, e o dia em que a
+ * plataforma aceitar um formato novo ele entra num lugar só.
  *
- * Este mesmo número aparece em outros três lugares — o `file_size_limit` do
- * bucket `events`, o CHECK de `events.image_size_bytes` e a conferência dos
- * bytes que chegaram. Quatro barreiras independentes: se uma for contornada,
- * as outras seguem de pé.
+ * O limite de 5 MB ainda aparece em outros três lugares — o `file_size_limit`
+ * do bucket `events`, o CHECK de `events.image_size_bytes` e a conferência dos
+ * bytes que chegaram. Quatro barreiras independentes.
  */
-export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
-
-/**
- * Extensão → MIME que os BYTES precisam confirmar.
- *
- * O mapa é a regra inteira de tipos de imagem do módulo, num lugar só. `.jpg` e
- * `.jpeg` apontam para o mesmo MIME porque são o mesmo formato com dois nomes.
- */
-export const IMAGE_EXTENSION_MIME: Record<string, string> = {
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".webp": "image/webp",
-};
-
-export const ACCEPTED_IMAGE_EXTENSIONS = Object.keys(IMAGE_EXTENSION_MIME);
-export const ACCEPTED_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
-export type AcceptedImageMime = (typeof ACCEPTED_IMAGE_MIMES)[number];
-
-/** O `accept` do input de arquivo: "image/jpeg,image/png,image/webp,.jpg,..." */
-export const IMAGE_ACCEPT_ATTRIBUTE = [...ACCEPTED_IMAGE_MIMES, ...ACCEPTED_IMAGE_EXTENSIONS].join(
-  ",",
-);
-
-/** A extensão em minúsculas, com o ponto — ou `null` se o nome não tiver uma. */
-export function imageExtensionOf(filename: string): string | null {
-  const dot = filename.lastIndexOf(".");
-  if (dot <= 0) return null;
-  return filename.slice(dot).toLowerCase();
-}
-
-/**
- * O que há de errado com a imagem escolhida — ou `null` se estiver tudo bem.
- *
- * Devolve o CÓDIGO do problema, não a mensagem: assim o campo de upload e a
- * action chegam à mesma conclusão a partir da mesma função, e o texto vem de um
- * lugar só (`ACTION_ERROR_MESSAGES`). Duas validações com dois textos diferentes
- * para o mesmo arquivo é como o usuário descobre que o sistema se contradiz.
- *
- * Aqui só dá para checar o que o navegador informa. Se o arquivo é MESMO uma
- * imagem, só o servidor descobre — ver `src/lib/events/image.ts`.
- */
-export type ImageUploadIssue = "fileNotImage" | "fileTooLarge";
-
-export function validateImageCandidate(file: {
-  name: string;
-  size: number;
-  type: string;
-}): ImageUploadIssue | null {
-  const extension = imageExtensionOf(file.name);
-  if (!extension || !(extension in IMAGE_EXTENSION_MIME)) return "fileNotImage";
-
-  // `type` vem vazio em alguns navegadores/sistemas; nesse caso a extensão é o
-  // que sobra. Reprovar por MIME ausente barraria upload legítimo, e a
-  // verificação que vale mesmo acontece no servidor, sobre os bytes.
-  const declared = file.type;
-  if (declared !== "" && !(ACCEPTED_IMAGE_MIMES as readonly string[]).includes(declared)) {
-    return "fileNotImage";
-  }
-
-  // Arquivo vazio é "não é imagem", não "é grande demais": nenhuma imagem tem
-  // zero bytes, e dizer o contrário mandaria a pessoa procurar um problema de
-  // tamanho que não existe.
-  if (file.size <= 0) return "fileNotImage";
-  if (file.size > MAX_IMAGE_SIZE_BYTES) return "fileTooLarge";
-
-  return null;
-}
+export {
+  ACCEPTED_IMAGE_EXTENSIONS,
+  ACCEPTED_IMAGE_MIMES,
+  IMAGE_ACCEPT_ATTRIBUTE,
+  IMAGE_EXTENSION_MIME,
+  MAX_IMAGE_SIZE_BYTES,
+  imageExtensionOf,
+  validateImageCandidate,
+  type AcceptedImageMime,
+  type ImageUploadIssue,
+} from "@/lib/files/image";
 
 /**
  * Data do evento: AAAA-MM-DD, o formato que o `<input type="date">` produz e que

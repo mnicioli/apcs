@@ -1,0 +1,67 @@
+import "server-only";
+import { imageExtensionOf } from "@/lib/files/image";
+import type { BulletinFileKind } from "@/modules/market/market.schema";
+
+/**
+ * Endereçamento dos arquivos no bucket privado `market-bulletins`.
+ *
+ * `server-only`: o navegador nunca precisa saber onde o arquivo mora. As
+ * actions recebem o id da versão e resolvem o caminho aqui; o que não é enviado
+ * não vaza.
+ */
+
+export const MARKET_BUCKET = "market-bulletins";
+
+/**
+ * Onde os arquivos ficam:
+ *
+ *   `<bulletin_id>/<version_id>/image/<uuid>.<ext>`
+ *   `<bulletin_id>/<version_id>/pdf/<uuid>.pdf`
+ *
+ * A PASTA DA VERSÃO é o que amarra o par. Imagem e PDF de uma publicação moram
+ * no mesmo lugar, e os CHECKs `mb_versions_image_path_scope` /
+ * `mb_versions_pdf_path_scope` provam isso no banco — não dá para gravar uma
+ * versão apontando para o arquivo de outra.
+ *
+ * O nome que a pessoa enviou NÃO entra no caminho; ele é guardado só como
+ * metadado. Isso mata de uma vez traversal por `../`, colisão entre dois
+ * "bolsa.pdf" e caractere que o storage não aceita. A extensão é a única coisa
+ * aproveitada do nome original, e ela é conferida contra a allowlist antes de
+ * chegar aqui.
+ */
+export function buildFilePath(
+  bulletinId: string,
+  versionId: string,
+  kind: BulletinFileKind,
+  filename: string,
+): string {
+  const extension = kind === "pdf" ? ".pdf" : (imageExtensionOf(filename) ?? ".jpg");
+  return `${bulletinId}/${versionId}/${kind}/${crypto.randomUUID()}${extension}`;
+}
+
+/**
+ * O prefixo de uma publicação — usado para apagar os dois arquivos de uma vez
+ * quando a validação reprova.
+ */
+export function versionFolder(bulletinId: string, versionId: string): string {
+  return `${bulletinId}/${versionId}/`;
+}
+
+/**
+ * Vida das URLs assinadas, em segundos.
+ *
+ * Cinco minutos para o PDF: o suficiente para o navegador carregar 5 MB e a
+ * pessoa começar a ler, e curto o bastante para uma URL copiada não virar
+ * acesso permanente fora do controle de permissão. É o mesmo prazo das
+ * normativas, e pelo mesmo motivo.
+ */
+export const PDF_SIGNED_URL_TTL_SECONDS = 300;
+
+/**
+ * Uma hora para a imagem, e a diferença tem razão concreta: a grid emite as
+ * URLs na RENDERIZAÇÃO, então uma lista deixada aberta enquanto alguém almoça
+ * viraria uma tela de imagens quebradas. Uma miniatura de boletim numa janela
+ * de uma hora é risco menor do que isso — e o arquivo continua inacessível para
+ * quem nunca teve permissão de abrir a tela.
+ */
+export const IMAGE_SIGNED_URL_TTL_SECONDS = 3600;

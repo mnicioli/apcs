@@ -1,5 +1,5 @@
 import "server-only";
-import { imageExtensionOf } from "@/modules/event/event.schema";
+import { imageExtensionOf } from "@/lib/files/image";
 
 /**
  * Endereçamento das imagens no bucket privado `events`.

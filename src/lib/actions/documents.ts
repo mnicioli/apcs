@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/errors";
-import { inspectPdf } from "@/lib/documents/pdf";
+import { inspectPdf } from "@/lib/files/pdf";
 import {
   buildStoragePath,
   DOCUMENTS_BUCKET,

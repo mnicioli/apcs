@@ -44,6 +44,9 @@ export type Permission =
   // Eventos da APCS
   | "events.read"
   | "events.write"
+  // Bolsa — os boletins de preço (submenu de Documentos)
+  | "market.read"
+  | "market.write"
   | "clients.read"
   | "clients.write"
   | "projects.read"

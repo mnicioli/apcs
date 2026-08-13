@@ -613,6 +613,207 @@ export type Database = {
           },
         ];
       };
+      market_bulletin_audit_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["market_bulletin_audit_action"];
+          actor_id: string | null;
+          bulletin_id: string | null;
+          created_at: string;
+          id: number;
+          metadata: Json;
+          version_id: string | null;
+        };
+        Insert: {
+          action: Database["public"]["Enums"]["market_bulletin_audit_action"];
+          actor_id?: string | null;
+          bulletin_id?: string | null;
+          created_at?: string;
+          id?: never;
+          metadata?: Json;
+          version_id?: string | null;
+        };
+        Update: {
+          action?: Database["public"]["Enums"]["market_bulletin_audit_action"];
+          actor_id?: string | null;
+          bulletin_id?: string | null;
+          created_at?: string;
+          id?: never;
+          metadata?: Json;
+          version_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "market_bulletin_audit_logs_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "market_bulletin_audit_logs_bulletin_id_fkey";
+            columns: ["bulletin_id"];
+            isOneToOne: false;
+            referencedRelation: "market_bulletins";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "market_bulletin_audit_logs_version_id_fkey";
+            columns: ["version_id"];
+            isOneToOne: false;
+            referencedRelation: "market_bulletin_versions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      market_bulletin_versions: {
+        Row: {
+          activated_at: string | null;
+          activated_by: string | null;
+          bulletin_id: string;
+          deactivated_at: string | null;
+          deactivated_by: string | null;
+          effective_date: string;
+          id: string;
+          image_filename: string;
+          image_mime_type: string;
+          image_path: string;
+          image_size_bytes: number;
+          pdf_filename: string;
+          pdf_mime_type: string;
+          pdf_path: string;
+          pdf_size_bytes: number;
+          status: Database["public"]["Enums"]["market_bulletin_version_status"];
+          status_reason: Database["public"]["Enums"]["market_bulletin_status_reason"] | null;
+          uploaded_at: string;
+          uploaded_by: string | null;
+          version: number;
+          version_name: string;
+        };
+        Insert: {
+          activated_at?: string | null;
+          activated_by?: string | null;
+          bulletin_id: string;
+          deactivated_at?: string | null;
+          deactivated_by?: string | null;
+          effective_date: string;
+          id: string;
+          image_filename: string;
+          image_mime_type: string;
+          image_path: string;
+          image_size_bytes: number;
+          pdf_filename: string;
+          pdf_mime_type?: string;
+          pdf_path: string;
+          pdf_size_bytes: number;
+          status: Database["public"]["Enums"]["market_bulletin_version_status"];
+          status_reason?: Database["public"]["Enums"]["market_bulletin_status_reason"] | null;
+          uploaded_at?: string;
+          uploaded_by?: string | null;
+          version: number;
+          version_name: string;
+        };
+        Update: {
+          activated_at?: string | null;
+          activated_by?: string | null;
+          bulletin_id?: string;
+          deactivated_at?: string | null;
+          deactivated_by?: string | null;
+          effective_date?: string;
+          id?: string;
+          image_filename?: string;
+          image_mime_type?: string;
+          image_path?: string;
+          image_size_bytes?: number;
+          pdf_filename?: string;
+          pdf_mime_type?: string;
+          pdf_path?: string;
+          pdf_size_bytes?: number;
+          status?: Database["public"]["Enums"]["market_bulletin_version_status"];
+          status_reason?: Database["public"]["Enums"]["market_bulletin_status_reason"] | null;
+          uploaded_at?: string;
+          uploaded_by?: string | null;
+          version?: number;
+          version_name?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "market_bulletin_versions_activated_by_fkey";
+            columns: ["activated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "market_bulletin_versions_bulletin_id_fkey";
+            columns: ["bulletin_id"];
+            isOneToOne: false;
+            referencedRelation: "market_bulletins";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "market_bulletin_versions_deactivated_by_fkey";
+            columns: ["deactivated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "market_bulletin_versions_uploaded_by_fkey";
+            columns: ["uploaded_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      market_bulletins: {
+        Row: {
+          chatbot_enabled: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          name: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          chatbot_enabled?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          name: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          chatbot_enabled?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          name?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "market_bulletins_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "market_bulletins_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
@@ -671,6 +872,38 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "document_versions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      activate_market_bulletin_version: {
+        Args: { p_bulletin_id: string; p_version_id: string };
+        Returns: {
+          activated_at: string | null;
+          activated_by: string | null;
+          bulletin_id: string;
+          deactivated_at: string | null;
+          deactivated_by: string | null;
+          effective_date: string;
+          id: string;
+          image_filename: string;
+          image_mime_type: string;
+          image_path: string;
+          image_size_bytes: number;
+          pdf_filename: string;
+          pdf_mime_type: string;
+          pdf_path: string;
+          pdf_size_bytes: number;
+          status: Database["public"]["Enums"]["market_bulletin_version_status"];
+          status_reason: Database["public"]["Enums"]["market_bulletin_status_reason"] | null;
+          uploaded_at: string;
+          uploaded_by: string | null;
+          version: number;
+          version_name: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "market_bulletin_versions";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -750,6 +983,73 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      create_market_bulletin: {
+        Args: {
+          p_chatbot_enabled: boolean;
+          p_description: string;
+          p_name: string;
+        };
+        Returns: {
+          chatbot_enabled: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          name: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "market_bulletins";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_market_bulletin_version: {
+        Args: {
+          p_bulletin_id: string;
+          p_effective_date: string;
+          p_image_filename: string;
+          p_image_mime_type: string;
+          p_image_path: string;
+          p_image_size_bytes: number;
+          p_pdf_filename: string;
+          p_pdf_path: string;
+          p_pdf_size_bytes: number;
+          p_version_id: string;
+        };
+        Returns: {
+          activated_at: string | null;
+          activated_by: string | null;
+          bulletin_id: string;
+          deactivated_at: string | null;
+          deactivated_by: string | null;
+          effective_date: string;
+          id: string;
+          image_filename: string;
+          image_mime_type: string;
+          image_path: string;
+          image_size_bytes: number;
+          pdf_filename: string;
+          pdf_mime_type: string;
+          pdf_path: string;
+          pdf_size_bytes: number;
+          status: Database["public"]["Enums"]["market_bulletin_version_status"];
+          status_reason: Database["public"]["Enums"]["market_bulletin_status_reason"] | null;
+          uploaded_at: string;
+          uploaded_by: string | null;
+          version: number;
+          version_name: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "market_bulletin_versions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      current_actor_name: { Args: never; Returns: string };
       current_app_role: {
         Args: never;
         Returns: Database["public"]["Enums"]["app_role"];
@@ -781,6 +1081,38 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      deactivate_market_bulletin_version: {
+        Args: { p_bulletin_id: string; p_version_id: string };
+        Returns: {
+          activated_at: string | null;
+          activated_by: string | null;
+          bulletin_id: string;
+          deactivated_at: string | null;
+          deactivated_by: string | null;
+          effective_date: string;
+          id: string;
+          image_filename: string;
+          image_mime_type: string;
+          image_path: string;
+          image_size_bytes: number;
+          pdf_filename: string;
+          pdf_mime_type: string;
+          pdf_path: string;
+          pdf_size_bytes: number;
+          status: Database["public"]["Enums"]["market_bulletin_version_status"];
+          status_reason: Database["public"]["Enums"]["market_bulletin_status_reason"] | null;
+          uploaded_at: string;
+          uploaded_by: string | null;
+          version: number;
+          version_name: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "market_bulletin_versions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       event_today: { Args: never; Returns: string };
       expand_event_segments: {
         Args: { p_segment_ids: string[] };
@@ -789,6 +1121,14 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean };
       lock_document: { Args: { p_document_id: string }; Returns: undefined };
       lock_event: { Args: { p_event_id: string }; Returns: undefined };
+      lock_market_bulletin: {
+        Args: { p_bulletin_id: string };
+        Returns: undefined;
+      };
+      market_bulletin_version_name: {
+        Args: { p_date: string };
+        Returns: string;
+      };
       set_event_status: {
         Args: { p_command: string; p_event_id: string };
         Returns: {
@@ -853,6 +1193,30 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      update_market_bulletin: {
+        Args: {
+          p_bulletin_id: string;
+          p_chatbot_enabled: boolean;
+          p_description: string;
+          p_name: string;
+        };
+        Returns: {
+          chatbot_enabled: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          name: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "market_bulletins";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
     };
     Enums: {
       app_role: "admin" | "ceo" | "pm" | "tech_lead" | "comercial" | "financeiro" | "viewer";
@@ -888,6 +1252,16 @@ export type Database = {
         | "event_segments_updated";
       event_status: "active" | "inactive";
       lead_status: "new" | "in_contact" | "qualified" | "discarded";
+      market_bulletin_audit_action:
+        | "bulletin_created"
+        | "bulletin_updated"
+        | "version_uploaded"
+        | "version_activated"
+        | "version_deactivated"
+        | "version_viewed"
+        | "version_downloaded";
+      market_bulletin_status_reason: "manual" | "superseded";
+      market_bulletin_version_status: "active" | "inactive";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -1052,6 +1426,17 @@ export const Constants = {
       ],
       event_status: ["active", "inactive"],
       lead_status: ["new", "in_contact", "qualified", "discarded"],
+      market_bulletin_audit_action: [
+        "bulletin_created",
+        "bulletin_updated",
+        "version_uploaded",
+        "version_activated",
+        "version_deactivated",
+        "version_viewed",
+        "version_downloaded",
+      ],
+      market_bulletin_status_reason: ["manual", "superseded"],
+      market_bulletin_version_status: ["active", "inactive"],
     },
   },
 } as const;

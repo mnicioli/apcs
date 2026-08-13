@@ -1,20 +1,64 @@
 import { PDFDocument } from "pdf-lib";
 
 /**
- * A validação que decide se um arquivo entra no acervo.
+ * O que a plataforma sabe sobre PDF — limite de tamanho, formato aceito e como
+ * provar que um arquivo é mesmo um PDF utilizável.
  *
- * Sem `server-only` de propósito: a função é pura (recebe bytes, devolve um
- * código) e não lê ambiente nem toca em segredo. Quem faz a barreira de
- * servidor é quem baixa o arquivo do bucket — `src/lib/actions/documents.ts`.
- * Marcar aqui só impediria o teste de rodar. Mesmo raciocínio de
- * `src/lib/chat/env.ts`.
+ * Vive em `src/lib/files/` e não dentro de um módulo porque Documentos e Bolsa
+ * fazem a MESMA pergunta sobre o mesmo formato. Duas cópias divergiriam no dia
+ * em que uma delas mudasse o limite, e aí o mesmo arquivo seria aceito numa
+ * tela e recusado na outra.
  *
- * POR QUE ISTO EXISTE: a extensão `.pdf` e o `Content-Type` do navegador são
- * informados por quem envia — renomear um `.docx` para `.pdf` engana os dois.
- * A única prova de que o arquivo é um PDF é abri-lo.
+ * Sem `server-only` de propósito: as funções são puras (recebem bytes ou
+ * metadados, devolvem um código) e não leem ambiente nem tocam em segredo. Quem
+ * faz a barreira de servidor é quem baixa o arquivo do bucket. Marcar aqui só
+ * impediria o teste de rodar. Mesmo raciocínio de `src/lib/chat/env.ts`.
+ *
+ * POR QUE `inspectPdf` EXISTE: a extensão `.pdf` e o `Content-Type` do
+ * navegador são informados por quem envia — renomear um `.docx` para `.pdf`
+ * engana os dois. A única prova de que o arquivo é um PDF é abri-lo.
  */
 
-/** O mesmo vocabulário de `document.schema.ts`, mais o que só o servidor vê. */
+/**
+ * 5 MB exatos. O escopo é explícito: um arquivo com exatamente 5 MB deve ser
+ * ACEITO, então a comparação é `<=`, nunca `<`.
+ */
+export const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
+
+export const PDF_MIME_TYPE = "application/pdf";
+export const PDF_EXTENSION = ".pdf";
+
+/**
+ * O que há de errado com o PDF escolhido, olhando só o que o navegador informa
+ * — ou `null` se estiver tudo bem.
+ *
+ * DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT e ZIP caem aqui pela extensão; o que
+ * passar por ter sido renomeado é pego em `inspectPdf`, sobre os bytes.
+ */
+export type PdfUploadIssue = "fileNotPdf" | "fileTooLarge";
+
+export function validatePdfCandidate(file: {
+  name: string;
+  size: number;
+  type: string;
+}): PdfUploadIssue | null {
+  const hasPdfExtension = file.name.toLowerCase().endsWith(PDF_EXTENSION);
+  // `type` vem vazio em alguns navegadores/sistemas; nesse caso a extensão é o
+  // que sobra. Reprovar por MIME ausente barraria upload legítimo, e a
+  // verificação que vale mesmo acontece no servidor.
+  const hasPdfMime = file.type === "" || file.type === PDF_MIME_TYPE;
+  if (!hasPdfExtension || !hasPdfMime) return "fileNotPdf";
+
+  // Arquivo vazio é "não é PDF", não "é grande demais": nenhum PDF tem zero
+  // bytes, e dizer o contrário mandaria a pessoa procurar um problema de
+  // tamanho que não existe.
+  if (file.size <= 0) return "fileNotPdf";
+  if (file.size > MAX_PDF_SIZE_BYTES) return "fileTooLarge";
+
+  return null;
+}
+
+/** O vocabulário do candidato, mais o que só o servidor descobre. */
 export type PdfIssue = "fileNotPdf" | "fileEncrypted";
 
 const PDF_HEADER = "%PDF-";

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/errors";
-import { inspectImage } from "@/lib/events/image";
+import { inspectImage } from "@/lib/files/image";
 import { buildImagePath, EVENTS_BUCKET } from "@/lib/events/storage";
 import {
   createEventSchema,

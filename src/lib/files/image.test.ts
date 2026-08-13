@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_IMAGE_SIZE_BYTES } from "@/modules/event/event.schema";
-import { detectImageMime, inspectImage } from "./image";
+import { detectImageMime, inspectImage, MAX_IMAGE_SIZE_BYTES } from "./image";
 
 /**
  * Os cabeçalhos são montados à mão, byte a byte, de propósito: o que está sob
