@@ -1,5 +1,6 @@
 import type {
   MarketAuditAction,
+  MarketChatbotFilter,
   MarketStatusFilter,
   MarketStatusReason,
   MarketVersionSituation,
@@ -31,10 +32,23 @@ export const MARKET_STATUS_LABELS: Record<MarketVersionStatus, string> = {
   inactive: "Inativa",
 };
 
+/**
+ * O filtro de status da GRID, e os rótulos não são "Ativa/Inativa" à toa.
+ *
+ * Como a Bolsa não pode ficar sem publicação ativa, o que este filtro de fato
+ * separa é "já publicada" de "cadastrada e ainda esperando a primeira". Dizer
+ * "Inativa" mandaria a pessoa procurar uma Bolsa desligada, que não existe.
+ */
 export const MARKET_STATUS_FILTER_LABELS: Record<MarketStatusFilter, string> = {
   all: "Todas",
-  active: "Ativa",
-  inactive: "Inativa",
+  active: "Com publicação",
+  inactive: "Sem publicação",
+};
+
+export const MARKET_CHATBOT_FILTER_LABELS: Record<MarketChatbotFilter, string> = {
+  all: "Todas",
+  available: "Disponível",
+  unavailable: "Não disponível",
 };
 
 /**

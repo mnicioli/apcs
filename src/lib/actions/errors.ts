@@ -59,7 +59,10 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   notFound: "Registro não encontrado.",
   fileNotPdf: "Apenas arquivos PDF são permitidos.",
   fileTooLarge: "O arquivo não pode ultrapassar o tamanho máximo de 5 MB.",
-  fileEncrypted: "Não é permitido enviar arquivos PDF protegidos por senha.",
+  // Diz o que FAZER, e não só o que é proibido: quem recebeu um PDF com senha
+  // de outra pessoa precisa saber que o caminho é regravar o arquivo.
+  fileEncrypted:
+    "O PDF informado é protegido por senha e não pode ser utilizado. Remova a proteção e envie o arquivo novamente.",
   fileNotImage: "Envie uma imagem JPG, PNG ou WEBP válida.",
   eventExpired: "Não é possível ativar um evento cuja data já passou.",
   eventDateInPast: "Não é possível cadastrar um evento com data anterior à data atual.",

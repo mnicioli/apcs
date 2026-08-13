@@ -62,6 +62,23 @@ export function isMarketStatusFilter(value: string): value is MarketStatusFilter
   return (MARKET_STATUS_FILTERS as readonly string[]).includes(value);
 }
 
+/**
+ * Filtro de disponibilidade para o chatbot.
+ *
+ * Responde "o robô pode citar esta Bolsa?", que é a pergunta com as TRÊS
+ * condições (ligada + publicação ativa + vigência chegada) — não só o valor da
+ * coluna `chatbot_enabled`. Uma Bolsa ligada cuja publicação só vale semana que
+ * vem aparece em "Não disponível", porque hoje ela não está.
+ */
+export const MARKET_CHATBOT_FILTERS = ["all", "available", "unavailable"] as const;
+export type MarketChatbotFilter = (typeof MARKET_CHATBOT_FILTERS)[number];
+
+export const DEFAULT_MARKET_CHATBOT_FILTER: MarketChatbotFilter = "all";
+
+export function isMarketChatbotFilter(value: string): value is MarketChatbotFilter {
+  return (MARKET_CHATBOT_FILTERS as readonly string[]).includes(value);
+}
+
 /** Quem fez uma operação, já com o nome resolvido para exibir. */
 export interface MarketActor {
   id: string;
@@ -180,7 +197,17 @@ export interface MarketFilters {
   /** Busca parcial por nome da Bolsa ou da versão. String vazia = sem filtro. */
   query: string;
   status: MarketStatusFilter;
+  chatbot: MarketChatbotFilter;
   /** Recorte por vigência, inclusivo nas duas pontas. Vazio = sem limite. */
   from: string;
   to: string;
 }
+
+/** O estado neutro: nenhum recorte aplicado. */
+export const EMPTY_MARKET_FILTERS: MarketFilters = {
+  query: "",
+  status: DEFAULT_MARKET_STATUS_FILTER,
+  chatbot: DEFAULT_MARKET_CHATBOT_FILTER,
+  from: "",
+  to: "",
+};

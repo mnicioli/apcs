@@ -20,7 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { STATUS_BADGE_VARIANT } from "./event-badges";
 import { EventSegmentsCell } from "./event-segments-cell";
 import { EventStatusActions } from "./event-status-actions";
-import { EventThumbnail } from "./event-thumbnail";
+import { SignedImage } from "@/components/ui/signed-image";
 import { EventsFilters } from "./events-filters";
 
 export const metadata: Metadata = { title: "Eventos" };
@@ -179,7 +179,7 @@ function EventRow({
   return (
     <tr className="border-border hover:bg-muted/50 border-b align-middle last:border-0">
       <td className="py-2 pr-2 pl-4">
-        <EventThumbnail url={event.imageUrl} alt={event.name} />
+        <SignedImage url={event.imageUrl} alt={event.name} />
       </td>
 
       <td className="max-w-56 px-4 py-3">

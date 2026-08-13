@@ -2,6 +2,7 @@ import { normalizeForSearch } from "@/lib/utils";
 import type {
   MarketBulletinSummary,
   MarketBulletinVersion,
+  MarketChatbotFilter,
   MarketFilters,
   MarketVersionSituation,
 } from "./market.types";
@@ -178,6 +179,111 @@ export function matchesBulletinFilters(
   if (!query) return true;
 
   return normalizeForSearch(bulletin.name).includes(query);
+}
+
+/**
+ * O status da BOLSA é o status da publicação: existe uma ativa?
+ *
+ * Depois da primeira publicação a resposta é sempre "sim" — a Bolsa não pode
+ * ficar sem ativa. Então, na prática, `inactive` aqui significa uma coisa só, e
+ * ela é útil: **Bolsa cadastrada que ainda não recebeu nenhuma publicação**.
+ */
+export function bulletinStatus(
+  bulletin: Pick<MarketBulletinSummary, "activeVersion">,
+): "active" | "inactive" {
+  return bulletin.activeVersion ? "active" : "inactive";
+}
+
+/**
+ * O recorte completo da grid: nome, status, chatbot e faixa de vigência.
+ *
+ * A faixa de vigência é testada contra a publicação ATIVA — é a vigência que a
+ * linha exibe. Uma Bolsa sem publicação nenhuma não tem vigência para comparar,
+ * então sai do resultado quando alguém informa uma faixa; deixá-la aparecer
+ * sugeriria que ela vale naquele período.
+ */
+export function matchesMarketFilters(
+  bulletin: MarketBulletinSummary,
+  filters: MarketFilters,
+  today: string,
+): boolean {
+  if (!matchesBulletinFilters(bulletin, filters)) return false;
+  if (filters.status !== "all" && bulletinStatus(bulletin) !== filters.status) return false;
+  if (!matchesChatbotFilter(bulletin, filters.chatbot, today)) return false;
+
+  const hasRange = filters.from !== "" || filters.to !== "";
+  if (!hasRange) return true;
+  if (!bulletin.activeVersion) return false;
+
+  const vigencia = bulletin.activeVersion.effectiveDate;
+  if (filters.from && vigencia < filters.from) return false;
+  if (filters.to && vigencia > filters.to) return false;
+
+  return true;
+}
+
+/**
+ * O filtro de chatbot pergunta o que o ROBÔ enxerga, não o que a coluna diz.
+ *
+ * Uma Bolsa ligada cuja publicação só vale semana que vem cai em "Não
+ * disponível" — porque hoje ela não está. Filtrar por `chatbotEnabled` puro
+ * mostraria a Bolsa como disponível e a pessoa iria procurar no chatbot uma
+ * resposta que ele não dá.
+ */
+export function matchesChatbotFilter(
+  bulletin: MarketBulletinSummary,
+  filter: MarketChatbotFilter,
+  today: string,
+): boolean {
+  if (filter === "all") return true;
+
+  const disponivel = isAvailableForChatbot(bulletin, bulletin.activeVersion, today);
+  return filter === "available" ? disponivel : !disponivel;
+}
+
+/**
+ * O nome com que o arquivo chega ao computador de quem baixa.
+ *
+ * `a3f9c1e2-....pdf` não diz nada na pasta de Downloads três semanas depois.
+ * O nome montado aqui diz a Bolsa e a data: `Bolsa_de_Suínos_12Ago26.pdf`.
+ *
+ * O prefixo `Bolsa_` sai do nome da publicação para não repetir a palavra duas
+ * vezes. Ele é fixo e garantido pelo CHECK `mb_versions_name_format`, então o
+ * recorte não depende de sorte.
+ *
+ * A sanitização troca por `_` tudo que Windows, macOS e Linux recusam em nome de
+ * arquivo. Acento FICA — `Suínos` é o nome da coisa, e os três sistemas aceitam
+ * UTF-8 há muito tempo.
+ */
+export function downloadFilename(
+  bulletinName: string,
+  versionName: string,
+  extension: string,
+): string {
+  const bolsa = sanitizeFilename(bulletinName);
+  const data = sanitizeFilename(versionName.replace(/^Bolsa_/, ""));
+  return `${bolsa}_${data}${extension}`;
+}
+
+function sanitizeFilename(value: string): string {
+  // Os caracteres de controle saem por código, e não por regex: escrevê-los
+  // no fonte deixa bytes invisíveis no arquivo, que a próxima pessoa a editar
+  // não vê e apaga sem querer.
+  const semControle = Array.from(value.trim())
+    .filter((char) => (char.codePointAt(0) ?? 0) >= 0x20)
+    .join("");
+
+  const semProibidos = semControle
+    // Os proibidos no Windows, mais a barra do POSIX.
+    .replace(/[<>:"/\\|?*]/g, "")
+    // Espaço vira sublinhado: nome com espaço atrapalha quem for automatizar
+    // algo depois, e o sublinhado mantém o nome legível.
+    .replace(/\s+/g, "_")
+    // Ponto nas pontas some: o Windows recusa nome terminado em ponto.
+    .replace(/^\.+/, "")
+    .replace(/\.+$/, "");
+
+  return semProibidos || "arquivo";
 }
 
 /**

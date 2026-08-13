@@ -1,65 +1,74 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type DragEvent } from "react";
-import { ImageUp, Trash2 } from "lucide-react";
-import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
+import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { Trash2 } from "lucide-react";
 import { cn, formatFileSize } from "@/lib/utils";
-import { IMAGE_ACCEPT_ATTRIBUTE, validateImageCandidate } from "@/modules/event/event.schema";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { SignedImage } from "@/components/ui/signed-image";
 
 /**
- * O cartaz do evento: arrastar, escolher, ver e trocar.
+ * Uma área de arrastar-e-soltar para UM arquivo.
  *
- * Controlado — quem guarda o arquivo é o formulário, porque é ele que decide
- * quando enviar. Aqui só acontecem a escolha, a validação do que o navegador
- * consegue ver e o preview.
+ * Existe porque a publicação da Bolsa tem duas — imagem e PDF — e o escopo é
+ * explícito em não misturar os dois tipos numa área só. Misturar significaria
+ * aceitar os dois `accept` juntos e depois adivinhar qual arquivo é qual, o que
+ * erra na primeira vez que alguém soltar dois PDFs.
  *
- * ⚠️ A validação daqui é UX. Quem decide se o arquivo é mesmo uma imagem é o
- * servidor, lendo os bytes (`src/lib/events/image.ts`) — extensão e MIME
- * declarado são texto que veio de fora e mudam com um renomear.
+ * ⚠️ A validação daqui é UX. Quem decide se o arquivo é mesmo o que diz ser é o
+ * servidor, lendo os bytes — extensão e MIME declarado são texto que veio de
+ * fora e mudam com um renomear.
  */
-export function EventImageField({
+export function FileDropZone({
+  label,
   file,
   onFileChange,
-  currentImageUrl,
-  eventName,
+  accept,
+  hint,
+  icon,
+  validate,
   disabled,
+  preview,
 }: {
+  label: string;
   file: File | null;
   onFileChange: (file: File | null) => void;
-  /** Na edição, a imagem que já está gravada. `null` no cadastro. */
-  currentImageUrl?: string | null;
-  eventName: string;
+  /** O `accept` do input, já montado pelo módulo. */
+  accept: string;
+  /** Formatos e limite, em uma linha. */
+  hint: string;
+  icon: ReactNode;
+  /** Devolve o CÓDIGO do problema, ou `null`. A mensagem vem de quem chama. */
+  validate: (file: File) => string | null;
   disabled?: boolean;
+  /** Miniatura, quando o tipo do arquivo permite mostrar uma. */
+  preview?: (objectUrl: string) => ReactNode;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fieldId = useId();
 
   // `createObjectURL` prende o arquivo na memória até alguém revogar. Sem a
-  // limpeza, trocar de imagem cinco vezes deixaria cinco arquivos presos.
+  // limpeza, trocar de arquivo cinco vezes deixaria cinco presos.
   useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null);
+    if (!file || !preview) {
+      setObjectUrl(null);
       return;
     }
 
     const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
+    setObjectUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [file]);
+  }, [file, preview]);
 
-  function accept(candidate: File | undefined) {
+  function accepted(candidate: File | undefined) {
     if (!candidate) return;
 
-    const issue = validateImageCandidate(candidate);
-    if (issue) {
+    const problema = validate(candidate);
+    if (problema) {
       onFileChange(null);
-      setError(ACTION_ERROR_MESSAGES[issue]);
+      setError(problema);
       return;
     }
 
@@ -71,7 +80,7 @@ export function EventImageField({
     event.preventDefault();
     setIsDragging(false);
     if (disabled) return;
-    accept(event.dataTransfer.files[0]);
+    accepted(event.dataTransfer.files[0]);
   }
 
   function clearSelection() {
@@ -82,13 +91,10 @@ export function EventImageField({
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  const shownUrl = previewUrl ?? currentImageUrl ?? null;
-  const hasImage = shownUrl !== null;
-
   return (
     <div className="space-y-2">
       <Label htmlFor={fieldId}>
-        Imagem <span aria-hidden="true">*</span>
+        {label} <span aria-hidden="true">*</span>
         <span className="sr-only">(obrigatório)</span>
       </Label>
 
@@ -104,16 +110,16 @@ export function EventImageField({
           isDragging ? "border-primary bg-accent" : "border-border",
         )}
       >
-        {hasImage ? (
+        {file ? (
           <div className="flex flex-wrap items-center gap-4">
-            <SignedImage url={shownUrl} alt={eventName || "Cartaz do evento"} sizes="h-24 w-40" />
+            {preview && objectUrl ? preview(objectUrl) : icon}
 
             <div className="min-w-40 flex-1 space-y-1">
-              <p className="truncate text-sm font-medium">
-                {file ? file.name : "Imagem atual do evento"}
+              <p className="truncate text-sm font-medium" title={file.name}>
+                {file.name}
               </p>
               <p className="text-muted-foreground text-xs">
-                {file ? formatFileSize(file.size) : "Envie um arquivo novo para substituí-la."}
+                {formatFileSize(file.size)} · {file.type || "tipo não informado"}
               </p>
             </div>
 
@@ -125,30 +131,28 @@ export function EventImageField({
                 disabled={disabled}
                 onClick={() => inputRef.current?.click()}
               >
-                Substituir imagem
+                Trocar
               </Button>
-              {file && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={disabled}
-                  onClick={clearSelection}
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  Remover
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={disabled}
+                onClick={clearSelection}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Remover
+              </Button>
             </div>
           </div>
         ) : (
           <div className="text-center">
-            <ImageUp className="text-muted-foreground mx-auto h-8 w-8" aria-hidden="true" />
-            <p className="mt-3 text-sm font-medium">Arraste a imagem aqui</p>
+            {icon}
+            <p className="mt-3 text-sm font-medium">Arraste e solte o arquivo aqui</p>
             <p className="text-muted-foreground text-xs">ou</p>
 
-            {/* O botão é a alternativa ao arrastar — quem navega por teclado
-                não tem como fazer drag & drop. */}
+            {/* O botão é a alternativa ao arrastar — quem navega por teclado não
+                tem como fazer drag & drop. */}
             <Button
               type="button"
               variant="outline"
@@ -166,16 +170,16 @@ export function EventImageField({
           ref={inputRef}
           id={fieldId}
           type="file"
-          accept={IMAGE_ACCEPT_ATTRIBUTE}
+          accept={accept}
           className="sr-only"
           disabled={disabled}
           aria-invalid={error !== null}
           aria-describedby={`${fieldId}-ajuda`}
-          onChange={(event) => accept(event.target.files?.[0])}
+          onChange={(event) => accepted(event.target.files?.[0])}
         />
 
         <p id={`${fieldId}-ajuda`} className="text-muted-foreground mt-4 text-center text-xs">
-          Formatos: JPG, JPEG, PNG e WEBP · Tamanho máximo: 5 MB
+          {hint}
         </p>
       </div>
 

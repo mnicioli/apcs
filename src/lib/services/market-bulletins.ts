@@ -1,10 +1,11 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { todayInSaoPaulo } from "@/lib/utils";
 import {
   activeVersion,
   compareBulletins,
   compareVersionsDesc,
-  matchesBulletinFilters,
+  matchesMarketFilters,
 } from "@/modules/market/market.rules";
 import type {
   MarketAuditAction,
@@ -135,9 +136,17 @@ function toSummary(row: BulletinRow, versions: MarketBulletinVersion[]): MarketB
   };
 }
 
-/** A grid das bolsas, já filtrada e ordenada. */
+/**
+ * A grid das bolsas, já filtrada e ordenada.
+ *
+ * `today` é PARÂMETRO e não `new Date()` aqui dentro: o filtro de chatbot
+ * depende de "hoje" e a página já apurou essa data uma vez. Duas leituras do
+ * relógio na mesma renderização podem cair em dias diferentes na virada da
+ * meia-noite — e aí a grid discordaria dela mesma.
+ */
 export async function listBulletins(
-  filters: Pick<MarketFilters, "query">,
+  filters: MarketFilters,
+  today: string = todayInSaoPaulo(),
 ): Promise<MarketBulletinSummary[]> {
   const supabase = await createClient();
 
@@ -155,7 +164,7 @@ export async function listBulletins(
 
   return (data ?? [])
     .map((row) => toSummary(row, row.versions.map(toVersion)))
-    .filter((bulletin) => matchesBulletinFilters(bulletin, filters))
+    .filter((bulletin) => matchesMarketFilters(bulletin, filters, today))
     .sort(compareBulletins);
 }
 

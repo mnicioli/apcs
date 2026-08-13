@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/errors";
-import { inspectImage, MAX_IMAGE_SIZE_BYTES, validateImageCandidate } from "@/lib/files/image";
+import {
+  imageExtensionOf,
+  inspectImage,
+  MAX_IMAGE_SIZE_BYTES,
+  validateImageCandidate,
+} from "@/lib/files/image";
 import { inspectPdf, MAX_PDF_SIZE_BYTES, validatePdfCandidate } from "@/lib/files/pdf";
 import {
   buildFilePath,
@@ -13,6 +18,7 @@ import {
   PDF_SIGNED_URL_TTL_SECONDS,
 } from "@/lib/market/storage";
 import { MARKET_ROUTE_PATTERNS } from "@/modules/market/market.routes";
+import { downloadFilename } from "@/modules/market/market.rules";
 import {
   bulletinFormSchema,
   createVersionSchema,
@@ -92,7 +98,10 @@ export async function getBulletinFileUrlAction(
 
   const { data: version, error: readError } = await supabase
     .from("market_bulletin_versions")
-    .select("id, bulletin_id, version_name, image_path, image_filename, pdf_path, pdf_filename")
+    .select(
+      "id, bulletin_id, version_name, image_path, pdf_path, " +
+        "bulletin:market_bulletins!inner (name)",
+    )
     .eq("id", parsed.data.versionId)
     .returns<
       {
@@ -100,9 +109,8 @@ export async function getBulletinFileUrlAction(
         bulletin_id: string;
         version_name: string;
         image_path: string;
-        image_filename: string;
         pdf_path: string;
-        pdf_filename: string;
+        bulletin: { name: string };
       }[]
     >()
     .maybeSingle();
@@ -115,8 +123,14 @@ export async function getBulletinFileUrlAction(
 
   const isPdf = parsed.data.kind === "pdf";
   const path = isPdf ? version.pdf_path : version.image_path;
-  const filename = isPdf ? version.pdf_filename : version.image_filename;
   const ttl = isPdf ? PDF_SIGNED_URL_TTL_SECONDS : IMAGE_SIGNED_URL_TTL_SECONDS;
+
+  // O nome que chega ao computador de quem baixa é MONTADO, não o que a pessoa
+  // enviou: "bolsa-final-v2.pdf" na pasta de Downloads três semanas depois não
+  // diz de que Bolsa nem de que data ele é. A extensão sai do CAMINHO, que o
+  // servidor escolheu — nunca do nome original, que veio de fora.
+  const extension = (isPdf ? ".pdf" : imageExtensionOf(path)) ?? ".jpg";
+  const filename = downloadFilename(version.bulletin.name, version.version_name, extension);
 
   const { data, error } = await supabase.storage.from(MARKET_BUCKET).createSignedUrl(
     path,

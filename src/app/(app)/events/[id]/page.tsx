@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EventStatusActions } from "../event-status-actions";
-import { EventThumbnail } from "../event-thumbnail";
+import { SignedImage } from "@/components/ui/signed-image";
 import { STATUS_BADGE_VARIANT } from "../event-badges";
 
 export const metadata: Metadata = { title: "Evento" };
@@ -127,7 +127,7 @@ export default async function EventDetailPage({
             <CardTitle className="text-base">Dados do evento</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <EventThumbnail
+            <SignedImage
               url={event.imageUrl}
               alt={event.name}
               sizes="h-56 w-full max-w-md"

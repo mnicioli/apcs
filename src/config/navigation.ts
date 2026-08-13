@@ -14,6 +14,7 @@ import {
   Settings,
   Ticket,
   Timer,
+  TrendingUp,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -112,6 +113,16 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/documents/communication",
         icon: Megaphone,
         permission: "documents.read",
+        available: true,
+      },
+      {
+        // Fica sob Documentos porque é onde as pessoas procuram, mas NÃO é uma
+        // categoria de `documents` — é módulo próprio, com rota própria. O
+        // agrupamento aqui é de navegação, não de dados. Ver docs/BOLSA.md §3.
+        title: "Bolsa",
+        href: "/market",
+        icon: TrendingUp,
+        permission: "market.read",
         available: true,
       },
     ],

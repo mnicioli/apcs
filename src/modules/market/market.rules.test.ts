@@ -5,14 +5,16 @@ import {
   canDeactivateVersion,
   compareBulletins,
   compareVersionsDesc,
+  downloadFilename,
   isAvailableForChatbot,
   isEffective,
   matchesBulletinFilters,
+  matchesMarketFilters,
   matchesVersionFilters,
   nextVersionNumber,
   versionSituation,
 } from "./market.rules";
-import type { MarketBulletinVersion, MarketFilters } from "./market.types";
+import type { MarketBulletinSummary, MarketBulletinVersion, MarketFilters } from "./market.types";
 
 const HOJE = "2026-08-12";
 
@@ -35,7 +37,13 @@ function versao(overrides: Partial<MarketBulletinVersion> = {}): MarketBulletinV
   };
 }
 
-const SEM_FILTRO: MarketFilters = { query: "", status: "all", from: "", to: "" };
+const SEM_FILTRO: MarketFilters = {
+  query: "",
+  status: "all",
+  chatbot: "all",
+  from: "",
+  to: "",
+};
 
 function filtros(overrides: Partial<MarketFilters> = {}): MarketFilters {
   return { ...SEM_FILTRO, ...overrides };
@@ -242,6 +250,104 @@ describe("matchesBulletinFilters", () => {
 
   it("query vazia passa tudo", () => {
     expect(matchesBulletinFilters({ name: "Bolsa de Suínos" }, { query: "" })).toBe(true);
+  });
+});
+
+describe("matchesMarketFilters — o recorte da grid", () => {
+  function bolsa(overrides: Partial<MarketBulletinSummary> = {}): MarketBulletinSummary {
+    return {
+      id: "b1",
+      name: "Bolsa de Suínos",
+      description: null,
+      chatbotEnabled: true,
+      activeVersion: versao(),
+      versionCount: 1,
+      updatedAt: "2026-08-12T12:00:00Z",
+      ...overrides,
+    };
+  }
+
+  it("sem filtro, passa tudo", () => {
+    expect(matchesMarketFilters(bolsa(), SEM_FILTRO, HOJE)).toBe(true);
+  });
+
+  it("acha 'Suínos' digitado sem acento", () => {
+    expect(matchesMarketFilters(bolsa(), filtros({ query: "suinos" }), HOJE)).toBe(true);
+    expect(matchesMarketFilters(bolsa(), filtros({ query: "aves" }), HOJE)).toBe(false);
+  });
+
+  it("separa a Bolsa já publicada da que ainda espera a primeira", () => {
+    const publicada = bolsa();
+    const semPublicacao = bolsa({ activeVersion: null, versionCount: 0 });
+
+    expect(matchesMarketFilters(publicada, filtros({ status: "active" }), HOJE)).toBe(true);
+    expect(matchesMarketFilters(publicada, filtros({ status: "inactive" }), HOJE)).toBe(false);
+    expect(matchesMarketFilters(semPublicacao, filtros({ status: "inactive" }), HOJE)).toBe(true);
+  });
+
+  /**
+   * ⚠️ O filtro pergunta o que o ROBÔ enxerga, não o que a coluna diz. Uma
+   * Bolsa ligada cuja publicação só vale semana que vem NÃO está disponível
+   * hoje — e filtrar pela coluna a mostraria como se estivesse.
+   */
+  it("Bolsa ligada com vigência futura cai em 'Não disponível'", () => {
+    const programada = bolsa({ activeVersion: versao({ effectiveDate: "2026-08-20" }) });
+
+    expect(matchesMarketFilters(programada, filtros({ chatbot: "available" }), HOJE)).toBe(false);
+    expect(matchesMarketFilters(programada, filtros({ chatbot: "unavailable" }), HOJE)).toBe(true);
+  });
+
+  it("Bolsa desligada cai em 'Não disponível' mesmo com publicação vigente", () => {
+    const desligada = bolsa({ chatbotEnabled: false });
+
+    expect(matchesMarketFilters(desligada, filtros({ chatbot: "available" }), HOJE)).toBe(false);
+    expect(matchesMarketFilters(desligada, filtros({ chatbot: "unavailable" }), HOJE)).toBe(true);
+  });
+
+  it("recorta pela vigência da publicação ativa, inclusive nas pontas", () => {
+    const b = bolsa({ activeVersion: versao({ effectiveDate: "2026-08-12" }) });
+
+    expect(matchesMarketFilters(b, filtros({ from: "2026-08-12" }), HOJE)).toBe(true);
+    expect(matchesMarketFilters(b, filtros({ to: "2026-08-12" }), HOJE)).toBe(true);
+    expect(matchesMarketFilters(b, filtros({ from: "2026-08-13" }), HOJE)).toBe(false);
+  });
+
+  /** Sem publicação não há vigência para comparar — deixá-la aparecer sugeriria
+   * que ela vale naquele período. */
+  it("Bolsa sem publicação sai do resultado quando há faixa de vigência", () => {
+    const semPublicacao = bolsa({ activeVersion: null, versionCount: 0 });
+    expect(matchesMarketFilters(semPublicacao, filtros({ from: "2026-01-01" }), HOJE)).toBe(false);
+  });
+});
+
+describe("downloadFilename — o nome que chega ao computador", () => {
+  it("monta Bolsa + data, sem repetir a palavra 'Bolsa'", () => {
+    expect(downloadFilename("Bolsa de Suínos", "Bolsa_12Ago26", ".pdf")).toBe(
+      "Bolsa_de_Suínos_12Ago26.pdf",
+    );
+  });
+
+  it("preserva o sufixo do segundo envio do dia", () => {
+    expect(downloadFilename("Bolsa de Suínos", "Bolsa_12Ago26-2", ".pdf")).toBe(
+      "Bolsa_de_Suínos_12Ago26-2.pdf",
+    );
+  });
+
+  it("serve para a imagem também", () => {
+    expect(downloadFilename("Bolsa de Aves", "Bolsa_01Jul26", ".webp")).toBe(
+      "Bolsa_de_Aves_01Jul26.webp",
+    );
+  });
+
+  /** Acento FICA: `Suínos` é o nome da coisa, e os três sistemas aceitam UTF-8. */
+  it("mantém acento e remove o que o sistema de arquivos recusa", () => {
+    expect(downloadFilename('Bolsa "A/B" <teste>', "Bolsa_12Ago26", ".pdf")).toBe(
+      "Bolsa_AB_teste_12Ago26.pdf",
+    );
+  });
+
+  it("nome que sobra vazio não gera arquivo sem nome", () => {
+    expect(downloadFilename("///", "Bolsa_12Ago26", ".pdf")).toBe("arquivo_12Ago26.pdf");
   });
 });
 

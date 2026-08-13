@@ -313,6 +313,8 @@ outra. O histórico é o produto.
 | Porta do chatbot        | `src/lib/services/market-chatbot.ts`                             |
 | Escrita                 | `src/lib/actions/market-bulletins.ts`                            |
 | Endereçamento no bucket | `src/lib/market/storage.ts`                                      |
+| Telas                   | `src/app/(app)/market/`                                          |
+| Item de menu            | `src/config/navigation.ts` (seção Documentos)                    |
 
 **Não existem endpoints REST** — o projeto usa Server Components + Server
 Actions, e criar rotas HTTP só para este módulo seria a arquitetura paralela que
@@ -371,9 +373,14 @@ substituta na mesma operação. A segunda leitura é a que faz o enum
 migration.
 
 **Status em 13/08/2026:** mantido como está, em caráter PROVISÓRIO, para o
-PROMPT 2/3 seguir. A validação do negócio ainda não aconteceu. Enquanto isso, as
-telas devem tratar "Inativar" como indisponível na publicação ativa — é o que
-`canDeactivateVersion()` já responde.
+PROMPT 2/3 seguir. A validação do negócio ainda não aconteceu.
+
+**Como isso aparece na tela:** não existe botão "Inativar". A publicação ativa
+não oferece ação nenhuma no histórico, e o card acima da tabela explica por
+escrito que a troca se faz ATIVANDO a outra. Um botão que sempre falha é pior do
+que a ausência dele: a pessoa clica, lê um erro e não descobre o caminho. Se o
+negócio decidir a segunda leitura ("inativar esta E ativar aquela"), a mudança é
+no `VersionStatusActions`.
 
 ### P2 — GAP: valor inicial de `chatbot_enabled`
 
@@ -472,3 +479,68 @@ estes são os pontos onde uma falha seria silenciosa:
    não publica, não ativa e não vê a trilha.
 
 As decisões **provisórias** a revisitar estão em P1 e P2 da seção 12.
+
+---
+
+## 15. As telas
+
+| Rota           | O que é                                                      |
+| -------------- | ------------------------------------------------------------ |
+| `/market`      | Grid das bolsas, com a publicação que vale hoje em cada uma. |
+| `/market/[id]` | Detalhe, histórico de publicações e trilha de auditoria.     |
+
+A rota é `/market` e não `/documents/bolsa` porque a Bolsa **não** é uma
+categoria de `documents` — a rota de categorias resolve o slug contra o enum do
+banco e devolveria "não encontrado". No MENU ela aparece sob Documentos, que é
+onde as pessoas procuram. O agrupamento é de navegação, não de dados.
+
+**A rota é protegida, não só o menu:** as duas páginas checam `market.read` e
+redirecionam para o dashboard. Esconder o item de menu não impede ninguém de
+digitar o endereço.
+
+### O que cada papel vê
+
+| Controle                  | Administrador | Gestor | Atendente |
+| ------------------------- | :-----------: | :----: | :-------: |
+| Nova Bolsa / Editar       |      ✅       |   ✅   |    ❌     |
+| Nova versão               |      ✅       |   ✅   |    ❌     |
+| Ativar                    |      ✅       |   ✅   |    ❌     |
+| Imagem / Ver PDF / Baixar |      ✅       |   ✅   |    ✅     |
+| Histórico                 |      ✅       |   ✅   |    ✅     |
+| Trilha de auditoria       |      ✅       |   ✅   |    ❌     |
+
+O Atendente **vê todo o dado** — situação, publicação ativa, vigência,
+disponibilidade para o chatbot. O que ele não tem é o controle de alterar.
+
+### Decisões de tela que valem registrar
+
+**A coluna "Chatbot" não mostra a coluna do banco.** Mostra o que o ROBÔ
+enxerga, que é a conjunção das três condições. Uma Bolsa ligada cuja publicação
+só vale semana que vem aparece como "Disponível em 20/08/2026", não como "Sim" —
+escrever "Sim" faria alguém prometer ao associado uma resposta que o robô não dá.
+
+**"Situação" no lugar de "Status".** `Vigente` / `Programada` / `Histórica` é a
+leitura de status + vigência já combinados. "Ativa" sozinho engana.
+
+**O nome do download é montado no servidor:** `Bolsa_de_Suínos_12Ago26.pdf`. O
+atributo `download` da âncora não é usado de propósito — navegadores o ignoram em
+URL de outra origem, e quem manda é o `Content-Disposition` que o servidor
+assinou. Duas fontes para o mesmo nome divergiriam.
+
+**O upload é em dois passos e os arquivos vão diretos ao Storage**, pelo mesmo
+motivo das normativas: a Vercel corta o corpo serverless em 4,5 MB e o limite é
+5 MB por arquivo. A tela mostra em que etapa está (imagem, PDF, publicando).
+
+### Gaps de UX registrados
+
+- **Sem sistema de toast.** O projeto não tem um, e criá-lo mudaria o design
+  system inteiro. O retorno de sucesso é o diálogo fechar e a grid atualizar
+  sozinha (`revalidatePath`), que é o padrão de Documentos e Eventos. Se um dia
+  entrar um componente de toast, os três módulos ganham juntos.
+- **Sem paginação.** Nenhuma grid do CRM tem — todas leem com teto e filtram em
+  memória. Com uma Bolsa publicando por semana, o teto de 100 bolsas e 500
+  publicações dá folga de anos. Registrado como pendência de plataforma.
+- **Sem barra de progresso em porcentagem.** `uploadToSignedUrl` do supabase-js
+  não expõe progresso; mostrar uma barra falsa seria mentira. A tela diz a etapa.
+- **Sem confirmação ao sair com formulário preenchido.** Nenhuma tela do CRM tem
+  esse comportamento hoje, e criá-lo só aqui seria inconsistente.
