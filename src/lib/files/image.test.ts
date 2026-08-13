@@ -81,6 +81,29 @@ describe("inspectImage", () => {
     expect(inspectImage(JPEG, "e/1")).toEqual({ ok: false, issue: "fileNotImage" });
   });
 
+  /**
+   * Os formatos que o escopo veta, com os bytes REAIS de cada um — não só a
+   * extensão. Um GIF renomeado para `.jpg` chega até aqui e é recusado porque
+   * a assinatura não é de JPEG.
+   */
+  it("recusa GIF, BMP, TIFF e SVG mesmo renomeados para .jpg", () => {
+    const assinaturas: Record<string, number[]> = {
+      // GIF89a
+      gif: [0x47, 0x49, 0x46, 0x38, 0x39, 0x61],
+      // BM
+      bmp: [0x42, 0x4d],
+      // II*\0 — TIFF little-endian
+      tiff: [0x49, 0x49, 0x2a, 0x00],
+      // "<svg" — é XML, e XML aceita <script> dentro
+      svg: [0x3c, 0x73, 0x76, 0x67],
+    };
+
+    for (const [formato, assinatura] of Object.entries(assinaturas)) {
+      const resultado = inspectImage(comCabecalho(assinatura), "bolsa.jpg");
+      expect(resultado, formato).toEqual({ ok: false, issue: "fileNotImage" });
+    }
+  });
+
   it("recusa arquivo vazio", () => {
     expect(inspectImage(new Uint8Array(), "e/1.jpg")).toEqual({
       ok: false,

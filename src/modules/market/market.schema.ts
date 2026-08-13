@@ -103,6 +103,20 @@ export const uploadTicketSchema = z.object({
 export type UploadTicketInput = z.infer<typeof uploadTicketSchema>;
 
 /**
+ * Descarte de uma publicação que não chegou a existir.
+ *
+ * Os dois arquivos sobem em chamadas separadas; se a segunda falhar, a primeira
+ * já está no bucket e a confirmação — que era quem limpava — nunca roda. A tela
+ * chama isto para não deixar arquivo pago e invisível para trás.
+ */
+export const discardUploadSchema = z.object({
+  bulletinId: z.string().uuid(),
+  versionId: z.string().uuid(),
+});
+
+export type DiscardUploadInput = z.infer<typeof discardUploadSchema>;
+
+/**
  * Confirmação depois que os DOIS arquivos já estão no bucket.
  *
  * Imagem e PDF são obrigatórios no mesmo schema de propósito: não existe

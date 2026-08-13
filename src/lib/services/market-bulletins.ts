@@ -66,8 +66,26 @@ const VERSION_COLUMNS =
 const BULLETIN_COLUMNS =
   `id, name, description, chatbot_enabled, updated_at, ` +
   // Aqui `market_bulletins` é o lado PAI, então o embed devolve uma LISTA — que
-  // é exatamente o que a grid e o histórico precisam.
+  // é exatamente o que o HISTÓRICO precisa.
   `versions:market_bulletin_versions (${VERSION_COLUMNS})`;
+
+/**
+ * As colunas da GRID — e a diferença com as de cima não é cosmética.
+ *
+ * ⚠️ A grid precisa de UMA publicação por Bolsa (a ativa) e do total. Usar o
+ * embed de cima aqui traria TODAS as publicações de TODAS as bolsas só para
+ * escolher uma e contar o resto. Medido com 6000 publicações: **82 ms contra
+ * 3 ms** — e o custo real é pior que isso, porque as 6000 linhas ainda
+ * atravessam a rede e passam por `toVersion` no Node.
+ *
+ * O `!left` é obrigatório: sem ele, filtrar o embed por `status = 'active'`
+ * viraria junção interna e a Bolsa recém-cadastrada, que ainda não tem
+ * publicação, sumiria da grid.
+ */
+const BULLETIN_LIST_COLUMNS =
+  `id, name, description, chatbot_enabled, updated_at, ` +
+  `active:market_bulletin_versions!left (${VERSION_COLUMNS}), ` +
+  `total:market_bulletin_versions!left (count)`;
 
 interface VersionRow {
   id: string;
@@ -124,6 +142,37 @@ function toVersion(row: VersionRow): MarketBulletinVersion {
   };
 }
 
+/**
+ * A linha da GRID: no máximo uma publicação (a ativa) e a contagem do resto.
+ *
+ * `active` vem como LISTA mesmo trazendo um elemento só — é o formato do embed
+ * de PostgREST para o lado filho, e o índice único parcial garante que ela
+ * nunca tem dois.
+ */
+interface BulletinListRow {
+  id: string;
+  name: string;
+  description: string | null;
+  chatbot_enabled: boolean;
+  updated_at: string;
+  active: VersionRow[];
+  total: { count: number }[];
+}
+
+function toListSummary(row: BulletinListRow): MarketBulletinSummary {
+  const active = row.active[0];
+
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    chatbotEnabled: row.chatbot_enabled,
+    activeVersion: active ? toVersion(active) : null,
+    versionCount: row.total[0]?.count ?? 0,
+    updatedAt: row.updated_at,
+  };
+}
+
 function toSummary(row: BulletinRow, versions: MarketBulletinVersion[]): MarketBulletinSummary {
   return {
     id: row.id,
@@ -152,10 +201,13 @@ export async function listBulletins(
 
   const { data, error } = await supabase
     .from("market_bulletins")
-    .select(BULLETIN_COLUMNS)
+    .select(BULLETIN_LIST_COLUMNS)
+    // O filtro cita o APELIDO do embed, e só ele: `total` continua contando o
+    // histórico inteiro.
+    .eq("active.status", "active")
     .limit(LIST_LIMIT)
     // Hint de tipo (descompasso de generics ssr/supabase-js). Ver CONVENTIONS.md.
-    .returns<BulletinRow[]>();
+    .returns<BulletinListRow[]>();
 
   if (error) {
     console.error(`[market] listBulletins falhou: ${error.message}`);
@@ -163,7 +215,7 @@ export async function listBulletins(
   }
 
   return (data ?? [])
-    .map((row) => toSummary(row, row.versions.map(toVersion)))
+    .map(toListSummary)
     .filter((bulletin) => matchesMarketFilters(bulletin, filters, today))
     .sort(compareBulletins);
 }

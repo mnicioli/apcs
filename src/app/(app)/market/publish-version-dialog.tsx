@@ -1,9 +1,10 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { FileText, ImageUp, Upload } from "lucide-react";
 import {
   createBulletinVersionAction,
+  discardBulletinUploadAction,
   requestBulletinUploadAction,
 } from "@/lib/actions/market-bulletins";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
@@ -77,6 +78,9 @@ export function PublishVersionDialog({
   const [error, setError] = useState<string | null>(null);
   const [progresso, setProgresso] = useState<Progresso>(null);
   const [isPending, startTransition] = useTransition();
+  // Trava síncrona do duplo clique. `useRef` e não estado: precisa valer no
+  // MESMO tique em que o clique acontece, antes de qualquer re-renderização.
+  const enviando = useRef(false);
   // A grid monta um destes por linha: um id fixo faria todos os `<Label>` da
   // página apontarem para o campo de data da primeira Bolsa.
   const dateId = useId();
@@ -147,44 +151,73 @@ export function PublishVersionDialog({
 
   function submit() {
     if (!image || !pdf) return;
+
+    // ⚠️ A TRAVA DE VERDADE CONTRA O DUPLO CLIQUE. `loading` desabilita o botão,
+    // mas só depois que o React re-renderiza — e cada clique sorteia um
+    // `versionId` novo, então dois cliques na mesma janela criariam DUAS
+    // publicações. Uma trava síncrona fecha essa janela.
+    if (enviando.current) return;
+    enviando.current = true;
+
     setError(null);
 
     startTransition(async () => {
       const versionId = crypto.randomUUID();
 
-      setProgresso("image");
-      const imagePath = await upload(versionId, "image", image);
-      if (!imagePath) return falhou();
+      try {
+        setProgresso("image");
+        const imagePath = await upload(versionId, "image", image);
+        if (!imagePath) return falhou();
 
-      setProgresso("pdf");
-      const pdfPath = await upload(versionId, "pdf", pdf);
-      if (!pdfPath) return falhou();
+        setProgresso("pdf");
+        const pdfPath = await upload(versionId, "pdf", pdf);
+        // A imagem JÁ SUBIU. Sem esta limpeza ela ficaria no bucket para
+        // sempre: a confirmação, que era quem apagava os órfãos, não vai rodar.
+        if (!pdfPath) return falhou({ limpar: versionId });
 
-      // O servidor agora baixa os DOIS e examina de verdade: se o PDF tiver
-      // senha ou a imagem for um arquivo renomeado, ele recusa e apaga os dois.
-      setProgresso("saving");
-      const created = await createBulletinVersionAction({
-        bulletinId,
-        versionId,
-        effectiveDate,
-        imagePath,
-        imageFilename: image.name,
-        pdfPath,
-        pdfFilename: pdf.name,
-      });
+        // O servidor agora baixa os DOIS e examina de verdade: se o PDF tiver
+        // senha ou a imagem for um arquivo renomeado, ele recusa e apaga os dois.
+        setProgresso("saving");
+        const created = await createBulletinVersionAction({
+          bulletinId,
+          versionId,
+          effectiveDate,
+          imagePath,
+          imageFilename: image.name,
+          pdfPath,
+          pdfFilename: pdf.name,
+        });
 
-      if (!created.ok) {
-        setError(ACTION_ERROR_MESSAGES[created.error.code]);
-        return falhou();
+        if (!created.ok) {
+          setError(ACTION_ERROR_MESSAGES[created.error.code]);
+          // Aqui NÃO se limpa: a própria action já apagou os dois arquivos
+          // antes de devolver o erro. Pedir de novo seria uma ida à toa.
+          return falhou();
+        }
+
+        setOpen(false);
+        reset();
+      } finally {
+        enviando.current = false;
       }
-
-      setOpen(false);
-      reset();
     });
   }
 
   /** Volta para a escolha com a mensagem já na tela. */
-  function falhou() {
+  async function falhou(opcoes: { limpar?: string } = {}) {
+    if (opcoes.limpar) {
+      // Best-effort: se a limpeza falhar, o que sobra é um arquivo órfão — ruim,
+      // mas menos ruim do que travar a pessoa numa tela de erro por causa dele.
+      const descartado = await discardBulletinUploadAction({
+        bulletinId,
+        versionId: opcoes.limpar,
+      });
+
+      if (!descartado.ok) {
+        console.error(`[market] descarte do upload interrompido falhou: ${descartado.error.code}`);
+      }
+    }
+
     setProgresso(null);
     setStep("pick");
   }

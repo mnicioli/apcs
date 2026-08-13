@@ -50,9 +50,53 @@ describe("inspectPdf", () => {
     expect(await inspectPdf(buildPdf([CATALOG, PAGES, PAGE]))).toBeNull();
   });
 
+  /**
+   * PDF ESCANEADO — só imagem, sem uma letra de texto extraível.
+   *
+   * É o caso mais comum de boletim de preço que chega por e-mail, e ele TEM de
+   * passar: a checagem é estrutural, não de conteúdo. Exigir camada de texto
+   * recusaria metade dos arquivos reais e empurraria OCR para dentro de um
+   * módulo que não é disso.
+   */
+  it("aceita PDF composto SÓ por imagem, sem camada de texto", async () => {
+    const documento = await PDFDocument.create();
+    const pagina = documento.addPage([200, 200]);
+
+    // PNG mínimo de 1x1 pixel, montado byte a byte para não trazer fixture
+    // binária ao repositório.
+    const png = Uint8Array.from(
+      atob(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      ),
+      (c) => c.charCodeAt(0),
+    );
+
+    const imagem = await documento.embedPng(png);
+    pagina.drawImage(imagem, { x: 0, y: 0, width: 200, height: 200 });
+
+    expect(await inspectPdf(await documento.save())).toBeNull();
+  });
+
   it("recusa PDF protegido por senha", async () => {
     const cifrado = buildPdf([CATALOG, PAGES, PAGE, ENCRYPT_DICT], " /Encrypt 4 0 R");
     expect(await inspectPdf(cifrado)).toBe("fileEncrypted");
+  });
+
+  /**
+   * MIME SPOOFING com cabeçalhos REAIS.
+   *
+   * Renomear muda a extensão e o `Content-Type` que o navegador declara — os
+   * dois campos que a tela usa. Não muda os primeiros bytes, e é por isso que
+   * a decisão final é tomada sobre eles.
+   */
+  it("recusa executável, ZIP e DOCX renomeados para .pdf", async () => {
+    // MZ — cabeçalho de executável Windows (PE).
+    const exe = new Uint8Array([0x4d, 0x5a, 0x90, 0x00, ...new Array(64).fill(0)]);
+    // PK\x03\x04 — cabeçalho ZIP, que é também o de DOCX/XLSX/PPTX.
+    const zip = new Uint8Array([0x50, 0x4b, 0x03, 0x04, ...new Array(64).fill(0)]);
+
+    expect(await inspectPdf(exe)).toBe("fileNotPdf");
+    expect(await inspectPdf(zip)).toBe("fileNotPdf");
   });
 
   it("recusa um arquivo de texto renomeado para .pdf", async () => {

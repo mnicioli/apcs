@@ -1,5 +1,5 @@
 import "server-only";
-import { imageExtensionOf } from "@/lib/files/image";
+import { IMAGE_EXTENSION_MIME, imageExtensionOf } from "@/lib/files/image";
 import type { BulletinFileKind } from "@/modules/market/market.schema";
 
 /**
@@ -35,8 +35,28 @@ export function buildFilePath(
   kind: BulletinFileKind,
   filename: string,
 ): string {
-  const extension = kind === "pdf" ? ".pdf" : (imageExtensionOf(filename) ?? ".jpg");
-  return `${bulletinId}/${versionId}/${kind}/${crypto.randomUUID()}${extension}`;
+  return `${bulletinId}/${versionId}/${kind}/${crypto.randomUUID()}${safeExtension(kind, filename)}`;
+}
+
+/**
+ * A extensão que entra no caminho — conferida AQUI, não confiada de fora.
+ *
+ * ⚠️ Isto é defesa em profundidade, e o motivo é concreto: a extensão é a única
+ * parte do nome enviado que sobrevive até o caminho físico. `imageExtensionOf`
+ * devolve tudo que vier depois do último ponto, então um nome como
+ * `foto.jpg/../../outro` produziria uma extensão com barra — e o CHECK do banco
+ * usa `LIKE`, onde `%` casa com barra também.
+ *
+ * A action já valida a extensão contra a allowlist antes de chegar aqui. Mas
+ * "já foi validado antes" é uma garantia que se perde no dia em que alguém
+ * chamar esta função de outro lugar. Conferir de novo custa uma busca num mapa
+ * de quatro entradas.
+ */
+function safeExtension(kind: BulletinFileKind, filename: string): string {
+  if (kind === "pdf") return ".pdf";
+
+  const extension = imageExtensionOf(filename);
+  return extension && extension in IMAGE_EXTENSION_MIME ? extension : ".jpg";
 }
 
 /**

@@ -239,6 +239,18 @@ O acesso é **sempre** por URL assinada de vida curta, emitida por uma action qu
 já checou a permissão. Imagem: 1 h (a grid emite na renderização, e uma lista
 aberta durante o almoço viraria tela de imagens quebradas). PDF: 5 min.
 
+### Arquivo publicado não se apaga — nem pelos bytes
+
+Havia um buraco entre duas camadas que, sozinhas, pareciam cobertas: a LINHA de
+uma publicação é imutável (grants de coluna impedem trocar `image_path` e
+`pdf_path`), mas a policy do bucket permitia a admin/ceo apagar o OBJETO pela
+API de Storage. A linha ficaria apontando para um arquivo que não existe mais —
+o pior estado possível, porque a tela promete um documento que não abre.
+
+A migration `20260815000000` troca a regra de "quem pode apagar" por **"o que
+pode ser apagado"**: só objeto que nenhuma publicação referencia. Órfão sai,
+publicado fica, e isso vale para qualquer caminho — inclusive a API crua.
+
 ---
 
 ## 9. Permissões
@@ -421,22 +433,33 @@ diferentes, mas a estrutura é a mesma. Uma trilha unificada (com `entity` +
 `entity_id` polimórficos) é o caminho — e é decisão de plataforma, não deste
 módulo.
 
-### P6 — LIMITE: arquivos órfãos
+### P6 — arquivos órfãos ✅ RESOLVIDO no QA
 
-A action apaga os objetos em todo caminho de recusa. O que **não** existe é
-varredura para o caso de o processo morrer entre o upload e a confirmação: um
-arquivo enviado cuja action nunca terminou fica no bucket sem referência. Sem
-mecanismo de limpeza no projeto hoje — registrado como GAP técnico.
+**Era um defeito real, não um limite.** Os dois arquivos sobem em chamadas
+separadas; se o PDF falhasse depois de a imagem já ter subido, a confirmação —
+que era quem apagava os órfãos — nunca rodava, e a imagem ficava no bucket para
+sempre. Agora a tela chama `discardBulletinUploadAction`, que varre a pasta da
+publicação interrompida.
 
-### P7 — NÃO TESTADO ponta a ponta
+A ação recusa apagar se já existe linha para aquele `versionId`: sem essa trava,
+quem tivesse `market.write` esvaziaria os arquivos de qualquer publicação do
+histórico passando o id dela.
 
-A migration e as regras de negócio foram validadas contra o banco real (78 casos,
-em transação revertida). As **telas não existem ainda** (PROMPT 2/3), então o
-caminho completo — formulário → upload direto ao Storage → confirmação → grid —
-ainda não foi exercitado por inteiro. Em particular, o `limit` aninhado em
-`getBulletin` e o filtro sobre embed em `getBulletinForChatbot` dependem do
-PostgREST resolver o **apelido** do embed; ambos estão escritos na forma
-documentada, mas só a tela vai provar.
+**O que continua em aberto:** se o navegador morrer entre o upload e a chamada de
+descarte, ninguém limpa. Uma varredura periódica resolveria — é decisão de
+plataforma, e nenhum módulo do CRM tem uma hoje.
+
+### P7 — validação ponta a ponta ✅ FEITA no QA
+
+O caminho completo foi exercitado. Os dois pontos que eu tinha marcado como "só
+a tela prova" foram provados com dados reais no servidor: o filtro sobre embed
+apelidado funciona (a grid trouxe a publicação ATIVA entre três, e a contagem
+das três) e o histórico renderiza na ordem certa.
+
+O que **não** foi exercitado: o upload físico de bytes reais ao Storage por dentro
+da tela — validar isso exigiria gravar arquivo na base de produção. As
+validações que agem sobre esses bytes têm teste com arquivos de verdade (PDF
+cifrado, PDF só de imagem, executável e ZIP renomeados).
 
 ---
 
@@ -445,6 +468,25 @@ documentada, mas só a tela vai provar.
 Uma Bolsa publicando por semana produz ~52 publicações por ano. Os tetos de
 leitura são `LIST_LIMIT = 100` (bolsas) e `VERSION_LIMIT = 500` (histórico de uma
 Bolsa) — folga de quase dez anos.
+
+### O que foi medido, com 6000 publicações
+
+| Consulta                |        Tempo | Observação                              |
+| ----------------------- | -----------: | --------------------------------------- |
+| Grid — versão original  | **82,15 ms** | embutia TODAS as publicações            |
+| Grid — versão atual     |  **2,95 ms** | só a ativa + a contagem                 |
+| Histórico (teto de 500) |      0,26 ms | índice `(bulletin_id, version desc)`    |
+| Chatbot                 |      0,10 ms | índice único parcial resolve em 1 linha |
+
+**A grid embutia todas as publicações de todas as bolsas** para escolher uma e
+contar o resto — 28× mais lenta, e o custo real era pior que isso, porque as
+6000 linhas ainda atravessavam a rede e passavam por `toVersion` no Node. Hoje o
+embed é filtrado por `status = 'active'` e o total vem de um agregado.
+
+O `!left` no embed não é decoração: sem ele, o filtro viraria junção interna e a
+Bolsa recém-cadastrada — que ainda não tem publicação — sumiria da grid.
+
+Nenhuma consulta faz varredura sequencial. Não há N+1: a grid é **uma** consulta.
 
 Não há índice por `effective_date` nem por `chatbot_enabled`, e isso é
 deliberado: a consulta do chatbot é `bulletin_id = ? and status = 'active'`, que
@@ -544,3 +586,68 @@ motivo das normativas: a Vercel corta o corpo serverless em 4,5 MB e o limite é
   não expõe progresso; mostrar uma barra falsa seria mentira. A tela diz a etapa.
 - **Sem confirmação ao sair com formulário preenchido.** Nenhuma tela do CRM tem
   esse comportamento hoje, e criá-lo só aqui seria inconsistente.
+
+---
+
+## 16. Como usar (para quem opera)
+
+Menu **Documentos → Bolsa**.
+
+### Cadastrar uma Bolsa nova
+
+**Nova Bolsa** → nome (ex.: "Bolsa de Aves"), descrição opcional, e a caixa
+**Disponível para o chatbot**. A Bolsa nasce sem publicação: ela aparece na lista
+como "Nenhuma publicação enviada ainda", esperando a primeira.
+
+### Enviar uma publicação
+
+**Nova versão** → arraste a **imagem** numa área e o **PDF** na outra (ou clique
+em Selecionar arquivo) → informe a **data de vigência** → **Continuar**.
+
+A tela de confirmação mostra o nome que o sistema vai gerar (`Bolsa_12Ago26`) e
+avisa qual publicação sai do ar. **Publicar** conclui.
+
+- O nome do seu arquivo não importa: pode ser `bolsa-final-v2.pdf`. O sistema
+  gera a identificação a partir da data de hoje.
+- Dois envios no mesmo dia não se sobrescrevem: o segundo vira `-2`.
+- A vigência pode ser hoje, uma data passada ou uma data futura.
+
+### Trocar qual publicação é a oficial
+
+No **Histórico**, clique em **Ativar** na publicação desejada. A que estava ativa
+sai do ar automaticamente, na mesma operação.
+
+**Não existe botão "Inativar"**, e é de propósito: a Bolsa nunca pode ficar sem
+uma publicação ativa. Para trocar a oficial, ative a outra.
+
+### Ver e baixar
+
+**Imagem** abre a imagem numa janela. **Ver PDF** abre o boletim no visualizador.
+**Baixar** salva o arquivo já com um nome que se entende meses depois —
+`Bolsa_de_Suínos_12Ago26.pdf`, não um código.
+
+Os três estão disponíveis para o Atendente também.
+
+### Quando o chatbot responde
+
+O robô só cita a publicação quando as **três** coisas valem ao mesmo tempo:
+
+1. a Bolsa está com **Disponível para o chatbot** ligado;
+2. a publicação é a **ativa**;
+3. a **data de vigência já chegou**.
+
+Faltando qualquer uma, ele diz que não tem a informação e encaminha para uma
+pessoa. **Ele nunca oferece a publicação anterior no lugar** — um boletim de
+preço vencido apresentado como se fosse o atual é pior do que não responder.
+
+Por isso a coluna **Chatbot** na lista pode dizer "Disponível em 20/08/2026": a
+publicação já é a oficial, mas ainda não está valendo.
+
+### Se algo for recusado
+
+| Mensagem                    | O que fazer                                     |
+| --------------------------- | ----------------------------------------------- |
+| PDF protegido por senha     | Regrave o PDF sem proteção e envie de novo.     |
+| Formato não permitido       | Imagem: JPG, JPEG, PNG ou WEBP. Documento: PDF. |
+| Máximo de 5 MB              | Reduza o arquivo. 5 MB exatos passam.           |
+| Atualizada por outra pessoa | Alguém mexeu na mesma Bolsa. Atualize a página. |

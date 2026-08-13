@@ -16,18 +16,21 @@ import {
   IMAGE_SIGNED_URL_TTL_SECONDS,
   MARKET_BUCKET,
   PDF_SIGNED_URL_TTL_SECONDS,
+  versionFolder,
 } from "@/lib/market/storage";
 import { MARKET_ROUTE_PATTERNS } from "@/modules/market/market.routes";
 import { downloadFilename } from "@/modules/market/market.rules";
 import {
   bulletinFormSchema,
   createVersionSchema,
+  discardUploadSchema,
   fileUrlSchema,
   updateBulletinSchema,
   uploadTicketSchema,
   versionCommandSchema,
   type BulletinFormData,
   type CreateVersionInput,
+  type DiscardUploadInput,
   type FileUrlInput,
   type UpdateBulletinInput,
   type UploadTicketInput,
@@ -447,6 +450,69 @@ async function discardOrphans(paths: string[]): Promise<void> {
   if (error) {
     console.error(`[market] arquivos órfãos não removidos (${paths.join(", ")}): ${error.message}`);
   }
+}
+
+/**
+ * Varre a pasta de uma publicação que NUNCA chegou a existir.
+ *
+ * ⚠️ POR QUE ISTO PRECISA EXISTIR: os dois arquivos sobem em chamadas
+ * separadas. Se o PDF falhar depois de a imagem já ter subido, a confirmação
+ * nunca roda — e era ela quem apagava os órfãos. Sem esta ação, cada tentativa
+ * interrompida deixaria um arquivo pago e invisível no bucket para sempre.
+ *
+ * ⚠️ A TRAVA QUE IMPEDE O PIOR USO: se já existe linha para este `versionId`, os
+ * arquivos pertencem a uma publicação PUBLICADA — e publicação não se apaga.
+ * Sem esta checagem, quem tivesse `market.write` poderia esvaziar os arquivos de
+ * qualquer publicação do histórico passando o id dela aqui.
+ */
+export async function discardBulletinUploadAction(
+  input: DiscardUploadInput,
+): Promise<ActionResult<{ removed: number }>> {
+  type Discarded = { removed: number };
+
+  const parsed = discardUploadSchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const denied = await assertPermission<Discarded>("market.write");
+  if (denied) return denied;
+
+  const { bulletinId, versionId } = parsed.data;
+  const supabase = await createClient();
+
+  const { data: existing, error: readError } = await supabase
+    .from("market_bulletin_versions")
+    .select("id")
+    .eq("id", versionId)
+    .returns<{ id: string }[]>()
+    .maybeSingle();
+
+  if (readError) {
+    console.error(`[market] checagem antes do descarte falhou: ${readError.message}`);
+    return { ok: false, error: mapPostgresError(readError) };
+  }
+  // A publicação existe: estes arquivos são dela. Recusar é o certo.
+  if (existing) return fail("forbidden");
+
+  const folder = versionFolder(bulletinId, versionId);
+  const alvos: string[] = [];
+
+  // O bucket não apaga pasta; só objeto. Como o caminho tem duas subpastas
+  // fixas (`image/` e `pdf/`), listar as duas cobre tudo que pode existir ali.
+  for (const kind of ["image", "pdf"] as const) {
+    const { data, error } = await supabase.storage.from(MARKET_BUCKET).list(`${folder}${kind}`);
+
+    if (error) {
+      console.error(`[market] listagem para descarte falhou (${kind}): ${error.message}`);
+      continue;
+    }
+
+    for (const objeto of data ?? []) alvos.push(`${folder}${kind}/${objeto.name}`);
+  }
+
+  if (alvos.length === 0) return ok({ removed: 0 });
+
+  await discardOrphans(alvos);
+  return ok({ removed: alvos.length });
 }
 
 /**
