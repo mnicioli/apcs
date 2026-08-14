@@ -47,6 +47,9 @@ export type Permission =
   // Bolsa — os boletins de preço (submenu de Documentos)
   | "market.read"
   | "market.write"
+  // Palestras — solicitações do chatbot, planejamento e calendário
+  | "lectures.read"
+  | "lectures.write"
   | "clients.read"
   | "clients.write"
   | "projects.read"

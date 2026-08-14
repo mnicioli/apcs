@@ -14,6 +14,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // `server-only` é injetado pelo Next em tempo de build e não resolve fora
+      // dele. Sem este alias, nenhum service ou action seria testável — a
+      // marcação que protege a produção barraria os testes que a validam. O
+      // build real continua usando o pacote de verdade.
+      "server-only": fileURLToPath(new URL("./src/test/server-only.ts", import.meta.url)),
     },
   },
 });

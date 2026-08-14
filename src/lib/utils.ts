@@ -70,6 +70,33 @@ export function formatCalendarDate(isoDate: string): string {
 }
 
 /**
+ * "14:00:00" → "14:00".
+ *
+ * Colunas `time` do Postgres chegam com os segundos. Nada que a APCS marca
+ * começa às 14:00:30, e mostrar ":00" três vezes por linha só rouba espaço da
+ * grid.
+ *
+ * Mora aqui, e não num módulo, porque Eventos e Palestras fazem exatamente a
+ * mesma pergunta sobre o mesmo tipo de coluna — mesmo motivo pelo qual
+ * `src/lib/files/image.ts` saiu de dentro de Eventos quando a Bolsa precisou
+ * dele. `event.rules.ts` reexporta os dois nomes, então as telas de Eventos
+ * seguem importando de onde sempre importaram.
+ */
+export function formatTime(time: string | null): string {
+  if (!time) return "";
+  const match = /^(\d{2}):(\d{2})/.exec(time);
+  return match ? `${match[1]}:${match[2]}` : "";
+}
+
+/** "14:00 às 17:00", ou só "14:00" quando não há hora de término. */
+export function formatTimeRange(startTime: string | null, endTime: string | null): string {
+  const start = formatTime(startTime);
+  const end = formatTime(endTime);
+  if (!start) return "—";
+  return end ? `${start} às ${end}` : start;
+}
+
+/**
  * Normaliza para busca: sem acento e sem caixa.
  *
  * Sem isto, procurar "camara" não acharia "Câmara" — e ninguém digita acento

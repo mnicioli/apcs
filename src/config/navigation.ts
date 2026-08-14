@@ -1,6 +1,7 @@
 import {
   BookOpen,
   Brain,
+  CalendarClock,
   CalendarDays,
   Contact,
   FileText,
@@ -10,6 +11,7 @@ import {
   ListOrdered,
   Megaphone,
   MessagesSquare,
+  Presentation,
   ScrollText,
   Settings,
   Ticket,
@@ -20,6 +22,16 @@ import {
 } from "lucide-react";
 import type { Permission } from "@/lib/rbac/rbac.types";
 
+/**
+ * Contadores que a navegação sabe exibir.
+ *
+ * Chave, e não número: a navegação é CONFIGURAÇÃO, e configuração não busca
+ * dado. Quem apura o número é o layout (que é servidor) e o passa para a
+ * Sidebar — assim um contador novo entra sem transformar este arquivo num
+ * ponto de acesso ao banco.
+ */
+export type NavBadge = "lecturesPending";
+
 export interface NavItem {
   /** Rótulo exibido na UI (PT-BR). */
   title: string;
@@ -28,6 +40,8 @@ export interface NavItem {
   icon: LucideIcon;
   /** Permissão necessária para ver o item. Ausente = visível para todos os logados. */
   permission?: Permission;
+  /** Contador exibido à direita do item, quando maior que zero. */
+  badge?: NavBadge;
   /**
    * `false` = item de roadmap, ainda não implementado. Aparece com selo
    * "Em breve" e leva a um placeholder. Ao implementar o módulo, vire `true`.
@@ -138,6 +152,33 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/events",
         icon: CalendarDays,
         permission: "events.read",
+        available: true,
+      },
+    ],
+  },
+  {
+    // Seção própria, como Eventos: Palestras é menu principal do CRM, e nasce
+    // com os dois itens que o escopo desenha. O Calendário vem PRIMEIRO porque
+    // é a pergunta que o time faz todo dia ("o que tem marcado?"); a lista
+    // completa é para quando alguém procura algo específico.
+    title: "Palestras",
+    items: [
+      {
+        title: "Calendário",
+        href: "/lectures/calendar",
+        icon: CalendarClock,
+        permission: "lectures.read",
+        available: true,
+      },
+      {
+        title: "Palestras",
+        href: "/lectures",
+        icon: Presentation,
+        permission: "lectures.read",
+        // O contador de solicitações pendentes aparece aqui, e não no
+        // Calendário: uma solicitação nova ainda NÃO tem data marcada, então
+        // ela não está no calendário — está esperando na lista.
+        badge: "lecturesPending",
         available: true,
       },
     ],

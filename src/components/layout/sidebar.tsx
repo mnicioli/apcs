@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_SECTIONS } from "@/config/navigation";
+import { NAV_SECTIONS, type NavBadge } from "@/config/navigation";
 import { APP_SHORT_NAME } from "@/config/app";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import type { Role } from "@/lib/rbac/rbac.types";
@@ -12,8 +12,17 @@ import { cn } from "@/lib/utils";
  * Navegação lateral. Filtra os itens pelo papel do usuário e destaca a rota
  * ativa. Itens de roadmap (`available: false`) aparecem desabilitados com o
  * selo "Em breve".
+ *
+ * `badges` traz os contadores já apurados pelo layout (que é servidor). A
+ * navegação não busca dado — ela desenha o que recebe.
  */
-export function Sidebar({ role }: { role: Role }) {
+export function Sidebar({
+  role,
+  badges = {},
+}: {
+  role: Role;
+  badges?: Partial<Record<NavBadge, number>>;
+}) {
   const pathname = usePathname();
 
   return (
@@ -39,7 +48,21 @@ export function Sidebar({ role }: { role: Role }) {
               <ul className="space-y-1">
                 {items.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  // ⚠️ `startsWith` sozinho marcaria "Palestras" (/lectures)
+                  // como ativo enquanto se navega no calendário
+                  // (/lectures/calendar) — dois itens acesos ao mesmo tempo. A
+                  // checagem de item mais específico resolve sem caso especial:
+                  // se existir outro item cujo href seja um prefixo mais longo
+                  // e case com a rota, este aqui não é o ativo.
+                  const isActive =
+                    pathname === item.href ||
+                    (pathname.startsWith(`${item.href}/`) &&
+                      !items.some(
+                        (other) =>
+                          other.href.length > item.href.length &&
+                          (pathname === other.href || pathname.startsWith(`${other.href}/`)),
+                      ));
+                  const count = item.badge ? (badges[item.badge] ?? 0) : 0;
 
                   if (!item.available) {
                     return (
@@ -67,7 +90,26 @@ export function Sidebar({ role }: { role: Role }) {
                         )}
                       >
                         <Icon className="h-4 w-4" />
-                        <span>{item.title}</span>
+                        <span className="flex-1">{item.title}</span>
+                        {count > 0 && (
+                          <span
+                            className={cn(
+                              "min-w-5 rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold",
+                              isActive
+                                ? "bg-primary-foreground text-primary"
+                                : "bg-accent text-primary-strong",
+                            )}
+                          >
+                            {/* O número é lido por leitor de tela com o que ele
+                                significa: "3" sozinho não diz nada. */}
+                            <span aria-hidden="true">{count}</span>
+                            <span className="sr-only">
+                              {count === 1
+                                ? "1 solicitação aguardando análise"
+                                : `${count} solicitações aguardando análise`}
+                            </span>
+                          </span>
+                        )}
                       </Link>
                     </li>
                   );

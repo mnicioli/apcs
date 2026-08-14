@@ -61,25 +61,12 @@ export function canDeactivate(event: StatusInput): boolean {
 }
 
 /**
- * "14:00:00" → "14:00".
- *
- * Colunas `time` do Postgres chegam com os segundos. Nenhum evento da APCS
- * começa às 14:00:30, e mostrar ":00" três vezes por linha só rouba espaço da
- * grid.
+ * O recorte de horário mudou de casa: Palestras faz a mesma pergunta sobre o
+ * mesmo tipo de coluna, então `formatTime` e `formatTimeRange` moram em
+ * `src/lib/utils.ts`. A reexportação mantém as telas de Eventos importando
+ * daqui, como sempre fizeram.
  */
-export function formatTime(time: string | null): string {
-  if (!time) return "";
-  const match = /^(\d{2}):(\d{2})/.exec(time);
-  return match ? `${match[1]}:${match[2]}` : "";
-}
-
-/** "14:00 às 17:00", ou só "14:00" quando não há hora de término. */
-export function formatTimeRange(startTime: string, endTime: string | null): string {
-  const start = formatTime(startTime);
-  const end = formatTime(endTime);
-  if (!start) return "—";
-  return end ? `${start} às ${end}` : start;
-}
+export { formatTime, formatTimeRange } from "@/lib/utils";
 
 /**
  * Ordem da grid: os PRÓXIMOS primeiro.

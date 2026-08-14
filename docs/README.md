@@ -17,6 +17,7 @@ gerais) e pelo [SETUP.md](../SETUP.md) (como rodar).
 | Mexer nas normativas / documentos    | [DOCUMENTS.md](./DOCUMENTS.md)                           |
 | Mexer nos eventos / segmentação      | [EVENTS.md](./EVENTS.md)                                 |
 | Mexer na Bolsa / boletins de preço   | [BOLSA.md](./BOLSA.md)                                   |
+| Mexer nas palestras / calendário     | [PALESTRAS.md](./PALESTRAS.md)                           |
 | Mexer no banco (tabelas, RLS)        | [SUPABASE.md](./SUPABASE.md)                             |
 | Saber as convenções de código        | [CONVENTIONS.md](./CONVENTIONS.md)                       |
 | Escrever testes                      | [TESTING.md](./TESTING.md)                               |

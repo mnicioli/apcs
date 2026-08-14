@@ -60,6 +60,22 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "market.read": ["admin", "ceo", "comercial"],
   "market.write": ["admin", "ceo"],
 
+  // Palestras — as que pedem pelo chatbot e as que o time marca.
+  // Mesmo recorte de Eventos e da Bolsa, e pelo §39 do escopo: ADMINISTRADOR e
+  // GESTOR planejam, atribuem e decidem status; o ATENDENTE (`comercial`)
+  // VISUALIZA — precisa consultar a agenda para responder, mas aprovar uma
+  // solicitação é decisão de quem responde pela agenda.
+  //
+  // Chave própria (e não `events.*`) mesmo com a mesma lista de papéis: são
+  // decisões de negócio distintas, e um dia restringir quem aprova palestra não
+  // pode mexer em quem publica evento.
+  //
+  // Deve bater com as policies de `lectures` / `lecture_status_transitions` /
+  // `lecture_audit_logs`. A trilha é mais estreita que a leitura: só admin e ceo
+  // a leem, o que está na RLS e é checado nas telas por `lectures.write`.
+  "lectures.read": ["admin", "ceo", "comercial"],
+  "lectures.write": ["admin", "ceo"],
+
   // Módulo 01 — Clientes
   "clients.read": ["admin", "ceo", "comercial", "pm"],
   "clients.write": ["admin", "comercial"],

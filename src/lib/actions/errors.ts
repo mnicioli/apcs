@@ -32,6 +32,14 @@ export type ActionErrorCode =
   // O QUE FAZER em seguida.
   | "bulletinNeedsActiveVersion"
   | "versionNotInBulletin"
+  // Regras de negócio de Palestras. Mesmo raciocínio: "dados inválidos" mandaria
+  // procurar o campo errado, enquanto cada uma destas diz o que fazer.
+  | "lectureTransitionNotAllowed"
+  | "lectureFieldImmutable"
+  | "lectureStatusBlocksAction"
+  | "lectureReasonRequired"
+  | "lectureNeedsTime"
+  | "lectureProfileNotFound"
   | "unexpected"; // erro não previsto (logar no servidor!)
 
 export interface ActionErrorBody {
@@ -70,6 +78,15 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   bulletinNeedsActiveVersion:
     "A Bolsa não pode ficar sem uma publicação ativa. Para trocar a publicação oficial, ative a desejada — a atual sai do ar automaticamente.",
   versionNotInBulletin: "Esta publicação não pertence a esta Bolsa.",
+  // Diz o CAMINHO possível, não só o que foi barrado: o fluxo de palestras só
+  // avança, então quem tentou voltar precisa saber que a saída é cancelar.
+  lectureTransitionNotAllowed:
+    "Esta mudança de situação não é permitida. O fluxo só avança — se a palestra não vai mais acontecer como está, cancele informando o motivo.",
+  lectureFieldImmutable: "Protocolo, origem e data da solicitação não podem ser alterados.",
+  lectureStatusBlocksAction: "A situação atual da palestra não permite esta operação.",
+  lectureReasonRequired: "Informe o motivo para concluir esta operação.",
+  lectureNeedsTime: "Informe o horário de início para confirmar a palestra.",
+  lectureProfileNotFound: "Usuário não encontrado.",
   unexpected: "Ocorreu um erro inesperado. Tente novamente.",
 };
 
@@ -121,6 +138,21 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "bulletinNeedsActiveVersion" };
     case "MB002":
       return { code: "versionNotInBulletin" };
+    // Classe `PL` — regras de negócio de Palestras, pela mesma razão da `EV` e
+    // da `MB`: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
+    // supabase/migrations/20260816000000_create_lectures.sql.
+    case "PL001":
+      return { code: "lectureTransitionNotAllowed" };
+    case "PL002":
+      return { code: "lectureFieldImmutable" };
+    case "PL003":
+      return { code: "lectureStatusBlocksAction" };
+    case "PL004":
+      return { code: "lectureReasonRequired" };
+    case "PL005":
+      return { code: "lectureNeedsTime" };
+    case "PL006":
+      return { code: "lectureProfileNotFound" };
     default:
       return { code: "unexpected" };
   }
