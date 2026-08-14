@@ -20,11 +20,11 @@ import { LECTURE_TYPE_LABELS } from "./lecture.labels";
 import type { Lecture, LectureStatus, LectureTransition } from "./lecture.types";
 
 /**
- * O GRAFO usado nos testes ÃƒÂ© o mesmo que a migration insere. Ele ÃƒÂ© dado de
- * entrada, e nÃƒÂ£o constante do mÃƒÂ³dulo, exatamente como em produÃƒÂ§ÃƒÂ£o: as funÃƒÂ§ÃƒÂµes
- * recebem o grafo do banco. Se um dia a migration mudar e este objeto nÃƒÂ£o, os
- * testes continuam corretos sobre a funÃƒÂ§ÃƒÂ£o Ã¢â‚¬â€ e ÃƒÂ© o teste SQL
- * (158 casos, em transaÃƒÂ§ÃƒÂ£o revertida) que cobre a concordÃƒÂ¢ncia com o banco.
+ * O GRAFO usado nos testes é o mesmo que a migration insere. Ele é dado de
+ * entrada, e não constante do módulo, exatamente como em produção: as funções
+ * recebem o grafo do banco. Se um dia a migration mudar e este objeto não, os
+ * testes continuam corretos sobre a função — e é a bateria SQL, rodada contra o
+ * banco real, que cobre a concordância entre o grafo daqui e o de lá.
  */
 const GRAFO: LectureTransition[] = [
   { from: null, to: "requested" },
@@ -49,7 +49,7 @@ function palestra(overrides: Partial<Lecture> = {}): Lecture {
     id: "11111111-1111-4111-8111-111111111111",
     protocol: "SOL-000001",
     origin: "internal",
-    name: "Mercado de SuÃƒÂ­nos",
+    name: "Mercado de Suínos",
     theme: "Mercado",
     city: "Toledo",
     location: null,
@@ -80,7 +80,7 @@ function palestra(overrides: Partial<Lecture> = {}): Lecture {
   };
 }
 
-describe("grafo de status (Ã‚Â§5)", () => {
+describe("grafo de status (§5)", () => {
   it("percorre o fluxo principal do escopo", () => {
     const fluxo: LectureStatus[] = [
       "requested",
@@ -105,17 +105,17 @@ describe("grafo de status (Ã‚Â§5)", () => {
     expect(canTransition(GRAFO, "requested", "held")).toBe(false);
   });
 
-  it("recusa voltar atrÃƒÂ¡s Ã¢â‚¬â€ a lacuna conhecida do mÃƒÂ³dulo", () => {
+  it("recusa voltar atrás — a lacuna conhecida do módulo", () => {
     expect(canTransition(GRAFO, "confirmed", "planned")).toBe(false);
     expect(canTransition(GRAFO, "approved", "under_review")).toBe(false);
   });
 
-  it("rejeita sÃƒÂ³ depois da anÃƒÂ¡lise", () => {
+  it("rejeita só depois da análise", () => {
     expect(canTransition(GRAFO, "requested", "rejected")).toBe(false);
     expect(canTransition(GRAFO, "under_review", "rejected")).toBe(true);
   });
 
-  it("cancela de qualquer situaÃƒÂ§ÃƒÂ£o nÃƒÂ£o terminal, e de nenhuma terminal", () => {
+  it("cancela de qualquer situação não terminal, e de nenhuma terminal", () => {
     for (const de of ["requested", "under_review", "approved", "planned", "confirmed"] as const) {
       expect(canTransition(GRAFO, de, "cancelled")).toBe(true);
     }
@@ -124,7 +124,7 @@ describe("grafo de status (Ã‚Â§5)", () => {
     }
   });
 
-  it("lista os prÃƒÂ³ximos passos de cada situaÃƒÂ§ÃƒÂ£o", () => {
+  it("lista os próximos passos de cada situação", () => {
     expect(nextStatuses(GRAFO, "requested")).toEqual(["under_review", "cancelled"]);
     expect(nextStatuses(GRAFO, "under_review")).toEqual(["approved", "rejected", "cancelled"]);
     expect(nextStatuses(GRAFO, "held")).toEqual([]);
@@ -151,16 +151,16 @@ describe("grafo de status (Ã‚Â§5)", () => {
   });
 });
 
-describe("etapa derivada (Ã‚Â§53, Ã‚Â§56)", () => {
+describe("etapa derivada (§53, §56)", () => {
   const hoje = "2026-09-10";
 
-  it("classifica o que ainda nÃƒÂ£o entrou na agenda", () => {
+  it("classifica o que ainda não entrou na agenda", () => {
     expect(lectureStage(palestra({ status: "requested" }), hoje)).toBe("pending");
     expect(lectureStage(palestra({ status: "under_review" }), hoje)).toBe("pending");
     expect(lectureStage(palestra({ status: "approved" }), hoje)).toBe("pending");
   });
 
-  it("classifica o que estÃƒÂ¡ agendado para hoje ou o futuro", () => {
+  it("classifica o que está agendado para hoje ou o futuro", () => {
     expect(lectureStage(palestra({ status: "planned", eventDate: hoje }), hoje)).toBe("scheduled");
     expect(lectureStage(palestra({ status: "confirmed", eventDate: "2026-12-01" }), hoje)).toBe(
       "scheduled",
@@ -176,14 +176,14 @@ describe("etapa derivada (Ã‚Â§53, Ã‚Â§56)", () => {
     );
   });
 
-  it("Ã‚Â§56 NUNCA transforma data passada em realizada Ã¢â‚¬â€ sÃƒÂ³ muda a leitura", () => {
+  it("§56 NUNCA transforma data passada em realizada — só muda a leitura", () => {
     const vencida = palestra({ status: "confirmed", eventDate: "2020-01-01" });
     expect(lectureStage(vencida, hoje)).toBe("awaiting_outcome");
-    // O dado gravado continua o mesmo. Ãƒâ€° o ponto inteiro do desenho.
+    // O dado gravado continua o mesmo. É o ponto inteiro do desenho.
     expect(vencida.status).toBe("confirmed");
   });
 
-  it("encerrada ÃƒÂ© encerrada, tenha a data passado ou nÃƒÂ£o", () => {
+  it("encerrada é encerrada, tenha a data passado ou não", () => {
     expect(lectureStage(palestra({ status: "held", eventDate: "2020-01-01" }), hoje)).toBe(
       "closed",
     );
@@ -193,13 +193,13 @@ describe("etapa derivada (Ã‚Â§53, Ã‚Â§56)", () => {
     expect(lectureStage(palestra({ status: "rejected" }), hoje)).toBe("closed");
   });
 
-  it("sabe o que ainda estÃƒÂ¡ em jogo", () => {
+  it("sabe o que ainda está em jogo", () => {
     expect(isOpen(palestra({ status: "planned" }))).toBe(true);
     expect(isOpen(palestra({ status: "cancelled" }))).toBe(false);
   });
 });
 
-describe("conflito de horÃƒÂ¡rio (Ã‚Â§33)", () => {
+describe("conflito de horário (§33)", () => {
   const dia = "2026-10-01";
   const slot = (startTime: string | null, endTime: string | null) => ({
     eventDate: dia,
@@ -208,28 +208,28 @@ describe("conflito de horÃƒÂ¡rio (Ã‚Â§33)", () => {
   });
 
   // Os mesmos casos que foram conferidos contra o `OVERLAPS` do Postgres antes
-  // de a funÃƒÂ§ÃƒÂ£o existir. Se um dia divergirem, ÃƒÂ© aqui que aparece.
-  it("acusa sobreposiÃƒÂ§ÃƒÂ£o parcial", () => {
+  // de a função existir. Se um dia divergirem, é aqui que aparece.
+  it("acusa sobreposição parcial", () => {
     expect(overlaps(slot("10:00", "11:00"), slot("10:30", "11:30"))).toBe(true);
   });
 
-  it("NÃƒÆ’O acusa quando as palestras apenas se encostam", () => {
+  it("NÃO acusa quando as palestras apenas se encostam", () => {
     expect(overlaps(slot("10:00", "11:00"), slot("11:00", "12:00"))).toBe(false);
     expect(overlaps(slot("10:00", "11:00"), slot("09:00", "10:00"))).toBe(false);
   });
 
-  it("acusa horÃƒÂ¡rios idÃƒÂªnticos e contidos", () => {
+  it("acusa horários idênticos e contidos", () => {
     expect(overlaps(slot("10:00", "11:00"), slot("10:00", "11:00"))).toBe(true);
     expect(overlaps(slot("10:00", "11:00"), slot("10:15", "10:45"))).toBe(true);
   });
 
-  it("trata palestra sem tÃƒÂ©rmino como um instante", () => {
+  it("trata palestra sem término como um instante", () => {
     expect(overlaps(slot("10:30", null), slot("09:00", "11:00"))).toBe(true);
     expect(overlaps(slot("10:00", null), slot("10:00", null))).toBe(true);
     expect(overlaps(slot("11:00", null), slot("10:00", "11:00"))).toBe(false);
   });
 
-  it("nÃƒÂ£o compara dias diferentes nem palestras sem horÃƒÂ¡rio", () => {
+  it("não compara dias diferentes nem palestras sem horário", () => {
     expect(
       overlaps({ eventDate: dia, startTime: "10:00", endTime: "11:00" }, slot("10:00", "11:00")),
     ).toBe(true);
@@ -242,7 +242,7 @@ describe("conflito de horÃƒÂ¡rio (Ã‚Â§33)", () => {
     expect(overlaps(slot(null, null), slot("10:00", "11:00"))).toBe(false);
   });
 
-  it("sÃƒÂ³ considera as palestras que ocupam a agenda", () => {
+  it("só considera as palestras que ocupam a agenda", () => {
     const agenda = [
       palestra({
         id: "a",
@@ -270,7 +270,7 @@ describe("conflito de horÃƒÂ¡rio (Ã‚Â§33)", () => {
     expect(findConflicts(slot("10:30", "11:30"), agenda).map((l) => l.id)).toEqual(["a"]);
   });
 
-  it("ignora a prÃƒÂ³pria palestra quando ela ÃƒÂ© reagendada", () => {
+  it("ignora a própria palestra quando ela é reagendada", () => {
     const agenda = [
       palestra({
         id: "a",
@@ -284,11 +284,11 @@ describe("conflito de horÃƒÂ¡rio (Ã‚Â§33)", () => {
   });
 });
 
-describe("apresentaÃƒÂ§ÃƒÂ£o", () => {
-  it("mostra o detalhe quando o tipo ÃƒÂ© OUTROS", () => {
+describe("apresentação", () => {
+  it("mostra o detalhe quando o tipo é OUTROS", () => {
     expect(
-      typeDescription({ type: "other", typeOther: "Evento tÃƒÂ©cnico" }, LECTURE_TYPE_LABELS),
-    ).toBe("Outros: Evento tÃƒÂ©cnico");
+      typeDescription({ type: "other", typeOther: "Evento técnico" }, LECTURE_TYPE_LABELS),
+    ).toBe("Outros: Evento técnico");
     expect(typeDescription({ type: "company", typeOther: null }, LECTURE_TYPE_LABELS)).toBe(
       "Empresa",
     );
@@ -310,7 +310,7 @@ describe("apresentaÃƒÂ§ÃƒÂ£o", () => {
     ).toBeNull();
   });
 
-  it("ordena o dia por horÃƒÂ¡rio e joga as sem hora para o fim", () => {
+  it("ordena o dia por horário e joga as sem hora para o fim", () => {
     const lista = [
       palestra({ id: "sem-hora", name: "C", startTime: null, endTime: null }),
       palestra({ id: "tarde", name: "B", startTime: "14:00" }),
@@ -320,7 +320,7 @@ describe("apresentaÃƒÂ§ÃƒÂ£o", () => {
     expect([...lista].sort(compareByTime).map((l) => l.id)).toEqual(["manha", "tarde", "sem-hora"]);
   });
 
-  it("agrupa por dia, com cada dia jÃƒÂ¡ ordenado", () => {
+  it("agrupa por dia, com cada dia já ordenado", () => {
     const dias = groupByDate([
       palestra({ id: "b", eventDate: "2026-10-01", startTime: "14:00" }),
       palestra({ id: "a", eventDate: "2026-10-01", startTime: "09:00" }),
