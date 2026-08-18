@@ -6,10 +6,21 @@ import type { Database } from "@/types/database";
  * Cliente Supabase com a chave `service_role` — IGNORA RLS.
  *
  * ⚠️ Use APENAS onde não existe usuário autenticado e a autorização é feita em
- * código. Hoje isso significa exatamente um lugar: o chat público
- * (`/api/chat`), onde a pessoa é anônima e a conversa é identificada por um
- * cookie httpOnly. As tabelas do chat não têm policy de escrita para `anon`
- * justamente porque toda escrita passa por aqui.
+ * código ou pela assinatura da função no banco. Hoje são quatro lugares, todos
+ * sem sessão de usuário por natureza:
+ *
+ *   • `/api/chat` — o chat público: a pessoa é anônima e a conversa é
+ *     identificada por um cookie httpOnly;
+ *   • as portas de chatbot dos módulos (`*-chatbot.ts`) — o mesmo caso;
+ *   • `/api/webhooks/whatsapp` — quem chama é o fornecedor, e a autorização é a
+ *     assinatura HMAC do corpo (§18);
+ *   • `/api/jobs/surveys` — quem chama é o cron, e a autorização é um segredo
+ *     comparado em tempo constante.
+ *
+ * Nos quatro, as tabelas envolvidas NÃO têm policy de escrita para `anon`
+ * justamente porque toda escrita passa por aqui — e as funções que este cliente
+ * chama são estreitas de propósito: `register_survey_response` não tem
+ * parâmetro capaz de mudar uma enquete, só de registrar um voto.
  *
  * Regras inegociáveis:
  * - `server-only`: importar isto de um Client Component quebra o build.

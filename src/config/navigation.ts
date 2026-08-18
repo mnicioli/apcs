@@ -1,8 +1,10 @@
 import {
+  BarChart3,
   BookOpen,
   Brain,
   CalendarClock,
   CalendarDays,
+  ClipboardList,
   Contact,
   FileText,
   Inbox,
@@ -179,6 +181,29 @@ export const NAV_SECTIONS: NavSection[] = [
         // Calendário: uma solicitação nova ainda NÃO tem data marcada, então
         // ela não está no calendário — está esperando na lista.
         badge: "lecturesPending",
+        available: true,
+      },
+    ],
+  },
+  {
+    // §2. Seção própria, como Eventos e Palestras: Enquetes é menu principal do
+    // CRM, e nasce com os dois itens que o escopo desenha. A estrutura comporta
+    // evolução — um "Disparos" entra aqui ao lado no dia em que o envio existir.
+    //
+    title: "Enquetes",
+    items: [
+      {
+        title: "Enquetes",
+        href: "/surveys",
+        icon: ClipboardList,
+        permission: "surveys.read",
+        available: true,
+      },
+      {
+        title: "Resultados",
+        href: "/surveys/results",
+        icon: BarChart3,
+        permission: "surveys.read",
         available: true,
       },
     ],

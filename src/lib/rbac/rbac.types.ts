@@ -50,6 +50,9 @@ export type Permission =
   // Palestras — solicitações do chatbot, planejamento e calendário
   | "lectures.read"
   | "lectures.write"
+  // Enquetes — criação, segmentação, disparo e resultados
+  | "surveys.read"
+  | "surveys.write"
   | "clients.read"
   | "clients.write"
   | "projects.read"

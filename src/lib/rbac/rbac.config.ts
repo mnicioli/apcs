@@ -76,6 +76,27 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "lectures.read": ["admin", "ceo", "comercial"],
   "lectures.write": ["admin", "ceo"],
 
+  // Enquetes — o que a APCS pergunta à base e o que a base respondeu.
+  // O §3 do escopo é explícito e coincide com o recorte dos outros módulos de
+  // conteúdo: ADMINISTRADOR e GESTOR fazem tudo (criar, editar, agendar, ativar,
+  // encerrar, cancelar, ver resultados); o ATENDENTE (`comercial`) VISUALIZA.
+  //
+  // Chave própria (e não `events.*`) mesmo com a mesma lista de papéis: são
+  // decisões de negócio distintas, e um dia restringir quem dispara uma enquete
+  // para toda a base não pode mexer em quem publica evento.
+  //
+  // ⚠️ `surveys.read` NÃO dá acesso a QUEM respondeu o quê. Isso é decidido por
+  // enquete, pela configuração de anonimato (§21/§54), e imposto no banco:
+  // `survey_responses` não tem policy de SELECT para ninguém, e
+  // `survey_participants` se recusa a responder para enquete anônima.
+  //
+  // Deve bater com as policies de `surveys` / `survey_questions` /
+  // `survey_options` / `survey_audience_criteria` / `survey_recipients` /
+  // `survey_dispatches` / `survey_audit_logs`. A trilha é mais estreita que a
+  // leitura: só admin e ceo a leem, o que está na RLS.
+  "surveys.read": ["admin", "ceo", "comercial"],
+  "surveys.write": ["admin", "ceo"],
+
   // Módulo 01 — Clientes
   "clients.read": ["admin", "ceo", "comercial", "pm"],
   "clients.write": ["admin", "comercial"],

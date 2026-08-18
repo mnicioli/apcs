@@ -40,6 +40,18 @@ export type ActionErrorCode =
   | "lectureReasonRequired"
   | "lectureNeedsTime"
   | "lectureProfileNotFound"
+  // Regras de negócio de Enquetes. Mesmo raciocínio: cada uma diz O QUE FAZER
+  // em seguida, e "dados inválidos" mandaria procurar o campo errado.
+  | "surveyTransitionNotAllowed"
+  | "surveyHasResponses"
+  | "surveyStatusBlocksAction"
+  | "surveyInvalidWindow"
+  | "surveyNeedsQuestion"
+  | "surveyEmptyAudience"
+  | "surveyDimensionUnavailable"
+  | "surveyIsAnonymous"
+  | "surveyInvalidBatch"
+  | "surveyContextInvalid"
   | "unexpected"; // erro não previsto (logar no servidor!)
 
 export interface ActionErrorBody {
@@ -87,6 +99,29 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   lectureReasonRequired: "Informe o motivo para concluir esta operação.",
   lectureNeedsTime: "Informe o horário de início para confirmar a palestra.",
   lectureProfileNotFound: "Usuário não encontrado.",
+  // Enquetes. Cada texto diz o CAMINHO possível, não só o que foi barrado.
+  surveyTransitionNotAllowed:
+    "Esta mudança de situação não é permitida. Uma enquete encerrada ou cancelada não volta atrás.",
+  surveyHasResponses:
+    "Esta enquete já recebeu respostas: a pergunta, as alternativas e o anonimato não podem mais ser alterados.",
+  surveyStatusBlocksAction: "A situação atual da enquete não permite esta operação.",
+  surveyInvalidWindow:
+    "Confira as datas: o encerramento deve ser posterior ao início, e o envio não pode ser anterior ao início.",
+  surveyNeedsQuestion: "Informe a pergunta e ao menos duas alternativas.",
+  surveyEmptyAudience:
+    "A segmentação escolhida não alcança nenhum contato com telefone cadastrado. Revise o público-alvo.",
+  // Diz o que falta E o que dá para usar hoje — ver o GAP 1 em docs/ENQUETES.md.
+  surveyDimensionUnavailable:
+    "A segmentação por Segmento, Categoria ou Carteira depende do cadastro de associados, que ainda não existe no sistema. Use Região, Perfil, contatos específicos ou Toda a base.",
+  surveyIsAnonymous:
+    "Esta enquete é anônima: os participantes não podem ser identificados. Os resultados continuam disponíveis por alternativa.",
+  // Os dois abaixo vêm da mensageria (PROMPT 3/3) e, hoje, só de caminhos que
+  // o servidor chama — worker e webhook. Estão mapeados assim mesmo: um código
+  // do banco sem tradução vira "erro inesperado" na tela, que é a mensagem que
+  // não deixa ninguém descobrir o que fazer.
+  surveyInvalidBatch: "O tamanho do lote de disparo é inválido.",
+  surveyContextInvalid:
+    "Não foi possível identificar a conversa desta enquete. Tente novamente em instantes.",
   unexpected: "Ocorreu um erro inesperado. Tente novamente.",
 };
 
@@ -153,6 +188,29 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "lectureNeedsTime" };
     case "PL006":
       return { code: "lectureProfileNotFound" };
+    // Classe `SV` — regras de negócio de Enquetes, pela mesma razão da `EV`, da
+    // `MB` e da `PL`: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
+    // supabase/migrations/20260819000000_create_surveys.sql.
+    case "SV001":
+      return { code: "surveyTransitionNotAllowed" };
+    case "SV002":
+      return { code: "surveyHasResponses" };
+    case "SV003":
+      return { code: "surveyStatusBlocksAction" };
+    case "SV004":
+      return { code: "surveyInvalidWindow" };
+    case "SV005":
+      return { code: "surveyNeedsQuestion" };
+    case "SV006":
+      return { code: "surveyEmptyAudience" };
+    case "SV007":
+      return { code: "surveyDimensionUnavailable" };
+    case "SV008":
+      return { code: "surveyIsAnonymous" };
+    case "SV009":
+      return { code: "surveyInvalidBatch" };
+    case "SV010":
+      return { code: "surveyContextInvalid" };
     default:
       return { code: "unexpected" };
   }

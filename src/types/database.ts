@@ -1057,6 +1057,627 @@ export type Database = {
         };
         Relationships: [];
       };
+      survey_audience_criteria: {
+        Row: {
+          contact_id: string | null;
+          created_at: string;
+          dimension: Database["public"]["Enums"]["survey_audience_dimension"];
+          id: string;
+          segment_id: string | null;
+          survey_id: string;
+          value: string | null;
+        };
+        Insert: {
+          contact_id?: string | null;
+          created_at?: string;
+          dimension: Database["public"]["Enums"]["survey_audience_dimension"];
+          id?: string;
+          segment_id?: string | null;
+          survey_id: string;
+          value?: string | null;
+        };
+        Update: {
+          contact_id?: string | null;
+          created_at?: string;
+          dimension?: Database["public"]["Enums"]["survey_audience_dimension"];
+          id?: string;
+          segment_id?: string | null;
+          survey_id?: string;
+          value?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_audience_criteria_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "chat_contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_audience_criteria_segment_id_fkey";
+            columns: ["segment_id"];
+            isOneToOne: false;
+            referencedRelation: "event_segments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_audience_criteria_survey_id_fkey";
+            columns: ["survey_id"];
+            isOneToOne: false;
+            referencedRelation: "surveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_audit_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["survey_audit_action"];
+          actor_id: string | null;
+          created_at: string;
+          id: number;
+          metadata: Json;
+          survey_id: string | null;
+        };
+        Insert: {
+          action: Database["public"]["Enums"]["survey_audit_action"];
+          actor_id?: string | null;
+          created_at?: string;
+          id?: never;
+          metadata?: Json;
+          survey_id?: string | null;
+        };
+        Update: {
+          action?: Database["public"]["Enums"]["survey_audit_action"];
+          actor_id?: string | null;
+          created_at?: string;
+          id?: never;
+          metadata?: Json;
+          survey_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_audit_logs_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_audit_logs_survey_id_fkey";
+            columns: ["survey_id"];
+            isOneToOne: false;
+            referencedRelation: "surveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_conversation_states: {
+        Row: {
+          asked_at: string;
+          channel: Database["public"]["Enums"]["survey_channel"];
+          cleared_at: string | null;
+          cleared_reason: string | null;
+          contact_id: string;
+          created_at: string;
+          expires_at: string | null;
+          id: string;
+          invalid_attempts: number;
+          provider_message_id: string | null;
+          question_id: string;
+          recipient_id: string | null;
+          status: Database["public"]["Enums"]["survey_context_status"];
+          survey_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          asked_at?: string;
+          channel: Database["public"]["Enums"]["survey_channel"];
+          cleared_at?: string | null;
+          cleared_reason?: string | null;
+          contact_id: string;
+          created_at?: string;
+          expires_at?: string | null;
+          id?: string;
+          invalid_attempts?: number;
+          provider_message_id?: string | null;
+          question_id: string;
+          recipient_id?: string | null;
+          status?: Database["public"]["Enums"]["survey_context_status"];
+          survey_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          asked_at?: string;
+          channel?: Database["public"]["Enums"]["survey_channel"];
+          cleared_at?: string | null;
+          cleared_reason?: string | null;
+          contact_id?: string;
+          created_at?: string;
+          expires_at?: string | null;
+          id?: string;
+          invalid_attempts?: number;
+          provider_message_id?: string | null;
+          question_id?: string;
+          recipient_id?: string | null;
+          status?: Database["public"]["Enums"]["survey_context_status"];
+          survey_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_conversation_states_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "chat_contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_conversation_states_question_id_fkey";
+            columns: ["question_id"];
+            isOneToOne: false;
+            referencedRelation: "survey_questions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_conversation_states_recipient_id_fkey";
+            columns: ["recipient_id"];
+            isOneToOne: false;
+            referencedRelation: "survey_recipients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_conversation_states_survey_id_fkey";
+            columns: ["survey_id"];
+            isOneToOne: false;
+            referencedRelation: "surveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_dispatches: {
+        Row: {
+          created_by: string | null;
+          finished_at: string | null;
+          id: string;
+          last_error: string | null;
+          started_at: string;
+          status: Database["public"]["Enums"]["survey_dispatch_status"];
+          survey_id: string;
+          total_errors: number;
+          total_recipients: number;
+          total_sent: number;
+        };
+        Insert: {
+          created_by?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          last_error?: string | null;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["survey_dispatch_status"];
+          survey_id: string;
+          total_errors?: number;
+          total_recipients?: number;
+          total_sent?: number;
+        };
+        Update: {
+          created_by?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          last_error?: string | null;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["survey_dispatch_status"];
+          survey_id?: string;
+          total_errors?: number;
+          total_recipients?: number;
+          total_sent?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_dispatches_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_dispatches_survey_id_fkey";
+            columns: ["survey_id"];
+            isOneToOne: false;
+            referencedRelation: "surveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_inbound_events: {
+        Row: {
+          contact_id: string | null;
+          correlation_id: string | null;
+          event_type: string;
+          id: number;
+          outcome: string | null;
+          processed_at: string | null;
+          provider: string;
+          provider_event_id: string;
+          received_at: string;
+          survey_id: string | null;
+        };
+        Insert: {
+          contact_id?: string | null;
+          correlation_id?: string | null;
+          event_type: string;
+          id?: never;
+          outcome?: string | null;
+          processed_at?: string | null;
+          provider: string;
+          provider_event_id: string;
+          received_at?: string;
+          survey_id?: string | null;
+        };
+        Update: {
+          contact_id?: string | null;
+          correlation_id?: string | null;
+          event_type?: string;
+          id?: never;
+          outcome?: string | null;
+          processed_at?: string | null;
+          provider?: string;
+          provider_event_id?: string;
+          received_at?: string;
+          survey_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_inbound_events_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "chat_contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_inbound_events_survey_id_fkey";
+            columns: ["survey_id"];
+            isOneToOne: false;
+            referencedRelation: "surveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_opt_outs: {
+        Row: {
+          channel: Database["public"]["Enums"]["survey_channel"];
+          contact_id: string;
+          created_at: string;
+          id: string;
+          note: string | null;
+          source: string;
+        };
+        Insert: {
+          channel: Database["public"]["Enums"]["survey_channel"];
+          contact_id: string;
+          created_at?: string;
+          id?: string;
+          note?: string | null;
+          source: string;
+        };
+        Update: {
+          channel?: Database["public"]["Enums"]["survey_channel"];
+          contact_id?: string;
+          created_at?: string;
+          id?: string;
+          note?: string | null;
+          source?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_opt_outs_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "chat_contacts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_options: {
+        Row: {
+          active: boolean;
+          created_at: string;
+          id: string;
+          position: number;
+          question_id: string;
+          text: string;
+        };
+        Insert: {
+          active?: boolean;
+          created_at?: string;
+          id?: string;
+          position: number;
+          question_id: string;
+          text: string;
+        };
+        Update: {
+          active?: boolean;
+          created_at?: string;
+          id?: string;
+          position?: number;
+          question_id?: string;
+          text?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_options_question_id_fkey";
+            columns: ["question_id"];
+            isOneToOne: false;
+            referencedRelation: "survey_questions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_questions: {
+        Row: {
+          answer_type: Database["public"]["Enums"]["survey_answer_type"];
+          created_at: string;
+          id: string;
+          position: number;
+          required: boolean;
+          survey_id: string;
+          text: string;
+        };
+        Insert: {
+          answer_type?: Database["public"]["Enums"]["survey_answer_type"];
+          created_at?: string;
+          id?: string;
+          position?: number;
+          required?: boolean;
+          survey_id: string;
+          text: string;
+        };
+        Update: {
+          answer_type?: Database["public"]["Enums"]["survey_answer_type"];
+          created_at?: string;
+          id?: string;
+          position?: number;
+          required?: boolean;
+          survey_id?: string;
+          text?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_questions_survey_id_fkey";
+            columns: ["survey_id"];
+            isOneToOne: false;
+            referencedRelation: "surveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_recipients: {
+        Row: {
+          attempts: number;
+          contact_id: string | null;
+          contact_name: string | null;
+          contact_phone: string | null;
+          created_at: string;
+          id: string;
+          last_attempt_at: string | null;
+          last_dispatch_id: string | null;
+          last_error: string | null;
+          provider_message_id: string | null;
+          status: Database["public"]["Enums"]["survey_recipient_status"];
+          survey_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempts?: number;
+          contact_id?: string | null;
+          contact_name?: string | null;
+          contact_phone?: string | null;
+          created_at?: string;
+          id?: string;
+          last_attempt_at?: string | null;
+          last_dispatch_id?: string | null;
+          last_error?: string | null;
+          provider_message_id?: string | null;
+          status?: Database["public"]["Enums"]["survey_recipient_status"];
+          survey_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempts?: number;
+          contact_id?: string | null;
+          contact_name?: string | null;
+          contact_phone?: string | null;
+          created_at?: string;
+          id?: string;
+          last_attempt_at?: string | null;
+          last_dispatch_id?: string | null;
+          last_error?: string | null;
+          provider_message_id?: string | null;
+          status?: Database["public"]["Enums"]["survey_recipient_status"];
+          survey_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_recipients_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "chat_contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_recipients_last_dispatch_id_fkey";
+            columns: ["last_dispatch_id"];
+            isOneToOne: false;
+            referencedRelation: "survey_dispatches";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_recipients_survey_id_fkey";
+            columns: ["survey_id"];
+            isOneToOne: false;
+            referencedRelation: "surveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_responses: {
+        Row: {
+          answered_at: string;
+          contact_id: string;
+          created_at: string;
+          id: string;
+          option_id: string;
+          question_id: string;
+          source_message_id: string | null;
+          survey_id: string;
+        };
+        Insert: {
+          answered_at?: string;
+          contact_id: string;
+          created_at?: string;
+          id?: string;
+          option_id: string;
+          question_id: string;
+          source_message_id?: string | null;
+          survey_id: string;
+        };
+        Update: {
+          answered_at?: string;
+          contact_id?: string;
+          created_at?: string;
+          id?: string;
+          option_id?: string;
+          question_id?: string;
+          source_message_id?: string | null;
+          survey_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_responses_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "chat_contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_responses_option_id_fkey";
+            columns: ["option_id"];
+            isOneToOne: false;
+            referencedRelation: "survey_options";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_responses_question_id_fkey";
+            columns: ["question_id"];
+            isOneToOne: false;
+            referencedRelation: "survey_questions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "survey_responses_survey_id_fkey";
+            columns: ["survey_id"];
+            isOneToOne: false;
+            referencedRelation: "surveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_status_transitions: {
+        Row: {
+          created_at: string;
+          from_status: Database["public"]["Enums"]["survey_status"] | null;
+          to_status: Database["public"]["Enums"]["survey_status"];
+        };
+        Insert: {
+          created_at?: string;
+          from_status?: Database["public"]["Enums"]["survey_status"] | null;
+          to_status: Database["public"]["Enums"]["survey_status"];
+        };
+        Update: {
+          created_at?: string;
+          from_status?: Database["public"]["Enums"]["survey_status"] | null;
+          to_status?: Database["public"]["Enums"]["survey_status"];
+        };
+        Relationships: [];
+      };
+      surveys: {
+        Row: {
+          allows_response_change: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          ends_at: string | null;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          is_anonymous: boolean;
+          scheduled_at: string | null;
+          search_text: string | null;
+          single_response_only: boolean;
+          starts_at: string | null;
+          status: Database["public"]["Enums"]["survey_status"];
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          allows_response_change?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          ends_at?: string | null;
+          id?: string;
+          image_mime?: string | null;
+          image_path?: string | null;
+          image_size_bytes?: number | null;
+          is_anonymous?: boolean;
+          scheduled_at?: string | null;
+          search_text?: string | null;
+          single_response_only?: boolean;
+          starts_at?: string | null;
+          status: Database["public"]["Enums"]["survey_status"];
+          title: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          allows_response_change?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          ends_at?: string | null;
+          id?: string;
+          image_mime?: string | null;
+          image_path?: string | null;
+          image_size_bytes?: number | null;
+          is_anonymous?: boolean;
+          scheduled_at?: string | null;
+          search_text?: string | null;
+          single_response_only?: boolean;
+          starts_at?: string | null;
+          status?: Database["public"]["Enums"]["survey_status"];
+          title?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "surveys_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "surveys_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -1121,12 +1742,49 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      activate_survey: {
+        Args: { p_survey_id: string };
+        Returns: {
+          allows_response_change: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          ends_at: string | null;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          is_anonymous: boolean;
+          scheduled_at: string | null;
+          search_text: string | null;
+          single_response_only: boolean;
+          starts_at: string | null;
+          status: Database["public"]["Enums"]["survey_status"];
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "surveys";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       assert_event_segments: {
         Args: { p_segment_ids: string[] };
         Returns: undefined;
       };
       assert_lecture_profile: {
         Args: { p_profile_id: string };
+        Returns: undefined;
+      };
+      assert_survey_audience: {
+        Args: { p_survey_id: string };
+        Returns: undefined;
+      };
+      assert_survey_structure_editable: {
+        Args: { p_survey_id: string };
         Returns: undefined;
       };
       assign_lecture_responsible: {
@@ -1222,6 +1880,137 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      block_opted_out_recipients: {
+        Args: { p_survey_id: string };
+        Returns: number;
+      };
+      cancel_survey: {
+        Args: { p_reason?: string; p_survey_id: string };
+        Returns: {
+          allows_response_change: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          ends_at: string | null;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          is_anonymous: boolean;
+          scheduled_at: string | null;
+          search_text: string | null;
+          single_response_only: boolean;
+          starts_at: string | null;
+          status: Database["public"]["Enums"]["survey_status"];
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "surveys";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      claim_survey_recipients: {
+        Args: { p_dispatch_id: string; p_limit?: number; p_survey_id: string };
+        Returns: {
+          attempts: number;
+          contact_id: string | null;
+          contact_name: string | null;
+          contact_phone: string | null;
+          created_at: string;
+          id: string;
+          last_attempt_at: string | null;
+          last_dispatch_id: string | null;
+          last_error: string | null;
+          provider_message_id: string | null;
+          status: Database["public"]["Enums"]["survey_recipient_status"];
+          survey_id: string;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "survey_recipients";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      close_survey: {
+        Args: { p_survey_id: string };
+        Returns: {
+          allows_response_change: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          ends_at: string | null;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          is_anonymous: boolean;
+          scheduled_at: string | null;
+          search_text: string | null;
+          single_response_only: boolean;
+          starts_at: string | null;
+          status: Database["public"]["Enums"]["survey_status"];
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "surveys";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      close_survey_context: {
+        Args: {
+          p_reason?: string;
+          p_state_id: string;
+          p_status: Database["public"]["Enums"]["survey_context_status"];
+        };
+        Returns: {
+          asked_at: string;
+          channel: Database["public"]["Enums"]["survey_channel"];
+          cleared_at: string | null;
+          cleared_reason: string | null;
+          contact_id: string;
+          created_at: string;
+          expires_at: string | null;
+          id: string;
+          invalid_attempts: number;
+          provider_message_id: string | null;
+          question_id: string;
+          recipient_id: string | null;
+          status: Database["public"]["Enums"]["survey_context_status"];
+          survey_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "survey_conversation_states";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      complete_survey_inbound_event: {
+        Args: {
+          p_contact_id?: string;
+          p_event_id: string;
+          p_outcome: string;
+          p_provider: string;
+          p_survey_id?: string;
+        };
+        Returns: undefined;
+      };
+      count_survey_audience: { Args: { p_survey_id: string }; Returns: number };
+      count_survey_context_miss: {
+        Args: { p_max?: number; p_state_id: string };
+        Returns: number;
       };
       create_document_version: {
         Args: {
@@ -1493,6 +2282,45 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      create_survey: {
+        Args: {
+          p_allows_response_change?: boolean;
+          p_description: string;
+          p_ends_at?: string;
+          p_is_anonymous?: boolean;
+          p_options: string[];
+          p_question: string;
+          p_scheduled_at?: string;
+          p_starts_at?: string;
+          p_title: string;
+        };
+        Returns: {
+          allows_response_change: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          ends_at: string | null;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          is_anonymous: boolean;
+          scheduled_at: string | null;
+          search_text: string | null;
+          single_response_only: boolean;
+          starts_at: string | null;
+          status: Database["public"]["Enums"]["survey_status"];
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "surveys";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       current_actor_name: { Args: never; Returns: string };
       current_app_role: {
         Args: never;
@@ -1557,10 +2385,38 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      delete_survey: { Args: { p_survey_id: string }; Returns: undefined };
+      estimate_audience_criteria: {
+        Args: { p_criteria: Json };
+        Returns: number;
+      };
       event_today: { Args: never; Returns: string };
       expand_event_segments: {
         Args: { p_segment_ids: string[] };
         Returns: string[];
+      };
+      expire_survey_contexts: { Args: never; Returns: number };
+      find_contact_by_whatsapp: {
+        Args: { p_number: string };
+        Returns: {
+          city: string | null;
+          contact_profile: Database["public"]["Enums"]["chat_contact_profile"] | null;
+          created_at: string;
+          email: string | null;
+          full_name: string | null;
+          id: string;
+          phone: string | null;
+          preferred_channel: Database["public"]["Enums"]["chat_contact_channel"] | null;
+          preferred_time: Database["public"]["Enums"]["chat_contact_time"] | null;
+          state: string | null;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "chat_contacts";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       find_lecture_conflicts: {
         Args: {
@@ -1614,6 +2470,39 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      finish_survey_dispatch: {
+        Args: { p_dispatch_id: string };
+        Returns: {
+          created_by: string | null;
+          finished_at: string | null;
+          id: string;
+          last_error: string | null;
+          started_at: string;
+          status: Database["public"]["Enums"]["survey_dispatch_status"];
+          survey_id: string;
+          total_errors: number;
+          total_recipients: number;
+          total_sent: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "survey_dispatches";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      get_survey_for_chatbot: {
+        Args: { p_survey_id: string };
+        Returns: {
+          option_id: string;
+          option_position: number;
+          option_text: string;
+          question: string;
+          question_id: string;
+          survey_id: string;
+          title: string;
+        }[];
+      };
       is_admin: { Args: never; Returns: boolean };
       lock_document: { Args: { p_document_id: string }; Returns: undefined };
       lock_event: { Args: { p_event_id: string }; Returns: undefined };
@@ -1622,11 +2511,127 @@ export type Database = {
         Args: { p_bulletin_id: string };
         Returns: undefined;
       };
+      lock_survey: { Args: { p_survey_id: string }; Returns: undefined };
+      mark_survey_recipient: {
+        Args: {
+          p_error?: string;
+          p_provider_message_id?: string;
+          p_recipient_id: string;
+          p_status: Database["public"]["Enums"]["survey_recipient_status"];
+        };
+        Returns: {
+          attempts: number;
+          contact_id: string | null;
+          contact_name: string | null;
+          contact_phone: string | null;
+          created_at: string;
+          id: string;
+          last_attempt_at: string | null;
+          last_dispatch_id: string | null;
+          last_error: string | null;
+          provider_message_id: string | null;
+          status: Database["public"]["Enums"]["survey_recipient_status"];
+          survey_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "survey_recipients";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      mark_survey_recipient_by_message: {
+        Args: {
+          p_error?: string;
+          p_provider_message_id: string;
+          p_status: Database["public"]["Enums"]["survey_recipient_status"];
+        };
+        Returns: {
+          attempts: number;
+          contact_id: string | null;
+          contact_name: string | null;
+          contact_phone: string | null;
+          created_at: string;
+          id: string;
+          last_attempt_at: string | null;
+          last_dispatch_id: string | null;
+          last_error: string | null;
+          provider_message_id: string | null;
+          status: Database["public"]["Enums"]["survey_recipient_status"];
+          survey_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "survey_recipients";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       market_bulletin_version_name: {
         Args: { p_date: string };
         Returns: string;
       };
       next_lecture_protocol: { Args: never; Returns: string };
+      open_survey_context: {
+        Args: {
+          p_channel: Database["public"]["Enums"]["survey_channel"];
+          p_provider_message_id?: string;
+          p_recipient_id: string;
+        };
+        Returns: {
+          asked_at: string;
+          channel: Database["public"]["Enums"]["survey_channel"];
+          cleared_at: string | null;
+          cleared_reason: string | null;
+          contact_id: string;
+          created_at: string;
+          expires_at: string | null;
+          id: string;
+          invalid_attempts: number;
+          provider_message_id: string | null;
+          question_id: string;
+          recipient_id: string | null;
+          status: Database["public"]["Enums"]["survey_context_status"];
+          survey_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "survey_conversation_states";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      process_scheduled_surveys: {
+        Args: never;
+        Returns: {
+          activated: number;
+          closed: number;
+        }[];
+      };
+      reconcile_survey_counters: {
+        Args: { p_survey_id?: string };
+        Returns: {
+          dispatches_recomputed: number;
+          recipients_marked_responded: number;
+          recipients_stuck_sending: number;
+          responses_without_recipient: number;
+          survey_id: string;
+        }[];
+      };
+      record_survey_inbound_event: {
+        Args: {
+          p_contact_id?: string;
+          p_correlation_id?: string;
+          p_event_id: string;
+          p_event_type: string;
+          p_provider: string;
+          p_survey_id?: string;
+        };
+        Returns: boolean;
+      };
       register_lecture_outcome: {
         Args: {
           p_attendees_actual: number;
@@ -1679,6 +2684,29 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      register_survey_opt_out: {
+        Args: {
+          p_channel: Database["public"]["Enums"]["survey_channel"];
+          p_contact_id: string;
+          p_note?: string;
+          p_source?: string;
+        };
+        Returns: boolean;
+      };
+      register_survey_response: {
+        Args: {
+          p_contact_id: string;
+          p_option_id: string;
+          p_source_message_id?: string;
+          p_survey_id: string;
+        };
+        Returns: Database["public"]["Enums"]["survey_response_outcome"];
+      };
+      release_survey_recipients: { Args: { p_ids: string[] }; Returns: number };
+      requeue_stuck_survey_recipients: {
+        Args: { p_older_than?: string };
+        Returns: number;
+      };
       reschedule_lecture: {
         Args: {
           p_end_time: string;
@@ -1727,6 +2755,76 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "lectures";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      resolve_audience_criteria: {
+        Args: { p_criteria: Json };
+        Returns: {
+          contact_id: string;
+          full_name: string;
+          phone: string;
+        }[];
+      };
+      resolve_survey_audience: {
+        Args: { p_survey_id: string };
+        Returns: {
+          contact_id: string;
+          full_name: string;
+          phone: string;
+        }[];
+      };
+      resolve_survey_context: {
+        Args: {
+          p_channel: Database["public"]["Enums"]["survey_channel"];
+          p_contact_id: string;
+          p_reply_to_message_id?: string;
+        };
+        Returns: {
+          asked_at: string;
+          matched_by: string;
+          question_id: string;
+          recipient_id: string;
+          state_id: string;
+          survey_id: string;
+          survey_title: string;
+        }[];
+      };
+      retry_failed_survey_recipients: {
+        Args: { p_max_attempts?: number; p_survey_id: string };
+        Returns: number;
+      };
+      schedule_survey: {
+        Args: {
+          p_ends_at?: string;
+          p_scheduled_at: string;
+          p_starts_at?: string;
+          p_survey_id: string;
+        };
+        Returns: {
+          allows_response_change: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          ends_at: string | null;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          is_anonymous: boolean;
+          scheduled_at: string | null;
+          search_text: string | null;
+          single_response_only: boolean;
+          starts_at: string | null;
+          status: Database["public"]["Enums"]["survey_status"];
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "surveys";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -1804,6 +2902,135 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "lectures";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_survey_audience: {
+        Args: { p_criteria: Json; p_survey_id: string };
+        Returns: number;
+      };
+      start_survey_dispatch: {
+        Args: { p_survey_id: string };
+        Returns: {
+          created_by: string | null;
+          finished_at: string | null;
+          id: string;
+          last_error: string | null;
+          started_at: string;
+          status: Database["public"]["Enums"]["survey_dispatch_status"];
+          survey_id: string;
+          total_errors: number;
+          total_recipients: number;
+          total_sent: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "survey_dispatches";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      survey_is_reader: { Args: never; Returns: boolean };
+      survey_is_writer: { Args: never; Returns: boolean };
+      survey_metrics: {
+        Args: { p_survey_id: string };
+        Returns: {
+          participation_rate: number;
+          total_audience: number;
+          total_delivered: number;
+          total_errors: number;
+          total_read: number;
+          total_responses: number;
+          total_sent: number;
+        }[];
+      };
+      survey_metrics_batch: {
+        Args: { p_survey_ids: string[] };
+        Returns: {
+          participation_rate: number;
+          survey_id: string;
+          total_audience: number;
+          total_delivered: number;
+          total_errors: number;
+          total_read: number;
+          total_responses: number;
+          total_sent: number;
+        }[];
+      };
+      survey_observability_counters: {
+        Args: { p_since?: string };
+        Returns: {
+          metric: string;
+          value: number;
+        }[];
+      };
+      survey_participants: {
+        Args: { p_survey_id: string };
+        Returns: {
+          answered_at: string;
+          contact_id: string;
+          contact_name: string;
+          option_id: string;
+          option_text: string;
+        }[];
+      };
+      survey_participants_page: {
+        Args: {
+          p_limit?: number;
+          p_offset?: number;
+          p_query?: string;
+          p_survey_id: string;
+        };
+        Returns: {
+          answered_at: string;
+          contact_id: string;
+          contact_name: string;
+          option_id: string;
+          option_text: string;
+          total_count: number;
+        }[];
+      };
+      survey_response_gate: {
+        Args: { p_survey_id: string };
+        Returns: Database["public"]["Enums"]["survey_response_outcome"];
+      };
+      survey_results: {
+        Args: { p_survey_id: string };
+        Returns: {
+          option_active: boolean;
+          option_id: string;
+          option_position: number;
+          option_text: string;
+          percentage: number;
+          total: number;
+        }[];
+      };
+      unschedule_survey: {
+        Args: { p_survey_id: string };
+        Returns: {
+          allows_response_change: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          ends_at: string | null;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          is_anonymous: boolean;
+          scheduled_at: string | null;
+          search_text: string | null;
+          single_response_only: boolean;
+          starts_at: string | null;
+          status: Database["public"]["Enums"]["survey_status"];
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "surveys";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -1929,6 +3156,73 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      update_survey: {
+        Args: {
+          p_allows_response_change: boolean;
+          p_description: string;
+          p_ends_at: string;
+          p_is_anonymous: boolean;
+          p_scheduled_at: string;
+          p_starts_at: string;
+          p_survey_id: string;
+          p_title: string;
+        };
+        Returns: {
+          allows_response_change: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          ends_at: string | null;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          is_anonymous: boolean;
+          scheduled_at: string | null;
+          search_text: string | null;
+          single_response_only: boolean;
+          starts_at: string | null;
+          status: Database["public"]["Enums"]["survey_status"];
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "surveys";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_survey_question: {
+        Args: { p_options: string[]; p_question: string; p_survey_id: string };
+        Returns: {
+          allows_response_change: boolean;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          ends_at: string | null;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          is_anonymous: boolean;
+          scheduled_at: string | null;
+          search_text: string | null;
+          single_response_only: boolean;
+          starts_at: string | null;
+          status: Database["public"]["Enums"]["survey_status"];
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "surveys";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
     };
     Enums: {
       app_role: "admin" | "ceo" | "pm" | "tech_lead" | "comercial" | "financeiro" | "viewer";
@@ -1997,6 +3291,53 @@ export type Database = {
         | "version_downloaded";
       market_bulletin_status_reason: "manual" | "superseded";
       market_bulletin_version_status: "active" | "inactive";
+      survey_answer_type:
+        | "single_choice"
+        | "multiple_choice"
+        | "yes_no"
+        | "scale"
+        | "text"
+        | "rating";
+      survey_audience_dimension:
+        | "all"
+        | "segment"
+        | "category"
+        | "region"
+        | "profile"
+        | "portfolio"
+        | "contact";
+      survey_audit_action:
+        | "survey_created"
+        | "survey_updated"
+        | "survey_question_updated"
+        | "survey_audience_updated"
+        | "survey_scheduled"
+        | "survey_activated"
+        | "survey_dispatched"
+        | "survey_closed"
+        | "survey_cancelled"
+        | "survey_response_registered"
+        | "survey_dispatch_completed";
+      survey_channel: "whatsapp";
+      survey_context_status: "awaiting_reply" | "answered" | "expired" | "released" | "superseded";
+      survey_dispatch_status: "pending" | "running" | "completed" | "failed";
+      survey_recipient_status:
+        | "pending"
+        | "sending"
+        | "sent"
+        | "delivered"
+        | "read"
+        | "responded"
+        | "error";
+      survey_response_outcome:
+        | "registered"
+        | "already_answered"
+        | "invalid_option"
+        | "not_active"
+        | "closed"
+        | "cancelled"
+        | "not_found";
+      survey_status: "draft" | "scheduled" | "active" | "closed" | "cancelled";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -2197,6 +3538,51 @@ export const Constants = {
       ],
       market_bulletin_status_reason: ["manual", "superseded"],
       market_bulletin_version_status: ["active", "inactive"],
+      survey_answer_type: ["single_choice", "multiple_choice", "yes_no", "scale", "text", "rating"],
+      survey_audience_dimension: [
+        "all",
+        "segment",
+        "category",
+        "region",
+        "profile",
+        "portfolio",
+        "contact",
+      ],
+      survey_audit_action: [
+        "survey_created",
+        "survey_updated",
+        "survey_question_updated",
+        "survey_audience_updated",
+        "survey_scheduled",
+        "survey_activated",
+        "survey_dispatched",
+        "survey_closed",
+        "survey_cancelled",
+        "survey_response_registered",
+        "survey_dispatch_completed",
+      ],
+      survey_channel: ["whatsapp"],
+      survey_context_status: ["awaiting_reply", "answered", "expired", "released", "superseded"],
+      survey_dispatch_status: ["pending", "running", "completed", "failed"],
+      survey_recipient_status: [
+        "pending",
+        "sending",
+        "sent",
+        "delivered",
+        "read",
+        "responded",
+        "error",
+      ],
+      survey_response_outcome: [
+        "registered",
+        "already_answered",
+        "invalid_option",
+        "not_active",
+        "closed",
+        "cancelled",
+        "not_found",
+      ],
+      survey_status: ["draft", "scheduled", "active", "closed", "cancelled"],
     },
   },
 } as const;
