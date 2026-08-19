@@ -57,6 +57,19 @@
   --border: #eae3d5;
   --input: #eae3d5;
   --ring: #ff6115;
+
+  /* Três degraus entre o fundo e o cartão. Entraram com a landing de
+     associação, que precisa de uma faixa mais escura que o fundo sem chegar a
+     ser um cartão — e servem ao CRM pelo mesmo motivo. `hairline` é um traço
+     mais discreto que `border`, para divisórias internas. */
+  --surface: #faf6ec;
+  --surface-strong: #f0e9da;
+  --hairline: #eee8dc;
+
+  /* Fonte de TÍTULO. O CRM não carrega uma fonte própria — cai na pilha do
+     sistema, que é o que ele sempre usou. Quem troca isto é um escopo que
+     carregue a sua (ver .apcs-landing em src/app/associe-se/landing.css). */
+  --brand-display-font: ui-sans-serif, system-ui, sans-serif;
 }
 
 .dark {
@@ -90,6 +103,10 @@
   --border: #2c241c;
   --input: #2c241c;
   --ring: #ff7a3d;
+
+  --surface: #1d1813;
+  --surface-strong: #2c241c;
+  --hairline: #2c241c;
 }
 
 /* Mapeia os tokens para utilitários do Tailwind (bg-background, text-primary, ...). */
@@ -114,6 +131,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-hairline: var(--hairline);
+  --font-display: var(--brand-display-font);
 }
 
 @layer base {

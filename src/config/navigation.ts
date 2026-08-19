@@ -19,6 +19,7 @@ import {
   Ticket,
   Timer,
   TrendingUp,
+  UserPlus,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -32,7 +33,7 @@ import type { Permission } from "@/lib/rbac/rbac.types";
  * Sidebar — assim um contador novo entra sem transformar este arquivo num
  * ponto de acesso ao banco.
  */
-export type NavBadge = "lecturesPending";
+export type NavBadge = "lecturesPending" | "membershipPending";
 
 export interface NavItem {
   /** Rótulo exibido na UI (PT-BR). */
@@ -204,6 +205,33 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/surveys/results",
         icon: BarChart3,
         permission: "surveys.read",
+        available: true,
+      },
+    ],
+  },
+  {
+    // Seção própria, como Eventos, Palestras e Enquetes. As SOLICITAÇÕES vêm
+    // primeiro porque são a pergunta do dia ("chegou alguém novo?"); o registro
+    // é para quando se procura uma pessoa específica.
+    //
+    // ⚠️ O contador fica nas Solicitações, e conta AGUARDANDO + EM ANÁLISE: as
+    // duas são trabalho em aberto. Um contador que zerasse ao alguém "assumir"
+    // faria a fila parecer vazia com solicitação parada há uma semana.
+    title: "Associados",
+    items: [
+      {
+        title: "Solicitações",
+        href: "/members/applications",
+        icon: UserPlus,
+        permission: "members.read",
+        badge: "membershipPending",
+        available: true,
+      },
+      {
+        title: "Associados",
+        href: "/members",
+        icon: Users,
+        permission: "members.read",
         available: true,
       },
     ],

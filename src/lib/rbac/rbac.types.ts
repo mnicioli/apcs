@@ -53,6 +53,9 @@ export type Permission =
   // Enquetes — criação, segmentação, disparo e resultados
   | "surveys.read"
   | "surveys.write"
+  // Associados — solicitações do formulário público e o registro definitivo
+  | "members.read"
+  | "members.write"
   | "clients.read"
   | "clients.write"
   | "projects.read"

@@ -20,6 +20,9 @@ gerais) e pelo [SETUP.md](../SETUP.md) (como rodar).
 | Mexer nas palestras / calendário     | [PALESTRAS.md](./PALESTRAS.md)                           |
 | Mexer nas enquetes / segmentação     | [ENQUETES.md](./ENQUETES.md)                             |
 | Ligar o disparo por WhatsApp         | [ENQUETES.md](./ENQUETES.md) — seções 18 a 22            |
+| Mexer no cadastro de associados      | [ASSOCIADOS.md](./ASSOCIADOS.md)                         |
+| Mexer na landing pública de filiação | [ASSOCIADOS.md](./ASSOCIADOS.md) — seção 6               |
+| Fazer a carga dos associados antigos | [ASSOCIADOS.md](./ASSOCIADOS.md) — seção 8               |
 | Mexer no banco (tabelas, RLS)        | [SUPABASE.md](./SUPABASE.md)                             |
 | Saber as convenções de código        | [CONVENTIONS.md](./CONVENTIONS.md)                       |
 | Escrever testes                      | [TESTING.md](./TESTING.md)                               |

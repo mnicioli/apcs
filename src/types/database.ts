@@ -1027,6 +1027,323 @@ export type Database = {
           },
         ];
       };
+      members: {
+        Row: {
+          activity_area: string | null;
+          city: string | null;
+          cnpj: string | null;
+          code: string | null;
+          contact_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          email: string | null;
+          external_id: string | null;
+          farm_name: string | null;
+          full_name: string;
+          id: string;
+          interests: string[];
+          job_title: string | null;
+          joined_at: string | null;
+          legal_name: string | null;
+          notes: string | null;
+          organization: string | null;
+          origin: Database["public"]["Enums"]["member_origin"];
+          other_interest: string | null;
+          production_city: string | null;
+          profile_type: Database["public"]["Enums"]["membership_profile_type"] | null;
+          sow_count: number | null;
+          state: string | null;
+          state_registration: string | null;
+          status: Database["public"]["Enums"]["member_status"];
+          trade_name: string | null;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp: string | null;
+        };
+        Insert: {
+          activity_area?: string | null;
+          city?: string | null;
+          cnpj?: string | null;
+          code?: string | null;
+          contact_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          email?: string | null;
+          external_id?: string | null;
+          farm_name?: string | null;
+          full_name: string;
+          id?: string;
+          interests?: string[];
+          job_title?: string | null;
+          joined_at?: string | null;
+          legal_name?: string | null;
+          notes?: string | null;
+          organization?: string | null;
+          origin: Database["public"]["Enums"]["member_origin"];
+          other_interest?: string | null;
+          production_city?: string | null;
+          profile_type?: Database["public"]["Enums"]["membership_profile_type"] | null;
+          sow_count?: number | null;
+          state?: string | null;
+          state_registration?: string | null;
+          status?: Database["public"]["Enums"]["member_status"];
+          trade_name?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp?: string | null;
+        };
+        Update: {
+          activity_area?: string | null;
+          city?: string | null;
+          cnpj?: string | null;
+          code?: string | null;
+          contact_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          email?: string | null;
+          external_id?: string | null;
+          farm_name?: string | null;
+          full_name?: string;
+          id?: string;
+          interests?: string[];
+          job_title?: string | null;
+          joined_at?: string | null;
+          legal_name?: string | null;
+          notes?: string | null;
+          organization?: string | null;
+          origin?: Database["public"]["Enums"]["member_origin"];
+          other_interest?: string | null;
+          production_city?: string | null;
+          profile_type?: Database["public"]["Enums"]["membership_profile_type"] | null;
+          sow_count?: number | null;
+          state?: string | null;
+          state_registration?: string | null;
+          status?: Database["public"]["Enums"]["member_status"];
+          trade_name?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "members_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "chat_contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "members_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "members_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      membership_application_status_transitions: {
+        Row: {
+          created_at: string;
+          from_status: Database["public"]["Enums"]["membership_application_status"] | null;
+          to_status: Database["public"]["Enums"]["membership_application_status"];
+        };
+        Insert: {
+          created_at?: string;
+          from_status?: Database["public"]["Enums"]["membership_application_status"] | null;
+          to_status: Database["public"]["Enums"]["membership_application_status"];
+        };
+        Update: {
+          created_at?: string;
+          from_status?: Database["public"]["Enums"]["membership_application_status"] | null;
+          to_status?: Database["public"]["Enums"]["membership_application_status"];
+        };
+        Relationships: [];
+      };
+      membership_applications: {
+        Row: {
+          activity_area: string | null;
+          city: string;
+          cnpj: string | null;
+          consent_accepted: boolean;
+          consent_at: string;
+          consent_policy_version: string | null;
+          created_at: string;
+          dedupe_key: string;
+          email: string;
+          farm_name: string | null;
+          full_name: string;
+          id: string;
+          interests: string[];
+          job_title: string | null;
+          legal_name: string | null;
+          member_id: string | null;
+          organization: string | null;
+          other_interest: string | null;
+          production_city: string | null;
+          profile_type: Database["public"]["Enums"]["membership_profile_type"];
+          protocol: string;
+          review_note: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          source_ip_hash: string | null;
+          sow_count: number | null;
+          state: string;
+          state_registration: string | null;
+          status: Database["public"]["Enums"]["membership_application_status"];
+          trade_name: string | null;
+          updated_at: string;
+          user_agent: string | null;
+          whatsapp: string;
+        };
+        Insert: {
+          activity_area?: string | null;
+          city: string;
+          cnpj?: string | null;
+          consent_accepted: boolean;
+          consent_at?: string;
+          consent_policy_version?: string | null;
+          created_at?: string;
+          dedupe_key: string;
+          email: string;
+          farm_name?: string | null;
+          full_name: string;
+          id?: string;
+          interests?: string[];
+          job_title?: string | null;
+          legal_name?: string | null;
+          member_id?: string | null;
+          organization?: string | null;
+          other_interest?: string | null;
+          production_city?: string | null;
+          profile_type: Database["public"]["Enums"]["membership_profile_type"];
+          protocol?: string;
+          review_note?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          source_ip_hash?: string | null;
+          sow_count?: number | null;
+          state: string;
+          state_registration?: string | null;
+          status?: Database["public"]["Enums"]["membership_application_status"];
+          trade_name?: string | null;
+          updated_at?: string;
+          user_agent?: string | null;
+          whatsapp: string;
+        };
+        Update: {
+          activity_area?: string | null;
+          city?: string;
+          cnpj?: string | null;
+          consent_accepted?: boolean;
+          consent_at?: string;
+          consent_policy_version?: string | null;
+          created_at?: string;
+          dedupe_key?: string;
+          email?: string;
+          farm_name?: string | null;
+          full_name?: string;
+          id?: string;
+          interests?: string[];
+          job_title?: string | null;
+          legal_name?: string | null;
+          member_id?: string | null;
+          organization?: string | null;
+          other_interest?: string | null;
+          production_city?: string | null;
+          profile_type?: Database["public"]["Enums"]["membership_profile_type"];
+          protocol?: string;
+          review_note?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          source_ip_hash?: string | null;
+          sow_count?: number | null;
+          state?: string;
+          state_registration?: string | null;
+          status?: Database["public"]["Enums"]["membership_application_status"];
+          trade_name?: string | null;
+          updated_at?: string;
+          user_agent?: string | null;
+          whatsapp?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "membership_applications_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "members";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "membership_applications_reviewed_by_fkey";
+            columns: ["reviewed_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      membership_audit_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["membership_audit_action"];
+          actor_id: string | null;
+          actor_name: string | null;
+          application_id: string | null;
+          created_at: string;
+          id: string;
+          member_id: string | null;
+          metadata: Json;
+        };
+        Insert: {
+          action: Database["public"]["Enums"]["membership_audit_action"];
+          actor_id?: string | null;
+          actor_name?: string | null;
+          application_id?: string | null;
+          created_at?: string;
+          id?: string;
+          member_id?: string | null;
+          metadata?: Json;
+        };
+        Update: {
+          action?: Database["public"]["Enums"]["membership_audit_action"];
+          actor_id?: string | null;
+          actor_name?: string | null;
+          application_id?: string | null;
+          created_at?: string;
+          id?: string;
+          member_id?: string | null;
+          metadata?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "membership_audit_logs_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "membership_audit_logs_application_id_fkey";
+            columns: ["application_id"];
+            isOneToOne: false;
+            referencedRelation: "membership_applications";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "membership_audit_logs_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "members";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
@@ -1771,6 +2088,47 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      approve_membership_application: {
+        Args: { p_application_id: string; p_note?: string };
+        Returns: {
+          activity_area: string | null;
+          city: string | null;
+          cnpj: string | null;
+          code: string | null;
+          contact_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          email: string | null;
+          external_id: string | null;
+          farm_name: string | null;
+          full_name: string;
+          id: string;
+          interests: string[];
+          job_title: string | null;
+          joined_at: string | null;
+          legal_name: string | null;
+          notes: string | null;
+          organization: string | null;
+          origin: Database["public"]["Enums"]["member_origin"];
+          other_interest: string | null;
+          production_city: string | null;
+          profile_type: Database["public"]["Enums"]["membership_profile_type"] | null;
+          sow_count: number | null;
+          state: string | null;
+          state_registration: string | null;
+          status: Database["public"]["Enums"]["member_status"];
+          trade_name: string | null;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "members";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       assert_event_segments: {
         Args: { p_segment_ids: string[] };
         Returns: undefined;
@@ -2511,6 +2869,10 @@ export type Database = {
         Args: { p_bulletin_id: string };
         Returns: undefined;
       };
+      lock_membership_application: {
+        Args: { p_application_id: string };
+        Returns: undefined;
+      };
       lock_survey: { Args: { p_survey_id: string }; Returns: undefined };
       mark_survey_recipient: {
         Args: {
@@ -2573,7 +2935,11 @@ export type Database = {
         Args: { p_date: string };
         Returns: string;
       };
+      membership_ip_hourly_limit: { Args: never; Returns: number };
+      membership_is_reader: { Args: never; Returns: boolean };
+      membership_is_writer: { Args: never; Returns: boolean };
       next_lecture_protocol: { Args: never; Returns: string };
+      next_membership_protocol: { Args: never; Returns: string };
       open_survey_context: {
         Args: {
           p_channel: Database["public"]["Enums"]["survey_channel"];
@@ -2702,7 +3068,95 @@ export type Database = {
         };
         Returns: Database["public"]["Enums"]["survey_response_outcome"];
       };
+      reject_membership_application: {
+        Args: { p_application_id: string; p_reason: string };
+        Returns: {
+          activity_area: string | null;
+          city: string;
+          cnpj: string | null;
+          consent_accepted: boolean;
+          consent_at: string;
+          consent_policy_version: string | null;
+          created_at: string;
+          dedupe_key: string;
+          email: string;
+          farm_name: string | null;
+          full_name: string;
+          id: string;
+          interests: string[];
+          job_title: string | null;
+          legal_name: string | null;
+          member_id: string | null;
+          organization: string | null;
+          other_interest: string | null;
+          production_city: string | null;
+          profile_type: Database["public"]["Enums"]["membership_profile_type"];
+          protocol: string;
+          review_note: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          source_ip_hash: string | null;
+          sow_count: number | null;
+          state: string;
+          state_registration: string | null;
+          status: Database["public"]["Enums"]["membership_application_status"];
+          trade_name: string | null;
+          updated_at: string;
+          user_agent: string | null;
+          whatsapp: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "membership_applications";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       release_survey_recipients: { Args: { p_ids: string[] }; Returns: number };
+      reopen_membership_application: {
+        Args: { p_application_id: string; p_reason?: string };
+        Returns: {
+          activity_area: string | null;
+          city: string;
+          cnpj: string | null;
+          consent_accepted: boolean;
+          consent_at: string;
+          consent_policy_version: string | null;
+          created_at: string;
+          dedupe_key: string;
+          email: string;
+          farm_name: string | null;
+          full_name: string;
+          id: string;
+          interests: string[];
+          job_title: string | null;
+          legal_name: string | null;
+          member_id: string | null;
+          organization: string | null;
+          other_interest: string | null;
+          production_city: string | null;
+          profile_type: Database["public"]["Enums"]["membership_profile_type"];
+          protocol: string;
+          review_note: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          source_ip_hash: string | null;
+          sow_count: number | null;
+          state: string;
+          state_registration: string | null;
+          status: Database["public"]["Enums"]["membership_application_status"];
+          trade_name: string | null;
+          updated_at: string;
+          user_agent: string | null;
+          whatsapp: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "membership_applications";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       requeue_stuck_survey_recipients: {
         Args: { p_older_than?: string };
         Returns: number;
@@ -2910,6 +3364,50 @@ export type Database = {
         Args: { p_criteria: Json; p_survey_id: string };
         Returns: number;
       };
+      start_membership_review: {
+        Args: { p_application_id: string };
+        Returns: {
+          activity_area: string | null;
+          city: string;
+          cnpj: string | null;
+          consent_accepted: boolean;
+          consent_at: string;
+          consent_policy_version: string | null;
+          created_at: string;
+          dedupe_key: string;
+          email: string;
+          farm_name: string | null;
+          full_name: string;
+          id: string;
+          interests: string[];
+          job_title: string | null;
+          legal_name: string | null;
+          member_id: string | null;
+          organization: string | null;
+          other_interest: string | null;
+          production_city: string | null;
+          profile_type: Database["public"]["Enums"]["membership_profile_type"];
+          protocol: string;
+          review_note: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          source_ip_hash: string | null;
+          sow_count: number | null;
+          state: string;
+          state_registration: string | null;
+          status: Database["public"]["Enums"]["membership_application_status"];
+          trade_name: string | null;
+          updated_at: string;
+          user_agent: string | null;
+          whatsapp: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "membership_applications";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       start_survey_dispatch: {
         Args: { p_survey_id: string };
         Returns: {
@@ -2930,6 +3428,37 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      submit_membership_application: {
+        Args: {
+          p_activity_area?: string;
+          p_city: string;
+          p_cnpj?: string;
+          p_consent_policy_version?: string;
+          p_dedupe_key: string;
+          p_email: string;
+          p_farm_name?: string;
+          p_full_name: string;
+          p_interests?: string[];
+          p_job_title?: string;
+          p_legal_name?: string;
+          p_organization?: string;
+          p_other_interest?: string;
+          p_production_city?: string;
+          p_profile_type: Database["public"]["Enums"]["membership_profile_type"];
+          p_source_ip_hash?: string;
+          p_sow_count?: number;
+          p_state: string;
+          p_state_registration?: string;
+          p_trade_name?: string;
+          p_user_agent?: string;
+          p_whatsapp: string;
+        };
+        Returns: {
+          application_id: string;
+          duplicate: boolean;
+          protocol: string;
+        }[];
       };
       survey_is_reader: { Args: never; Returns: boolean };
       survey_is_writer: { Args: never; Returns: boolean };
@@ -3291,6 +3820,18 @@ export type Database = {
         | "version_downloaded";
       market_bulletin_status_reason: "manual" | "superseded";
       market_bulletin_version_status: "active" | "inactive";
+      member_origin: "application" | "import" | "manual";
+      member_status: "active" | "inactive" | "suspended";
+      membership_application_status: "pending" | "in_review" | "approved" | "rejected";
+      membership_audit_action:
+        | "application_submitted"
+        | "application_review_started"
+        | "application_approved"
+        | "application_rejected"
+        | "application_reopened"
+        | "member_created"
+        | "member_linked";
+      membership_profile_type: "suinocultor" | "profissional" | "empresa";
       survey_answer_type:
         | "single_choice"
         | "multiple_choice"
@@ -3538,6 +4079,19 @@ export const Constants = {
       ],
       market_bulletin_status_reason: ["manual", "superseded"],
       market_bulletin_version_status: ["active", "inactive"],
+      member_origin: ["application", "import", "manual"],
+      member_status: ["active", "inactive", "suspended"],
+      membership_application_status: ["pending", "in_review", "approved", "rejected"],
+      membership_audit_action: [
+        "application_submitted",
+        "application_review_started",
+        "application_approved",
+        "application_rejected",
+        "application_reopened",
+        "member_created",
+        "member_linked",
+      ],
+      membership_profile_type: ["suinocultor", "profissional", "empresa"],
       survey_answer_type: ["single_choice", "multiple_choice", "yes_no", "scale", "text", "rating"],
       survey_audience_dimension: [
         "all",

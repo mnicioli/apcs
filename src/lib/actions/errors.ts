@@ -52,6 +52,15 @@ export type ActionErrorCode =
   | "surveyIsAnonymous"
   | "surveyInvalidBatch"
   | "surveyContextInvalid"
+  // Regras de negócio de Associados. Mesmo raciocínio de sempre: cada uma diz
+  // O QUE FAZER em seguida — e `membershipRateLimited` chega num formulário
+  // PÚBLICO, onde "dados inválidos" mandaria a pessoa procurar um campo errado
+  // num formulário que estava certo.
+  | "membershipTransitionNotAllowed"
+  | "membershipStatusBlocksAction"
+  | "membershipProfileFieldMissing"
+  | "membershipRateLimited"
+  | "membershipReasonRequired"
   | "unexpected"; // erro não previsto (logar no servidor!)
 
 export interface ActionErrorBody {
@@ -122,6 +131,17 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   surveyInvalidBatch: "O tamanho do lote de disparo é inválido.",
   surveyContextInvalid:
     "Não foi possível identificar a conversa desta enquete. Tente novamente em instantes.",
+  // Associados. O texto do limite de taxa é o único deste arquivo escrito para
+  // alguém que NÃO trabalha na APCS — ele aparece na landing pública. Por isso
+  // não fala em "limite", "IP" nem "bloqueio": diz o que fazer e nada mais.
+  membershipTransitionNotAllowed:
+    "Esta mudança de situação não é permitida. Uma solicitação aprovada não volta atrás — para desfazer, inative o associado no registro.",
+  membershipStatusBlocksAction: "A situação atual da solicitação não permite esta operação.",
+  membershipProfileFieldMissing:
+    "Faltam informações obrigatórias para o perfil escolhido. Revise os campos destacados.",
+  membershipRateLimited:
+    "Recebemos vários envios deste acesso nos últimos minutos. Aguarde um pouco e tente novamente.",
+  membershipReasonRequired: "Informe o motivo da recusa.",
   unexpected: "Ocorreu um erro inesperado. Tente novamente.",
 };
 
@@ -191,6 +211,19 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
     // Classe `SV` — regras de negócio de Enquetes, pela mesma razão da `EV`, da
     // `MB` e da `PL`: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260819000000_create_surveys.sql.
+    // Classe `MA` — regras de negócio de Associados, pela mesma razão das
+    // anteriores: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
+    // supabase/migrations/20260821000000_create_membership.sql.
+    case "MA001":
+      return { code: "membershipTransitionNotAllowed" };
+    case "MA002":
+      return { code: "membershipStatusBlocksAction" };
+    case "MA003":
+      return { code: "membershipProfileFieldMissing" };
+    case "MA004":
+      return { code: "membershipRateLimited" };
+    case "MA005":
+      return { code: "membershipReasonRequired" };
     case "SV001":
       return { code: "surveyTransitionNotAllowed" };
     case "SV002":

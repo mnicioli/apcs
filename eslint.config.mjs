@@ -37,6 +37,15 @@ export default [
   },
   eslintConfigPrettier,
   {
-    ignores: ["node_modules/", ".next/", "dist/", "next-env.d.ts", "src/types/database.ts"],
+    // `ToDo/` é material de referência recebido do cliente (outro framework,
+    // outras dependências) — não faz parte do build e não é versionado.
+    ignores: [
+      "node_modules/",
+      ".next/",
+      "dist/",
+      "ToDo/",
+      "next-env.d.ts",
+      "src/types/database.ts",
+    ],
   },
 ];

@@ -74,8 +74,23 @@ export async function updateSession(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl;
-  // O chat já saiu lá em cima; aqui restam as rotas de autenticação.
-  const isPublicRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
+  // O chat já saiu lá em cima; aqui restam as rotas de autenticação e a landing
+  // de associação.
+  //
+  // ⚠️ `/associe-se` é PÚBLICA de propósito: é o formulário de cadastro de
+  // novos associados, aberto na internet. Ela passa por este fluxo (em vez de
+  // sair antes, como o chat) porque não custa nada — a página é estática e o
+  // `getUser()` já rodou — e porque manter uma lista só de rotas públicas é
+  // mais fácil de auditar que duas.
+  //
+  // Ela NÃO escreve no banco pela sessão do visitante: a solicitação entra por
+  // uma Server Action que usa o cliente `service_role`, e as tabelas de
+  // Associados não têm policy de escrita para `anon`. Ver a decisão 2 de
+  // supabase/migrations/20260821000000_create_membership.sql.
+  const isPublicRoute =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/associe-se");
 
   // Não logado tentando acessar rota protegida → manda para o login.
   if (!user && !isPublicRoute) {

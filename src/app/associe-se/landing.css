@@ -1,0 +1,403 @@
+/*
+ * Landing pública de associação — tokens e movimento.
+ *
+ * ⚠️ TUDO AQUI É ESCOPADO EM `.apcs-landing`, E ISSO É O PONTO DO ARQUIVO.
+ *
+ * O CRM é LARANJA (Neon Orange #FF6115, ver src/app/globals.css). A landing é
+ * VERMELHA — a cor institucional da APCS, a mesma do logo oficial que já está
+ * em public/logo-apcs.svg (#C4262E). São duas identidades convivendo no mesmo
+ * build, e a única forma de as duas viverem em paz é a de baixo não vazar para
+ * cima: nenhuma regra deste arquivo existe fora de `.apcs-landing`.
+ *
+ * Como funciona: o `@theme inline` do globals.css mapeia `--color-primary` para
+ * `var(--primary)`, então o utilitário `bg-primary` vira, no CSS final,
+ * `background-color: var(--primary)`. Redefinir `--primary` num ancestral
+ * reescreve TODOS os utilitários de token daquela subárvore, sem duplicar uma
+ * linha de Tailwind.
+ *
+ * É também por isso que a landing não tem modo escuro: uma custom property
+ * declarada no próprio elemento vence a herdada do `.dark` do <html>. A página
+ * institucional é clara, sempre — e não por acidente.
+ *
+ * CSS PURO de propósito: nada de `@utility` ou `@apply`. Este arquivo é
+ * importado pelo layout da rota, não é a entrada do Tailwind, e diretiva do
+ * Tailwind fora da entrada é CSS inválido em silêncio.
+ */
+
+.apcs-landing {
+  /* ---------------------------------------------------------------- cores */
+  /* #C4262E é o vermelho do logo oficial (public/logo-apcs.svg) — amostrado
+     dele, não escolhido. O layout validado trazia um vermelho de referência
+     marcado como placeholder, com a instrução de trocá-lo pelo do logo assim
+     que ele existisse. Ele existe. */
+  --primary: #c4262e;
+  --primary-foreground: #fffcf4;
+  --primary-strong: #a01f26;
+
+  --background: #fcfaf6;
+  --foreground: #221e1a;
+
+  --card: #ffffff;
+  --card-foreground: #221e1a;
+
+  --popover: #ffffff;
+  --popover-foreground: #221e1a;
+
+  --secondary: #f4f1eb;
+  --secondary-foreground: #221e1a;
+
+  --muted: #f3f0ea;
+  --muted-foreground: #6f6862;
+
+  /* Vermelho lavado, para estados selecionados. */
+  --accent: #f8edea;
+  --accent-foreground: #a01f26;
+
+  /* Erro de campo. Mais escuro e mais frio que a marca: num formulário
+     vermelho, "corrija este campo" não pode parecer decoração da página. */
+  --destructive: #8e1a12;
+  --destructive-foreground: #ffffff;
+
+  --border: #e6e2da;
+  --input: #ded8ce;
+  --ring: #c4262e;
+
+  --surface: #f7f4ef;
+  --surface-strong: #eeeae2;
+  --hairline: #e2ddd4;
+
+  --brand-display-font: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Rolagem suave para as âncoras da landing. Fica no `:root` porque quem rola é
+   o documento, não a div — e só quando a landing está na tela, para não mudar o
+   comportamento do CRM. */
+:root:has(.apcs-landing) {
+  scroll-behavior: smooth;
+}
+
+.apcs-landing h1,
+.apcs-landing h2,
+.apcs-landing h3,
+.apcs-landing h4 {
+  font-family: var(--brand-display-font);
+  letter-spacing: -0.02em;
+}
+
+.apcs-landing :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Movimento
+ * ---------------------------------------------------------------------------
+ * Só `transform` e `opacity` — as duas propriedades que o navegador anima sem
+ * recalcular layout. Uma landing que engasga ao rolar no celular é uma landing
+ * que perde o cadastro antes da primeira pergunta.
+ */
+
+.apcs-reveal {
+  opacity: 0;
+  transform: translate3d(0, 12px, 0);
+  transition:
+    opacity 380ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 380ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.apcs-reveal[data-revealed="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+.apcs-step-enter {
+  animation: apcs-step-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.apcs-step-enter-back {
+  animation: apcs-step-in-back 260ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes apcs-step-in {
+  from {
+    opacity: 0;
+    transform: translate3d(16px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes apcs-step-in-back {
+  from {
+    opacity: 0;
+    transform: translate3d(-16px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A cortina vermelha entre as etapas do formulário. Dispara só por interação —
+   nunca sozinha, nunca em laço. */
+.apcs-panel-sweep,
+.apcs-panel-sweep-back {
+  position: absolute;
+  inset: 0;
+  background-color: var(--primary);
+  transform: scaleX(0);
+  pointer-events: none;
+  border-radius: 1rem;
+}
+
+.apcs-panel-sweep {
+  transform-origin: left center;
+  animation: apcs-panel-sweep 400ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+.apcs-panel-sweep-back {
+  transform-origin: right center;
+  animation: apcs-panel-sweep-back 400ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+@keyframes apcs-panel-sweep {
+  0% {
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+  48% {
+    transform: scaleX(1);
+    transform-origin: left center;
+  }
+  52% {
+    transform: scaleX(1);
+    transform-origin: right center;
+  }
+  100% {
+    transform: scaleX(0);
+    transform-origin: right center;
+  }
+}
+
+@keyframes apcs-panel-sweep-back {
+  0% {
+    transform: scaleX(0);
+    transform-origin: right center;
+  }
+  48% {
+    transform: scaleX(1);
+    transform-origin: right center;
+  }
+  52% {
+    transform: scaleX(1);
+    transform-origin: left center;
+  }
+  100% {
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+}
+
+/* Destaque do CTA principal. */
+.apcs-cta {
+  box-shadow:
+    0 10px 24px -12px color-mix(in oklab, var(--primary) 65%, transparent),
+    0 2px 0 0 color-mix(in oklab, var(--primary) 55%, black);
+  transition:
+    transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.apcs-cta:hover {
+  transform: translate3d(0, -2px, 0);
+  box-shadow:
+    0 16px 32px -12px color-mix(in oklab, var(--primary) 70%, transparent),
+    0 2px 0 0 color-mix(in oklab, var(--primary) 55%, black);
+}
+
+.apcs-cta:active {
+  transform: translate3d(0, 0, 0);
+}
+
+/* As setas dos três passos: apontam para baixo no celular (onde os cartões se
+   empilham) e para a direita no desktop (onde ficam lado a lado). É a mesma
+   informação — "e depois" — desenhada na direção em que a pessoa está lendo. */
+.apcs-arrow {
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
+}
+
+.apcs-arrow-last {
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
+}
+
+@media (min-width: 768px) {
+  .apcs-arrow {
+    clip-path: polygon(0 0, 78% 0, 100% 50%, 78% 100%, 0 100%);
+  }
+
+  .apcs-arrow-last {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+  }
+}
+
+/* Enquadramento da foto no painel do formulário. */
+.apcs-form-photo {
+  object-position: 50% 100%;
+}
+
+@media (min-width: 1024px) {
+  .apcs-form-photo {
+    object-position: 50% 62%;
+  }
+}
+
+/* Contagem "1, 2, 3" e o ponteiro do relógio do painel. */
+@keyframes apcs-count-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.apcs-count-pop {
+  animation: apcs-count-pop 260ms ease-out both;
+}
+
+@keyframes apcs-clock-tick {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(20deg);
+  }
+}
+
+.apcs-clock-hand {
+  transform-origin: 12px 12px;
+  animation: apcs-clock-tick 2.4s ease-in-out infinite;
+}
+
+/* A marca: entrada com halo e um brilho que percorre o logo. O brilho usa o
+   próprio SVG como máscara, então ele nunca escapa do desenho. */
+@keyframes apcs-mark-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes apcs-mark-halo {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  45% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.04);
+  }
+  100% {
+    opacity: 0.45;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes apcs-mark-shine {
+  0% {
+    transform: translateX(-130%);
+  }
+  55% {
+    transform: translateX(130%);
+  }
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+.apcs-mark__img {
+  animation: apcs-mark-in 2000ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.apcs-mark__halo {
+  animation: apcs-mark-halo 2600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    color-mix(in oklab, var(--primary) 16%, transparent) 0%,
+    color-mix(in oklab, var(--primary) 7%, transparent) 42%,
+    transparent 70%
+  );
+}
+
+.apcs-mark__shine {
+  animation: apcs-mark-shine 7000ms cubic-bezier(0.37, 0, 0.19, 1) 1600ms infinite;
+  will-change: transform;
+}
+
+/* ---------------------------------------------------------------------------
+ * Quem pediu para o movimento parar
+ * ---------------------------------------------------------------------------
+ * Não é "reduzir": é PARAR. Quem liga essa preferência no sistema costuma ter
+ * um motivo físico para isso, e meia animação continua sendo animação.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root:has(.apcs-landing) {
+    scroll-behavior: auto;
+  }
+
+  .apcs-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .apcs-step-enter,
+  .apcs-step-enter-back,
+  .apcs-cta,
+  .apcs-count-pop,
+  .apcs-clock-hand,
+  .apcs-mark__img {
+    animation: none;
+    transition: none;
+  }
+
+  .apcs-mark__img {
+    transform: none;
+    opacity: 1;
+  }
+
+  .apcs-mark__halo {
+    animation: none;
+    opacity: 0.35;
+    transform: translate(-50%, -50%);
+  }
+
+  .apcs-mark__shine {
+    animation: none;
+    opacity: 0;
+  }
+
+  /* A cortina some por completo: ela é um bloco de cor cobrindo a tela, e é
+     justamente esse tipo de movimento que a preferência existe para evitar. */
+  .apcs-panel-sweep,
+  .apcs-panel-sweep-back {
+    display: none;
+  }
+}

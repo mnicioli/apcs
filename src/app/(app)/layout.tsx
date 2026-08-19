@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser, getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import { countPendingLectures } from "@/lib/services/lectures";
+import { countPendingMembershipApplications } from "@/lib/services/membership";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 
@@ -20,11 +21,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
 
   const role = await getCurrentUserRole();
-  const lecturesPending = hasPermission(role, "lectures.read") ? await countPendingLectures() : 0;
+  // As duas contagens em paralelo: são independentes, e somar dois tempos de
+  // ida ao banco em SÉRIE no layout atrasaria TODAS as telas do sistema.
+  const [lecturesPending, membershipPending] = await Promise.all([
+    hasPermission(role, "lectures.read") ? countPendingLectures() : 0,
+    hasPermission(role, "members.read") ? countPendingMembershipApplications() : 0,
+  ]);
 
   return (
     <div className="flex min-h-dvh">
-      <Sidebar role={role} badges={{ lecturesPending }} />
+      <Sidebar role={role} badges={{ lecturesPending, membershipPending }} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={user} role={role} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>

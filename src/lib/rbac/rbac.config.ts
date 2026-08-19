@@ -97,6 +97,21 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "surveys.read": ["admin", "ceo", "comercial"],
   "surveys.write": ["admin", "ceo"],
 
+  // Associados — quem se cadastrou pela landing e quem a APCS reconhece.
+  // Mesmo recorte dos outros módulos: ADMINISTRADOR e GESTOR decidem; o
+  // ATENDENTE (`comercial`) VISUALIZA. É deliberado que o Atendente NÃO aprove:
+  // aprovar cria uma linha no registro de associados, que é a fonte única da
+  // verdade da entidade — e a carga do cadastro legado vai desembocar na mesma
+  // tabela. Se um dia a triagem virar rotina do atendimento, mover `comercial`
+  // para `members.write` é uma linha aqui MAIS as policies/funções do banco: as
+  // duas camadas têm de contar a mesma história.
+  //
+  // Deve bater com `membership_is_reader()` / `membership_is_writer()` em
+  // supabase/migrations/20260821000000_create_membership.sql. A trilha
+  // (`membership_audit_logs`) é mais estreita que a leitura: só admin e ceo.
+  "members.read": ["admin", "ceo", "comercial"],
+  "members.write": ["admin", "ceo"],
+
   // Módulo 01 — Clientes
   "clients.read": ["admin", "ceo", "comercial", "pm"],
   "clients.write": ["admin", "comercial"],

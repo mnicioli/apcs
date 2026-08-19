@@ -47,3 +47,6 @@ pnpm-debug.log*
 
 # typescript build info
 *.tsbuildinfo
+
+# Material de referência recebido do cliente (contém .env). Nunca vai para o Git.
+/ToDo/
