@@ -94,3 +94,60 @@ export function logSurveyEvent(
   if (level === "error") console.error(linha);
   else console.info(linha);
 }
+
+/**
+ * O mesmo log, para a caixa de entrada do WhatsApp.
+ *
+ * ⚠️ ESCOPO PRÓPRIO (`whatsapp.inbox`), E NÃO UMA REUTILIZAÇÃO DE
+ * `logSurveyEvent`. O escopo é o que permite filtrar "tudo do disparo de
+ * enquete" sem varrer junto o tráfego de atendimento, que é muito maior e
+ * contínuo. Misturados, o volume da caixa afogaria o log da campanha
+ * exatamente no dia em que alguém precisasse investigar a campanha.
+ *
+ * As MESMAS proibições do log acima valem aqui, e mais até: esta é a superfície
+ * por onde passa TODO texto que associados escrevem para a APCS. Nunca o texto,
+ * nunca o telefone inteiro, nunca o nome.
+ */
+export type WhatsAppInboxEvent =
+  | "inbox.webhook_received"
+  | "inbox.webhook_rejected"
+  | "inbox.message_recorded"
+  | "inbox.message_duplicate"
+  | "inbox.message_ignored"
+  | "inbox.status_applied"
+  | "inbox.media_stored"
+  | "inbox.media_failed"
+  | "inbox.reply_sent"
+  | "inbox.reply_failed";
+
+export interface WhatsAppLogFields {
+  correlationId?: string;
+  provider?: string;
+  chatId?: string;
+  messageId?: string;
+  providerMessageId?: string;
+  outcome?: string;
+  /** Motivo técnico. Já vem sem dado pessoal de quem o produz. */
+  reason?: string;
+  count?: number;
+  bytes?: number;
+  durationMs?: number;
+  /** Telefone JÁ MASCARADO. Ver `maskPhone`. */
+  phone?: string;
+}
+
+export function logWhatsAppEvent(
+  level: "info" | "error",
+  event: WhatsAppInboxEvent,
+  fields: WhatsAppLogFields = {},
+): void {
+  const linha = JSON.stringify({
+    ts: new Date().toISOString(),
+    scope: "whatsapp.inbox",
+    event,
+    ...fields,
+  });
+
+  if (level === "error") console.error(linha);
+  else console.info(linha);
+}

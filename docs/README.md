@@ -8,25 +8,28 @@ gerais) e pelo [SETUP.md](../SETUP.md) (como rodar).
 
 ## Por onde começar
 
-| Quero...                             | Leia                                                     |
-| ------------------------------------ | -------------------------------------------------------- |
-| Entender a arquitetura               | [ARCHITECTURE.md](./ARCHITECTURE.md)                     |
-| Criar um módulo novo (passo a passo) | [HOW-TO-CREATE-A-MODULE.md](./HOW-TO-CREATE-A-MODULE.md) |
-| Entender leitura vs escrita          | [SERVICE-ACTION-PATTERN.md](./SERVICE-ACTION-PATTERN.md) |
-| Mexer no chat / criar um fluxo novo  | [CHAT.md](./CHAT.md)                                     |
-| Mexer nas normativas / documentos    | [DOCUMENTS.md](./DOCUMENTS.md)                           |
-| Mexer nos eventos / segmentação      | [EVENTS.md](./EVENTS.md)                                 |
-| Mexer na Bolsa / boletins de preço   | [BOLSA.md](./BOLSA.md)                                   |
-| Mexer nas palestras / calendário     | [PALESTRAS.md](./PALESTRAS.md)                           |
-| Mexer nas enquetes / segmentação     | [ENQUETES.md](./ENQUETES.md)                             |
-| Ligar o disparo por WhatsApp         | [ENQUETES.md](./ENQUETES.md) — seções 18 a 22            |
-| Mexer no cadastro de associados      | [ASSOCIADOS.md](./ASSOCIADOS.md)                         |
-| Mexer na landing pública de filiação | [ASSOCIADOS.md](./ASSOCIADOS.md) — seção 6               |
-| Fazer a carga dos associados antigos | [ASSOCIADOS.md](./ASSOCIADOS.md) — seção 8               |
-| Mexer no banco (tabelas, RLS)        | [SUPABASE.md](./SUPABASE.md)                             |
-| Saber as convenções de código        | [CONVENTIONS.md](./CONVENTIONS.md)                       |
-| Escrever testes                      | [TESTING.md](./TESTING.md)                               |
-| Ver o roadmap da plataforma          | [ROADMAP.md](./ROADMAP.md)                               |
+| Quero...                                      | Leia                                                     |
+| --------------------------------------------- | -------------------------------------------------------- |
+| Entender a arquitetura                        | [ARCHITECTURE.md](./ARCHITECTURE.md)                     |
+| Criar um módulo novo (passo a passo)          | [HOW-TO-CREATE-A-MODULE.md](./HOW-TO-CREATE-A-MODULE.md) |
+| Entender leitura vs escrita                   | [SERVICE-ACTION-PATTERN.md](./SERVICE-ACTION-PATTERN.md) |
+| Mexer no chat / criar um fluxo novo           | [CHAT.md](./CHAT.md)                                     |
+| Mexer nas normativas / documentos             | [DOCUMENTS.md](./DOCUMENTS.md)                           |
+| Mexer nos eventos / segmentação               | [EVENTS.md](./EVENTS.md)                                 |
+| Mexer na Bolsa / boletins de preço            | [BOLSA.md](./BOLSA.md)                                   |
+| Mexer nas palestras / calendário              | [PALESTRAS.md](./PALESTRAS.md)                           |
+| Mexer nas enquetes / segmentação              | [ENQUETES.md](./ENQUETES.md)                             |
+| Ligar o disparo por WhatsApp                  | [ENQUETES.md](./ENQUETES.md) — seções 18 a 22            |
+| Mexer no cadastro de associados               | [ASSOCIADOS.md](./ASSOCIADOS.md)                         |
+| Mexer na landing pública de filiação          | [ASSOCIADOS.md](./ASSOCIADOS.md) — seção 6               |
+| Fazer a carga dos associados antigos          | [ASSOCIADOS.md](./ASSOCIADOS.md) — seção 8               |
+| Mexer na caixa de entrada do WhatsApp         | [WHATSAPP.md](./WHATSAPP.md)                             |
+| Configurar a Z-API / o webhook                | [WHATSAPP.md](./WHATSAPP.md) — seções 4 e 10             |
+| Entender por que o webhook não tem assinatura | [WHATSAPP.md](./WHATSAPP.md) — seção 4                   |
+| Mexer no banco (tabelas, RLS)                 | [SUPABASE.md](./SUPABASE.md)                             |
+| Saber as convenções de código                 | [CONVENTIONS.md](./CONVENTIONS.md)                       |
+| Escrever testes                               | [TESTING.md](./TESTING.md)                               |
+| Ver o roadmap da plataforma                   | [ROADMAP.md](./ROADMAP.md)                               |
 
 ## Skills (use no Claude Code com `/`)
 

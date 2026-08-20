@@ -14,6 +14,17 @@ const CONFIGURADO = {
   APCS_WHATSAPP_VERIFY_TOKEN: "verifica",
 } as unknown as NodeJS.ProcessEnv;
 
+const ZAPI_CONFIGURADO = {
+  APCS_ZAPI_INSTANCE_ID: "inst",
+  APCS_ZAPI_TOKEN: "token",
+  APCS_ZAPI_CLIENT_TOKEN: "client",
+  APCS_ZAPI_WEBHOOK_SECRET: "segredo-do-webhook",
+} as unknown as NodeJS.ProcessEnv;
+
+function env(...partes: NodeJS.ProcessEnv[]): NodeJS.ProcessEnv {
+  return Object.assign({}, ...partes) as NodeJS.ProcessEnv;
+}
+
 describe("readProviderKey", () => {
   it("o padrão é a Cloud API", () => {
     expect(readProviderKey({} as unknown as NodeJS.ProcessEnv)).toBe("whatsapp_cloud_api");
@@ -29,12 +40,85 @@ describe("readProviderKey", () => {
     expect(
       readProviderKey({ APCS_WHATSAPP_PROVIDER: "none" } as unknown as NodeJS.ProcessEnv),
     ).toBe("none");
+    expect(
+      readProviderKey({ APCS_WHATSAPP_PROVIDER: "z_api" } as unknown as NodeJS.ProcessEnv),
+    ).toBe("z_api");
+    expect(
+      readProviderKey({ APCS_WHATSAPP_PROVIDER: " ZAPI " } as unknown as NodeJS.ProcessEnv),
+    ).toBe("z_api");
   });
 
   it("valor desconhecido cai no padrão, que se declara não configurado", () => {
     expect(
-      readProviderKey({ APCS_WHATSAPP_PROVIDER: "zapi" } as unknown as NodeJS.ProcessEnv),
+      readProviderKey({ APCS_WHATSAPP_PROVIDER: "twilio" } as unknown as NodeJS.ProcessEnv),
     ).toBe("whatsapp_cloud_api");
+  });
+
+  /**
+   * ⚠️ O ERRO DE CONFIGURAÇÃO QUE ESTES TRÊS CASOS EVITAM.
+   *
+   * Com dois adaptadores e um padrão FIXO, quem preenche as quatro variáveis da
+   * Z-API e esquece de escolher recebe "falta APCS_WHATSAPP_TOKEN" — apontando
+   * para as variáveis da META, de uma integração que essa pessoa nem contratou.
+   * A regra só decide quando UM dos dois está inteiro; com os dois (ou nenhum),
+   * a ambiguidade é real e o padrão histórico prevalece.
+   */
+  describe("sem escolha explícita, vale o que estiver configurado", () => {
+    it("só a Z-API configurada → Z-API", () => {
+      expect(readProviderKey(ZAPI_CONFIGURADO)).toBe("z_api");
+    });
+
+    it("só a Meta configurada → Cloud API", () => {
+      expect(readProviderKey(CONFIGURADO)).toBe("whatsapp_cloud_api");
+    });
+
+    it("os dois configurados → o padrão histórico, porque a escolha é ambígua", () => {
+      expect(readProviderKey(env(CONFIGURADO, ZAPI_CONFIGURADO))).toBe("whatsapp_cloud_api");
+    });
+
+    it("a escolha explícita vence a configuração", () => {
+      expect(
+        readProviderKey(
+          env(CONFIGURADO, ZAPI_CONFIGURADO, {
+            APCS_WHATSAPP_PROVIDER: "z_api",
+          } as unknown as NodeJS.ProcessEnv),
+        ),
+      ).toBe("z_api");
+    });
+
+    it("Z-API pela metade NÃO é escolhida: falta de segredo do webhook não vira caixa aberta", () => {
+      const semSegredo = env(ZAPI_CONFIGURADO, {
+        APCS_ZAPI_WEBHOOK_SECRET: "",
+      } as unknown as NodeJS.ProcessEnv);
+      expect(readProviderKey(semSegredo)).toBe("whatsapp_cloud_api");
+    });
+  });
+});
+
+describe("createMessagingProvider com a Z-API", () => {
+  it("configurada, devolve o adaptador da Z-API", () => {
+    const p = createMessagingProvider(
+      env(ZAPI_CONFIGURADO, { APCS_WHATSAPP_PROVIDER: "z_api" } as unknown as NodeJS.ProcessEnv),
+    );
+    expect(p.name).toBe("z_api");
+    expect(p.configured).toBe(true);
+  });
+
+  it("⚠️ SEM O SEGREDO DO WEBHOOK, RECUSA — e diz qual variável falta", () => {
+    // Poderia funcionar: o ENVIO não usa o segredo. Mas aí o webhook ficaria de
+    // pé sem autenticação nenhuma (a Z-API não assina), e qualquer pessoa na
+    // internet poderia inserir na caixa uma mensagem que um associado nunca
+    // mandou. "Configurei a Z-API" e "o webhook está protegido" têm de ser a
+    // mesma frase.
+    const p = createMessagingProvider(
+      env(ZAPI_CONFIGURADO, {
+        APCS_WHATSAPP_PROVIDER: "z_api",
+        APCS_ZAPI_WEBHOOK_SECRET: "",
+      } as unknown as NodeJS.ProcessEnv),
+    );
+
+    expect(p.configured).toBe(false);
+    expect(p.missing).toContain("APCS_ZAPI_WEBHOOK_SECRET");
   });
 });
 

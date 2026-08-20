@@ -12,6 +12,7 @@ import {
   LineChart,
   ListOrdered,
   Megaphone,
+  MessageCircle,
   MessagesSquare,
   Presentation,
   ScrollText,
@@ -33,7 +34,7 @@ import type { Permission } from "@/lib/rbac/rbac.types";
  * Sidebar — assim um contador novo entra sem transformar este arquivo num
  * ponto de acesso ao banco.
  */
-export type NavBadge = "lecturesPending" | "membershipPending";
+export type NavBadge = "lecturesPending" | "membershipPending" | "whatsappUnread";
 
 export interface NavItem {
   /** Rótulo exibido na UI (PT-BR). */
@@ -76,6 +77,17 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/leads",
         icon: Contact,
         permission: "leads.read",
+        available: true,
+      },
+      {
+        // ⚠️ PRIMEIRO ITEM DA SEÇÃO, e de propósito: é a tela que fica aberta o
+        // dia inteiro. O contador de não lidas mora aqui porque é a única
+        // pergunta que o time faz sem parar — "tem alguém esperando?".
+        title: "WhatsApp",
+        href: "/whatsapp",
+        icon: MessageCircle,
+        permission: "whatsapp.read",
+        badge: "whatsappUnread",
         available: true,
       },
       {

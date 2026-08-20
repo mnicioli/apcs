@@ -23,6 +23,25 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "attendances.read": ["admin", "ceo", "comercial"],
   "attendances.write": ["admin", "comercial"],
 
+  // Caixa de entrada do WhatsApp — as conversas do número da APCS.
+  //
+  // ⚠️ AQUI A ESCRITA NÃO É MAIS ESTREITA QUE A LEITURA, e é o único módulo em
+  // que isso acontece. Em Documentos, Eventos, Bolsa, Palestras e Associados o
+  // Atendente (`comercial`) só LÊ, porque publicar uma normativa ou aprovar um
+  // associado é decisão de quem responde por aquilo. Responder a mensagem de um
+  // associado no WhatsApp não é decisão: É O TRABALHO DO ATENDENTE. Uma caixa
+  // de entrada que ele pode abrir e não pode responder não serve para nada.
+  //
+  // Chaves próprias (e não `attendances.*`) porque são coisas diferentes: a
+  // Central de Atendimento é a fila do chat da WEB, com triagem de bot e
+  // consentimento LGPD; esta é a conversa de WhatsApp, que não tem nem um nem
+  // outro. Um dia restringir uma não pode mexer na outra.
+  //
+  // Devem bater com `whatsapp_is_reader()` / `whatsapp_is_writer()` em
+  // supabase/migrations/20260822000000_create_whatsapp_inbox.sql.
+  "whatsapp.read": ["admin", "ceo", "comercial"],
+  "whatsapp.write": ["admin", "ceo", "comercial"],
+
   // Gestão documental — as normativas que o chatbot vai citar.
   // A escrita é mais estreita que a de atendimentos de propósito: quem responde
   // no dia a dia (`comercial`, o "Atendente") precisa CONSULTAR a normativa

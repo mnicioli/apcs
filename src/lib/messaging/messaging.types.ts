@@ -38,6 +38,43 @@ export type SendResult =
   | { ok: true; providerMessageId: string }
   | { ok: false; retryable: boolean; code: string; message: string };
 
+/** O que veio anexado à mensagem, quando veio. */
+export type InboundMediaKind = "image" | "audio" | "video" | "document" | "sticker";
+
+export interface InboundMedia {
+  kind: InboundMediaKind;
+  /**
+   * A URL do fornecedor. ⚠️ EFÊMERA — ela expira. Quem a recebe tem de baixar o
+   * arquivo, não guardá-la como se fosse endereço definitivo.
+   */
+  url: string;
+  mimeType: string | null;
+  fileName: string | null;
+  durationSeconds: number | null;
+}
+
+/**
+ * O que só um fornecedor que enxerga a CONVERSA INTEIRA sabe dizer.
+ *
+ * ⚠️ OPCIONAL, e por um motivo concreto: a Cloud API da Meta não entrega nada
+ * disto. Ela é um canal de mensagens — quem manda, o que manda, e pronto. Um
+ * agregador como a Z-API opera o WhatsApp Web, então ele enxerga o nome da
+ * conversa, a foto, se é grupo e quem falou dentro dele. Tornar estes campos
+ * obrigatórios forçaria o adaptador da Meta a inventar valores.
+ */
+export interface InboundConversation {
+  /** `true` quando a mensagem SAIU do nosso número (o celular, o CRM, o bot). */
+  fromMe: boolean;
+  isGroup: boolean;
+  /** Como o WhatsApp chama a conversa. */
+  chatName: string | null;
+  /** Quem escreveu. Em grupo é indispensável. */
+  senderName: string | null;
+  photoUrl: string | null;
+  /** Em grupo, o telefone de quem falou (o `from` é o grupo). */
+  participantPhone: string | null;
+}
+
 /** Um evento vindo do fornecedor, já traduzido para o vocabulário da APCS. */
 export type InboundEvent =
   | {
@@ -49,6 +86,10 @@ export type InboundEvent =
       /** §6/§7. O id da mensagem CITADA, quando a pessoa usou "responder". */
       replyToMessageId: string | null;
       timestamp: string | null;
+      /** Ver `InboundConversation`. Ausente quando o fornecedor não informa. */
+      conversation?: InboundConversation;
+      /** Ausente ou nulo quando a mensagem é só texto. */
+      media?: InboundMedia | null;
     }
   | {
       kind: "status";

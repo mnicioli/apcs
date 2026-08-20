@@ -8,21 +8,56 @@ import { type NextRequest, NextResponse } from "next/server";
  * e Server Components começam a ver o usuário como deslogado.
  */
 /**
- * Atendimento público: a página do chat e sua API. Não têm sessão para renovar
- * nem usuário para proteger — a conversa é identificada por um cookie httpOnly
- * próprio, e as tabelas do chat têm RLS fechada para `anon`.
+ * AS ROTAS DE MÁQUINA — as que não têm gente do outro lado.
+ *
+ * Três famílias, e todas compartilham a mesma característica: não existe sessão
+ * de usuário para renovar, não existe usuário para proteger, e cada uma
+ * autentica quem a chamou por conta própria.
+ *
+ *   `/chat`, `/api/chat`   o atendimento público. A conversa é identificada por
+ *                          um cookie httpOnly próprio; as tabelas do chat têm
+ *                          RLS fechada para `anon`.
+ *
+ *   `/api/webhooks/*`      quem chama é o fornecedor de WhatsApp. A autorização
+ *                          é a assinatura HMAC do corpo (Meta) ou o segredo no
+ *                          caminho da URL (Z-API, que não assina nada).
+ *
+ *   `/api/jobs/*`          quem chama é o cron. A autorização é um segredo
+ *                          comparado em tempo constante (`authorizeJob`), que
+ *                          RECUSA quando não está configurado.
+ *
+ * ⚠️ POR QUE ELAS PRECISAM SAIR ANTES, E NÃO ENTRAR NA LISTA DE ROTAS PÚBLICAS.
+ *
+ * Não é otimização — é correção. Sem esta saída, o fluxo abaixo não acha
+ * `user`, conclui "não logado em rota protegida" e devolve um REDIRECT 302 para
+ * `/login`. Do lado do fornecedor isso é uma resposta que não é 200, ou seja
+ * "não recebi": ele reentrega o mesmo evento por horas, para sempre, e nenhuma
+ * mensagem jamais é gravada. O sintoma seria "o WhatsApp não chega no CRM", sem
+ * erro nenhum em lugar nenhum — o webhook responde 200 (a página de login) para
+ * quem seguir o redirect, e 302 para quem não seguir.
+ *
+ * O mesmo valia para `/api/webhooks/whatsapp` e `/api/jobs/surveys` desde que
+ * foram escritos. Nunca apareceu porque nenhum dos dois chegou a ser ligado a
+ * uma conta real (ver o cabeçalho de `providers/cloud-api.ts`).
  */
-function isChatRoute(pathname: string): boolean {
-  return pathname === "/chat" || pathname.startsWith("/chat/") || pathname === "/api/chat";
+function isMachineRoute(pathname: string): boolean {
+  return (
+    pathname === "/chat" ||
+    pathname.startsWith("/chat/") ||
+    pathname === "/api/chat" ||
+    pathname.startsWith("/api/webhooks/") ||
+    pathname.startsWith("/api/jobs/")
+  );
 }
 
 export async function updateSession(request: NextRequest) {
-  // O atendimento público sai ANTES de tocar no Supabase: criar um cliente e
-  // chamar `getUser()` a cada mensagem do chat seria trabalho jogado fora no
-  // caminho mais quente do sistema — e acopla o canal público à camada de auth.
+  // As rotas de máquina saem ANTES de tocar no Supabase. Ver `isMachineRoute`:
+  // sem isto o webhook recebe um redirect para `/login` em vez de executar, e o
+  // fornecedor reentrega o evento para sempre sem nada ser gravado.
+  //
   // `/login` e `/auth` continuam passando pelo fluxo abaixo porque precisam da
   // sessão para redirecionar quem já está logado.
-  if (isChatRoute(request.nextUrl.pathname)) {
+  if (isMachineRoute(request.nextUrl.pathname)) {
     return NextResponse.next({ request });
   }
 

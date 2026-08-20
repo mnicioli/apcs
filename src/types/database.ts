@@ -1995,6 +1995,180 @@ export type Database = {
           },
         ];
       };
+      whatsapp_chats: {
+        Row: {
+          archived: boolean;
+          chat_key: string;
+          contact_id: string | null;
+          created_at: string;
+          id: string;
+          is_group: boolean;
+          last_message_at: string | null;
+          last_message_from_me: boolean | null;
+          last_message_preview: string | null;
+          member_id: string | null;
+          name: string | null;
+          phone: string | null;
+          photo_url: string | null;
+          provider: string;
+          unread_count: number;
+          updated_at: string;
+        };
+        Insert: {
+          archived?: boolean;
+          chat_key: string;
+          contact_id?: string | null;
+          created_at?: string;
+          id?: string;
+          is_group?: boolean;
+          last_message_at?: string | null;
+          last_message_from_me?: boolean | null;
+          last_message_preview?: string | null;
+          member_id?: string | null;
+          name?: string | null;
+          phone?: string | null;
+          photo_url?: string | null;
+          provider: string;
+          unread_count?: number;
+          updated_at?: string;
+        };
+        Update: {
+          archived?: boolean;
+          chat_key?: string;
+          contact_id?: string | null;
+          created_at?: string;
+          id?: string;
+          is_group?: boolean;
+          last_message_at?: string | null;
+          last_message_from_me?: boolean | null;
+          last_message_preview?: string | null;
+          member_id?: string | null;
+          name?: string | null;
+          phone?: string | null;
+          photo_url?: string | null;
+          provider?: string;
+          unread_count?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_chats_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "chat_contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "whatsapp_chats_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "members";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      whatsapp_messages: {
+        Row: {
+          body: string;
+          chat_id: string;
+          created_at: string;
+          delivered_at: string | null;
+          direction: Database["public"]["Enums"]["whatsapp_direction"];
+          error_message: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["whatsapp_message_kind"];
+          media_duration_seconds: number | null;
+          media_file_name: string | null;
+          media_mime: string | null;
+          media_path: string | null;
+          media_size_bytes: number | null;
+          media_status: Database["public"]["Enums"]["whatsapp_media_status"] | null;
+          media_url: string | null;
+          occurred_at: string;
+          origin: Database["public"]["Enums"]["whatsapp_message_origin"];
+          participant_phone: string | null;
+          provider: string;
+          provider_message_id: string | null;
+          read_at: string | null;
+          reply_to_provider_message_id: string | null;
+          sender_name: string | null;
+          sent_by: string | null;
+          seq: number;
+          status: Database["public"]["Enums"]["whatsapp_delivery_status"];
+        };
+        Insert: {
+          body?: string;
+          chat_id: string;
+          created_at?: string;
+          delivered_at?: string | null;
+          direction: Database["public"]["Enums"]["whatsapp_direction"];
+          error_message?: string | null;
+          id?: string;
+          kind?: Database["public"]["Enums"]["whatsapp_message_kind"];
+          media_duration_seconds?: number | null;
+          media_file_name?: string | null;
+          media_mime?: string | null;
+          media_path?: string | null;
+          media_size_bytes?: number | null;
+          media_status?: Database["public"]["Enums"]["whatsapp_media_status"] | null;
+          media_url?: string | null;
+          occurred_at?: string;
+          origin: Database["public"]["Enums"]["whatsapp_message_origin"];
+          participant_phone?: string | null;
+          provider: string;
+          provider_message_id?: string | null;
+          read_at?: string | null;
+          reply_to_provider_message_id?: string | null;
+          sender_name?: string | null;
+          sent_by?: string | null;
+          seq?: never;
+          status?: Database["public"]["Enums"]["whatsapp_delivery_status"];
+        };
+        Update: {
+          body?: string;
+          chat_id?: string;
+          created_at?: string;
+          delivered_at?: string | null;
+          direction?: Database["public"]["Enums"]["whatsapp_direction"];
+          error_message?: string | null;
+          id?: string;
+          kind?: Database["public"]["Enums"]["whatsapp_message_kind"];
+          media_duration_seconds?: number | null;
+          media_file_name?: string | null;
+          media_mime?: string | null;
+          media_path?: string | null;
+          media_size_bytes?: number | null;
+          media_status?: Database["public"]["Enums"]["whatsapp_media_status"] | null;
+          media_url?: string | null;
+          occurred_at?: string;
+          origin?: Database["public"]["Enums"]["whatsapp_message_origin"];
+          participant_phone?: string | null;
+          provider?: string;
+          provider_message_id?: string | null;
+          read_at?: string | null;
+          reply_to_provider_message_id?: string | null;
+          sender_name?: string | null;
+          sent_by?: string | null;
+          seq?: never;
+          status?: Database["public"]["Enums"]["whatsapp_delivery_status"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_chat_id_fkey";
+            columns: ["chat_id"];
+            isOneToOne: false;
+            referencedRelation: "whatsapp_chats";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "whatsapp_messages_sent_by_fkey";
+            columns: ["sent_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -3752,6 +3926,88 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      whatsapp_is_reader: { Args: never; Returns: boolean };
+      whatsapp_is_writer: { Args: never; Returns: boolean };
+      whatsapp_kind_label: {
+        Args: { p_kind: Database["public"]["Enums"]["whatsapp_message_kind"] };
+        Returns: string;
+      };
+      whatsapp_mark_chat_read: {
+        Args: { p_chat_id: string };
+        Returns: undefined;
+      };
+      whatsapp_mark_message_status: {
+        Args: {
+          p_error?: string;
+          p_occurred_at?: string;
+          p_provider: string;
+          p_provider_message_id: string;
+          p_status: Database["public"]["Enums"]["whatsapp_delivery_status"];
+        };
+        Returns: boolean;
+      };
+      whatsapp_record_inbound_message: {
+        Args: {
+          p_body: string;
+          p_chat_key: string;
+          p_chat_name?: string;
+          p_contact_id?: string;
+          p_from_me: boolean;
+          p_is_group?: boolean;
+          p_kind?: Database["public"]["Enums"]["whatsapp_message_kind"];
+          p_media_duration_seconds?: number;
+          p_media_file_name?: string;
+          p_media_mime?: string;
+          p_media_status?: Database["public"]["Enums"]["whatsapp_media_status"];
+          p_media_url?: string;
+          p_occurred_at?: string;
+          p_participant_phone?: string;
+          p_phone?: string;
+          p_photo_url?: string;
+          p_provider: string;
+          p_provider_message_id: string;
+          p_reply_to?: string;
+          p_sender_name?: string;
+        };
+        Returns: {
+          chat_id: string;
+          duplicate: boolean;
+          message_id: string;
+        }[];
+      };
+      whatsapp_set_chat_archived: {
+        Args: { p_archived: boolean; p_chat_id: string };
+        Returns: undefined;
+      };
+      whatsapp_set_media: {
+        Args: {
+          p_message_id: string;
+          p_mime?: string;
+          p_path?: string;
+          p_size_bytes?: number;
+          p_status: Database["public"]["Enums"]["whatsapp_media_status"];
+        };
+        Returns: undefined;
+      };
+      whatsapp_settle_outbound_message: {
+        Args: {
+          p_error?: string;
+          p_message_id: string;
+          p_provider_message_id?: string;
+        };
+        Returns: undefined;
+      };
+      whatsapp_start_outbound_message: {
+        Args: { p_body: string; p_chat_id: string };
+        Returns: string;
+      };
+      whatsapp_status_rank: {
+        Args: {
+          p_status: Database["public"]["Enums"]["whatsapp_delivery_status"];
+        };
+        Returns: number;
+      };
+      whatsapp_unread_total: { Args: never; Returns: number };
     };
     Enums: {
       app_role: "admin" | "ceo" | "pm" | "tech_lead" | "comercial" | "financeiro" | "viewer";
@@ -3879,6 +4135,20 @@ export type Database = {
         | "cancelled"
         | "not_found";
       survey_status: "draft" | "scheduled" | "active" | "closed" | "cancelled";
+      whatsapp_delivery_status: "pending" | "sent" | "delivered" | "read" | "failed";
+      whatsapp_direction: "inbound" | "outbound";
+      whatsapp_media_status: "pending" | "stored" | "failed" | "too_large" | "unsupported";
+      whatsapp_message_kind:
+        | "text"
+        | "image"
+        | "audio"
+        | "video"
+        | "document"
+        | "sticker"
+        | "location"
+        | "contact"
+        | "unsupported";
+      whatsapp_message_origin: "contact" | "agent" | "bot" | "phone";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -4137,6 +4407,21 @@ export const Constants = {
         "not_found",
       ],
       survey_status: ["draft", "scheduled", "active", "closed", "cancelled"],
+      whatsapp_delivery_status: ["pending", "sent", "delivered", "read", "failed"],
+      whatsapp_direction: ["inbound", "outbound"],
+      whatsapp_media_status: ["pending", "stored", "failed", "too_large", "unsupported"],
+      whatsapp_message_kind: [
+        "text",
+        "image",
+        "audio",
+        "video",
+        "document",
+        "sticker",
+        "location",
+        "contact",
+        "unsupported",
+      ],
+      whatsapp_message_origin: ["contact", "agent", "bot", "phone"],
     },
   },
 } as const;

@@ -38,6 +38,9 @@ export type Permission =
   | "leads.write"
   | "attendances.read"
   | "attendances.write"
+  // Caixa de entrada do WhatsApp — ler as conversas e responder
+  | "whatsapp.read"
+  | "whatsapp.write"
   // Gestão documental (normativas e, no futuro, procedimentos e manuais)
   | "documents.read"
   | "documents.write"

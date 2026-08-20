@@ -61,6 +61,13 @@ export type ActionErrorCode =
   | "membershipProfileFieldMissing"
   | "membershipRateLimited"
   | "membershipReasonRequired"
+  // Caixa de entrada do WhatsApp. Códigos próprios porque o atendente está com
+  // a mensagem escrita na tela e precisa saber se o problema é dele (o texto),
+  // do associado (o número) ou do sistema (a integração) — as três reações são
+  // diferentes, e "dados inválidos" não distingue nenhuma.
+  | "whatsappNotConfigured"
+  | "whatsappSendFailed"
+  | "whatsappEmptyMessage"
   | "unexpected"; // erro não previsto (logar no servidor!)
 
 export interface ActionErrorBody {
@@ -142,6 +149,13 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   membershipRateLimited:
     "Recebemos vários envios deste acesso nos últimos minutos. Aguarde um pouco e tente novamente.",
   membershipReasonRequired: "Informe o motivo da recusa.",
+  // WhatsApp. A primeira é para quem cuida do sistema; as outras duas, para
+  // quem está com a mensagem escrita e o dedo no botão.
+  whatsappNotConfigured:
+    "O WhatsApp ainda não está integrado, então nada entra nem sai por aqui. Fale com quem cuida do sistema.",
+  whatsappSendFailed:
+    "Não foi possível entregar a mensagem. Ela ficou marcada como não entregue na conversa — tente novamente em instantes.",
+  whatsappEmptyMessage: "Escreva a mensagem antes de enviar.",
   unexpected: "Ocorreu um erro inesperado. Tente novamente.",
 };
 
@@ -224,6 +238,16 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "membershipRateLimited" };
     case "MA005":
       return { code: "membershipReasonRequired" };
+    // Classe `WA` — a caixa de entrada do WhatsApp, pela mesma razão das
+    // anteriores: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
+    // supabase/migrations/20260822000000_create_whatsapp_inbox.sql.
+    case "WA002":
+      return { code: "whatsappEmptyMessage" };
+    // WA003 (mensagem sem conversa) só acontece no caminho do webhook, onde não
+    // há tela. Mapeado assim mesmo: um código sem tradução vira "erro
+    // inesperado", que é a mensagem que não deixa ninguém descobrir o que fazer.
+    case "WA003":
+      return { code: "invalidInput" };
     case "SV001":
       return { code: "surveyTransitionNotAllowed" };
     case "SV002":
