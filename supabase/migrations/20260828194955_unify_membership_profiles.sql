@@ -42,8 +42,33 @@
 -- ----------------------------------------------------------------------------
 -- 1. O enum
 -- ----------------------------------------------------------------------------
-alter type public.membership_profile_type rename value 'suinocultor' to 'criador';
-alter type public.membership_profile_type rename value 'profissional' to 'tecnico';
+-- ⚠️ OS RENAMES SÃO GUARDADOS, E ISSO NÃO É ZELO EXCESSIVO.
+--
+-- `rename value` falha com 22023 ("is not an existing enum label") se o valor
+-- antigo já tiver sido renomeado. Isso torna o script IRRECUPERÁVEL num cenário
+-- que aconteceu de verdade: aplicado pelo SQL Editor do Dashboard, que confirma
+-- statement a statement em vez de tudo numa transação. Uma falha no meio deixa
+-- os renames gravados, e a segunda tentativa morre na primeira linha — sem que
+-- o resto, que ainda faltava, chegue a rodar.
+--
+-- Com a guarda, rodar de novo é seguro em qualquer estado.
+do $guard$
+begin
+  if exists (
+    select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid
+     where t.typname = 'membership_profile_type' and e.enumlabel = 'suinocultor'
+  ) then
+    alter type public.membership_profile_type rename value 'suinocultor' to 'criador';
+  end if;
+
+  if exists (
+    select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid
+     where t.typname = 'membership_profile_type' and e.enumlabel = 'profissional'
+  ) then
+    alter type public.membership_profile_type rename value 'profissional' to 'tecnico';
+  end if;
+end
+$guard$;
 
 -- ⚠️ `add value` PODE rodar em transação (PG 12+), mas o valor novo NÃO PODE
 -- ser usado antes do commit. Por isso nada abaixo cita 'universidade' — e é
