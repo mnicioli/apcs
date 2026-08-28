@@ -33,7 +33,14 @@ interface StepProps {
   ) => void;
 }
 
-/** Áreas de atuação do perfil "profissional do setor". */
+/**
+ * Áreas de atuação do perfil Técnicos.
+ *
+ * ⚠️ Universidades NÃO usa esta lista, ainda que grave na mesma coluna
+ * (`activity_area`). Ela é um recorte da cadeia produtiva — "Nutrição",
+ * "Sanidade / veterinária" —, e obrigar uma universidade a escolher entre elas
+ * produziria dado errado com cara de dado certo. Lá o campo é texto livre.
+ */
 const ACTIVITY_AREAS = [
   "Técnica / produção",
   "Nutrição",
@@ -232,7 +239,7 @@ export function StepContext({ values, errors, setField }: StepProps) {
       <fieldset className="space-y-6">
         <legend className="text-xl font-semibold">Conte um pouco do seu contexto</legend>
 
-        {values.profileType === "suinocultor" && (
+        {values.profileType === "criador" && (
           <>
             <TextField
               id="farmName"
@@ -286,7 +293,7 @@ export function StepContext({ values, errors, setField }: StepProps) {
           </>
         )}
 
-        {values.profileType === "profissional" && (
+        {values.profileType === "tecnico" && (
           <>
             <SelectField
               id="activityArea"
@@ -361,6 +368,40 @@ export function StepContext({ values, errors, setField }: StepProps) {
             <TextField
               id="jobTitle"
               label="Cargo ou função do contato"
+              autoComplete="organization-title"
+              value={values.jobTitle ?? ""}
+              error={errors["jobTitle"]}
+              onChange={(evento) => setField("jobTitle", evento.target.value)}
+            />
+          </>
+        )}
+
+        {/*
+          ⚠️ TODOS OS CAMPOS OPCIONAIS — o único perfil assim, e de propósito.
+
+          Universidade é o único perfil que NÃO é associado: ela não está pedindo
+          filiação, está se colocando à disposição para receber comunicação. Exigir
+          departamento e cargo de quem não está pedindo nada é atrito sem
+          contrapartida, e o resultado seria uma universidade a menos na base.
+
+          Nenhuma coluna nova: reaproveita `organization` (etapa 2),
+          `activity_area` e `job_title`. Uma tabela de universidade só para três
+          campos que já existem seria uma segunda verdade sobre a mesma pessoa.
+        */}
+        {values.profileType === "universidade" && (
+          <>
+            <TextField
+              id="activityArea"
+              label="Área, curso ou departamento"
+              optional
+              value={values.activityArea ?? ""}
+              error={errors["activityArea"]}
+              onChange={(evento) => setField("activityArea", evento.target.value)}
+            />
+            <TextField
+              id="jobTitle"
+              label="Cargo ou função"
+              optional
               autoComplete="organization-title"
               value={values.jobTitle ?? ""}
               error={errors["jobTitle"]}

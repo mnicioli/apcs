@@ -24,11 +24,38 @@ export type MembershipAuditAction = Database["public"]["Enums"]["membership_audi
  * — um valor novo no Postgres que ninguém trouxe para cá — é pega pelos
  * `Record<...>` de membership.labels.ts, que ficam incompletos.
  */
+/**
+ * ⚠️ A ORDEM É A DOS ASSOCIADOS PRIMEIRO, e ela aparece na tela.
+ *
+ * Criador, Empresa e Técnico são os três tipos de ASSOCIADO; Universidade é o
+ * único perfil que não é. Não há coluna dizendo isso — "ser associado" é uma
+ * leitura do perfil (ver `isAssociateProfile`), porque uma coluna separada
+ * poderia contradizer o perfil e duas verdades sobre o mesmo fato foi
+ * exatamente o que a unificação veio acabar.
+ */
 export const MEMBERSHIP_PROFILE_TYPES = [
-  "suinocultor",
-  "profissional",
+  "criador",
   "empresa",
+  "tecnico",
+  "universidade",
 ] as const satisfies readonly MembershipProfileType[];
+
+/** Os três perfis que são associados. Universidade fica de fora. */
+export const ASSOCIATE_PROFILE_TYPES = [
+  "criador",
+  "empresa",
+  "tecnico",
+] as const satisfies readonly MembershipProfileType[];
+
+/**
+ * "Esta pessoa é associada?" — a pergunta que antes não tinha onde ser feita.
+ *
+ * Função e não `includes` solto na tela: quando um quinto perfil entrar, é
+ * aqui que se decide de que lado ele cai, e não em cada arquivo que perguntou.
+ */
+export function isAssociateProfile(profile: MembershipProfileType | null): boolean {
+  return profile !== null && (ASSOCIATE_PROFILE_TYPES as readonly string[]).includes(profile);
+}
 
 export const MEMBERSHIP_APPLICATION_STATUSES = [
   "pending",

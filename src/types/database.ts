@@ -4087,7 +4087,7 @@ export type Database = {
         | "application_reopened"
         | "member_created"
         | "member_linked";
-      membership_profile_type: "suinocultor" | "profissional" | "empresa";
+      membership_profile_type: "criador" | "tecnico" | "empresa" | "universidade";
       survey_answer_type:
         | "single_choice"
         | "multiple_choice"
@@ -4361,7 +4361,7 @@ export const Constants = {
         "member_created",
         "member_linked",
       ],
-      membership_profile_type: ["suinocultor", "profissional", "empresa"],
+      membership_profile_type: ["criador", "tecnico", "empresa", "universidade"],
       survey_answer_type: ["single_choice", "multiple_choice", "yes_no", "scale", "text", "rating"],
       survey_audience_dimension: [
         "all",

@@ -20,11 +20,11 @@ import {
  * o campo errado num formulário de três etapas faz a pessoa desistir.
  */
 
-/** Uma solicitação válida de suinocultor, para partir dela em cada caso. */
+/** Uma solicitação válida de criador, para partir dela em cada caso. */
 function valida(extra: Record<string, unknown> = {}) {
   return {
     ...emptyApplication,
-    profileType: "suinocultor",
+    profileType: "criador",
     fullName: "Maria da Silva",
     whatsapp: "(54) 99123-4567",
     email: "maria@exemplo.com",
@@ -117,7 +117,7 @@ describe("isValidWhatsapp", () => {
 });
 
 describe("membershipApplicationSchema", () => {
-  it("aceita uma solicitação completa de suinocultor", () => {
+  it("aceita uma solicitação completa de criador", () => {
     const resultado = membershipApplicationSchema.safeParse(valida());
     expect(resultado.success).toBe(true);
   });
@@ -148,7 +148,7 @@ describe("membershipApplicationSchema", () => {
   });
 
   describe("obrigatoriedade por perfil", () => {
-    it("suinocultor precisa do município da produção", () => {
+    it("criador precisa do município da produção", () => {
       const resultado = membershipApplicationSchema.safeParse(valida({ productionCity: "" }));
       expect(resultado.success).toBe(false);
       if (resultado.success) return;
@@ -156,9 +156,9 @@ describe("membershipApplicationSchema", () => {
       expect(erro?.message).toBe("Informe o município da produção.");
     });
 
-    it("profissional precisa de área de atuação e cargo", () => {
+    it("técnico precisa de área de atuação e cargo", () => {
       const resultado = membershipApplicationSchema.safeParse(
-        valida({ profileType: "profissional", productionCity: "" }),
+        valida({ profileType: "tecnico", productionCity: "" }),
       );
       expect(resultado.success).toBe(false);
       if (resultado.success) return;
@@ -195,7 +195,27 @@ describe("membershipApplicationSchema", () => {
       expect(resultado.success).toBe(true);
     });
 
-    it("suinocultor pode informar CNPJ, mas ele tem de ser válido", () => {
+    /**
+     * ⚠️ O ÚNICO PERFIL SEM CAMPO OBRIGATÓRIO PRÓPRIO, e o teste existe para
+     * que isso seja uma decisão registrada e não um esquecimento que alguém
+     * "conserte" depois acrescentando exigências. Universidade não está
+     * pedindo filiação — está se colocando para receber comunicação.
+     */
+    it("universidade passa só com os campos comuns", () => {
+      const resultado = membershipApplicationSchema.safeParse(
+        valida({ profileType: "universidade", productionCity: "" }),
+      );
+      expect(resultado.success).toBe(true);
+    });
+
+    it("universidade não cobra campo de nenhum outro perfil", () => {
+      const resultado = membershipApplicationSchema.safeParse(
+        valida({ profileType: "universidade", productionCity: "", cnpj: "" }),
+      );
+      expect(resultado.success).toBe(true);
+    });
+
+    it("criador pode informar CNPJ, mas ele tem de ser válido", () => {
       const resultado = membershipApplicationSchema.safeParse(
         valida({ cnpj: "11.222.333/0001-82" }),
       );

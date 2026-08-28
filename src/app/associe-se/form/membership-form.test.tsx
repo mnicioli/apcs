@@ -54,7 +54,7 @@ function etapaAtual() {
 }
 
 /** Vai da etapa 1 até a 3 escolhendo um perfil e preenchendo o contato. */
-async function ateAEtapa3(user: ReturnType<typeof userEvent.setup>, perfil = "Sou suinocultor") {
+async function ateAEtapa3(user: ReturnType<typeof userEvent.setup>, perfil = "Sou criador") {
   await user.click(screen.getByRole("radio", { name: new RegExp(perfil) }));
   await user.click(screen.getByRole("button", { name: "Continuar" }));
 
@@ -88,7 +88,7 @@ describe("navegação entre etapas", () => {
     const user = userEvent.setup();
     render(<MembershipForm />);
 
-    await user.click(screen.getByRole("radio", { name: /Sou suinocultor/ }));
+    await user.click(screen.getByRole("radio", { name: /Sou criador/ }));
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
     expect(await screen.findByLabelText("Nome completo")).toBeInTheDocument();
@@ -99,7 +99,7 @@ describe("navegação entre etapas", () => {
     const user = userEvent.setup();
     render(<MembershipForm />);
 
-    await user.click(screen.getByRole("radio", { name: /Sou suinocultor/ }));
+    await user.click(screen.getByRole("radio", { name: /Sou criador/ }));
     await user.click(screen.getByRole("button", { name: "Continuar" }));
     await user.click(await screen.findByRole("button", { name: "Continuar" }));
 
@@ -113,7 +113,7 @@ describe("navegação entre etapas", () => {
     const user = userEvent.setup();
     render(<MembershipForm />);
 
-    await user.click(screen.getByRole("radio", { name: /Sou suinocultor/ }));
+    await user.click(screen.getByRole("radio", { name: /Sou criador/ }));
     await user.click(screen.getByRole("button", { name: "Continuar" }));
     await user.type(await screen.findByLabelText("Nome completo"), "Maria da Silva");
     await user.click(screen.getByRole("button", { name: "Voltar" }));
@@ -126,7 +126,7 @@ describe("navegação entre etapas", () => {
 });
 
 describe("campos condicionais por perfil", () => {
-  it("suinocultor vê matrizes e propriedade", async () => {
+  it("criador vê matrizes e propriedade", async () => {
     const user = userEvent.setup();
     render(<MembershipForm />);
     await ateAEtapa3(user);
@@ -146,10 +146,10 @@ describe("campos condicionais por perfil", () => {
     expect(screen.queryByLabelText(/Número aproximado de matrizes/)).not.toBeInTheDocument();
   });
 
-  it("profissional vê área de atuação e cargo", async () => {
+  it("técnico vê área de atuação e cargo", async () => {
     const user = userEvent.setup();
     render(<MembershipForm />);
-    await ateAEtapa3(user, "Sou profissional do setor");
+    await ateAEtapa3(user, "Sou técnico");
 
     expect(await screen.findByLabelText("Área de atuação")).toBeInTheDocument();
     expect(screen.getByLabelText("Cargo ou função")).toBeInTheDocument();
@@ -171,7 +171,7 @@ describe("consentimento", () => {
     const user = userEvent.setup();
     render(<MembershipForm />);
 
-    await user.click(screen.getByRole("radio", { name: /Sou suinocultor/ }));
+    await user.click(screen.getByRole("radio", { name: /Sou criador/ }));
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
     expect(
@@ -231,7 +231,7 @@ describe("envio", () => {
     const enviado = submitMembershipApplicationAction.mock.calls[0]?.[0];
     expect(enviado.email).toBe("maria@exemplo.com");
     expect(enviado.whatsapp).toBe("(54) 99123-4567");
-    expect(enviado.profileType).toBe("suinocultor");
+    expect(enviado.profileType).toBe("criador");
     expect(enviado.consentAccepted).toBe(true);
   });
 

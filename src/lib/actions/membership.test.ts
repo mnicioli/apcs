@@ -72,7 +72,7 @@ const ID = "11111111-1111-4111-8111-111111111111";
 
 function solicitacaoValida(extra: Record<string, unknown> = {}) {
   return {
-    profileType: "suinocultor" as const,
+    profileType: "criador" as const,
     fullName: "Maria da Silva",
     whatsapp: "(54) 99123-4567",
     email: "  MARIA@Exemplo.com ",
@@ -229,7 +229,7 @@ describe("submitMembershipApplicationAction", () => {
     await submitMembershipApplicationAction(solicitacaoValida());
 
     const args = adminRpc.mock.calls[0]?.[1] as Record<string, unknown>;
-    expect(String(args["p_dedupe_key"])).toMatch(/^maria@exemplo\.com\|suinocultor\|\d+$/);
+    expect(String(args["p_dedupe_key"])).toMatch(/^maria@exemplo\.com\|criador\|\d+$/);
   });
 
   it("dois envios seguidos geram a MESMA chave de deduplicação", async () => {

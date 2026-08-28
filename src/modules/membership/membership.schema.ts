@@ -22,19 +22,32 @@ export const PROFILE_OPTIONS: Array<{
   description: string;
 }> = [
   {
-    value: "suinocultor",
-    label: "Sou suinocultor",
+    value: "criador",
+    label: "Sou criador",
     description: "Atuo diretamente na produção de suínos.",
-  },
-  {
-    value: "profissional",
-    label: "Sou profissional do setor",
-    description: "Trabalho técnica, comercial ou institucionalmente na cadeia.",
   },
   {
     value: "empresa",
     label: "Represento uma empresa",
     description: "Minha organização fornece, compra ou presta serviços para o setor.",
+  },
+  {
+    // ⚠️ O RÓTULO DIZ "técnico OU profissional do setor" DE PROPÓSITO. O perfil
+    // se chama Técnicos, mas ele abriga também quem é comercial e quem é
+    // institucional — a descrição sempre disse isso. Um rótulo só "Sou técnico"
+    // faria a pessoa da área comercial não se reconhecer e escolher errado, e
+    // um cadastro no perfil errado é pior que um rótulo comprido.
+    value: "tecnico",
+    label: "Sou técnico ou profissional do setor",
+    description: "Trabalho técnica, comercial ou institucionalmente na cadeia.",
+  },
+  {
+    // O único perfil que NÃO é associado. Ele está aqui mesmo assim porque a
+    // APCS se comunica com universidades — e um cadastro que não existe é um
+    // público-alvo que ninguém consegue alcançar.
+    value: "universidade",
+    label: "Represento uma universidade",
+    description: "Atuo em ensino, pesquisa ou extensão ligados à suinocultura.",
   },
 ];
 
@@ -226,13 +239,19 @@ export const membershipApplicationSchema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: [campo], message: mensagem });
     };
 
-    if (data.profileType === "suinocultor") {
+    if (data.profileType === "criador") {
       exigir("productionCity", "Informe o município da produção.");
     }
-    if (data.profileType === "profissional") {
+    if (data.profileType === "tecnico") {
       exigir("activityArea", "Informe sua área de atuação.");
       exigir("jobTitle", "Informe seu cargo ou função.");
     }
+    // ⚠️ `universidade` NÃO TEM CAMPO OBRIGATÓRIO PRÓPRIO, e é decisão, não
+    // esquecimento: instituição, área e cargo entram como opcionais. Uma
+    // universidade que se cadastra com pouco continua sendo um cadastro; um
+    // formulário que a recusa é uma universidade a menos na base. A mesma regra
+    // vale no banco (ver `submit_membership_application`), então as duas
+    // camadas dizem a mesma coisa.
     if (data.profileType === "empresa") {
       exigir("legalName", "Informe a razão social.");
       exigir("jobTitle", "Informe o cargo ou função do contato.");

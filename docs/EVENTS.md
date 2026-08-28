@@ -79,21 +79,38 @@ Mais `event_audit_logs`, a trilha imutável.
 ```
 Evento ──< event_segment_links >── event_segments
                                           │
-                                          │  ⚠️ ESTE ELO NÃO EXISTE
+                                          │  perfil ↔ público: JÁ EXISTE
+                                          │  (unificação dos perfis)
                                           ▼
-                              EventAudienceSource → associados
+                              EventAudienceSource  ⚠️ NÃO IMPLEMENTADA
+                                          │
+                                          ▼
+                                   members.profile_type
                                           ▼
                                      Campanha → WhatsApp
 ```
 
-**Não há cadastro de associados neste banco.** As tabelas de pessoas são
-`profiles` (usuários do CRM) e `chat_contacts` (quem falou com o bot) — nenhuma
-é um registro de associados da APCS. A evidência está na §9.
+⚠️ **Esta seção mudou de estado duas vezes — leia o que vale hoje.**
 
-Então a segmentação entrega o que dá para entregar com honestidade: o evento
-**rotula** seu público de forma consultável, e toda a lógica de elegibilidade
-(OU, união, deduplicação) está escrita e testada. O que falta é só a ORIGEM dos
-associados, declarada como porta em `event.audience.ts`.
+Quando o módulo foi escrito, não havia cadastro de associados: as tabelas de
+pessoas eram `profiles` (usuários do CRM) e `chat_contacts` (quem falou com o
+bot), e nenhuma era um registro de associados. Depois disso:
+
+1. **O cadastro passou a existir** — `members`, do módulo Associados.
+2. **A correspondência perfil ↔ público passou a existir** — a unificação dos
+   perfis (ver a tabela abaixo) fez `membership_profile_type` e o catálogo de
+   públicos dizerem a mesma coisa, que era o elo conceitual que faltava.
+
+**O que ainda NÃO existe é a consulta.** `audienceSource()` em
+`src/lib/services/event-chatbot.ts` continua devolvendo `NO_ASSOCIATE_REGISTRY`,
+que responde `{ available: false }` a tudo. Ninguém escreveu ainda a
+implementação de `EventAudienceSource` que traduz "quais associados estão neste
+público?" num `select` sobre `members`.
+
+Então a segmentação entrega o evento **rotulado** com público consultável, e toda
+a lógica de elegibilidade (OU, união, deduplicação) escrita e testada. O que
+falta é uma implementação da porta declarada em `event.audience.ts` — hoje ela é
+um `select ... where profile_type = ?`, e não mais um problema de modelagem.
 
 O `slug` existe e é imutável exatamente para essa porta se prender a ele: `name`
 é rótulo de tela e alguém vai renomeá-lo.
@@ -115,27 +132,45 @@ remover valor de enum**: um nome errado seria permanente.
 
 ### O catálogo hoje
 
-| Slug            | Nome          | O que é                           |
-| --------------- | ------------- | --------------------------------- |
-| `all-members`   | Toda a base   | **Atalho** — vira os cinco abaixo |
-| `associados`    | Associados    | público                           |
-| `empresas`      | Empresas      | público                           |
-| `produtores`    | Produtores    | público                           |
-| `universidades` | Universidades | público                           |
-| `tecnicos`      | Técnicos      | público                           |
+| Slug            | Nome          | O que é                            |
+| --------------- | ------------- | ---------------------------------- |
+| `all-members`   | Toda a base   | **Atalho** — vira os quatro abaixo |
+| `produtores`    | Criadores     | público — associado                |
+| `empresas`      | Empresas      | público — associado                |
+| `tecnicos`      | Técnicos      | público — associado                |
+| `universidades` | Universidades | público — **não** associado        |
+| `associados`    | Associados    | **inativo** desde a unificação     |
 
-O slug `all-members` é herança do primeiro público do catálogo. Renomeá-lo na
-tela não muda a chave — é exatamente para isso que o slug é imutável.
+Os slugs `all-members` e `produtores` são herança: o primeiro é o público
+original do catálogo, o segundo foi renomeado para "Criadores" na unificação dos
+perfis. Renomear na tela **não muda a chave** — é exatamente para isso que o
+slug é imutável, e trocá-lo quebraria os vínculos dos eventos já cadastrados.
 
-As descrições dos cinco estão vazias de propósito: elas aparecem embaixo de cada
-caixa de seleção, e o que distingue "Associados" de "Produtores" é definição de
-negócio da APCS, não do código. Preencher é um `update` de uma linha.
+### O catálogo é espelho de `membership_profile_type`
+
+Cada público ativo corresponde a um perfil do cadastro, e essa é a razão de a
+unificação ter acontecido:
+
+| Perfil (`members`) | Público-alvo  | É associado? |
+| ------------------ | ------------- | ------------ |
+| `criador`          | Criadores     | sim          |
+| `empresa`          | Empresas      | sim          |
+| `tecnico`          | Técnicos      | sim          |
+| `universidade`     | Universidades | **não**      |
+
+⚠️ **"Associados" foi aposentado** (`active = false`) porque era ambíguo: uma
+criadora seria "Criadores" **e** "Associados" ao mesmo tempo, e ninguém saberia
+qual marcar. Um evento só para associados marca os três públicos de associado —
+explícito, e o banco registra exatamente quem foi alcançado. Os eventos que já
+usavam "Associados" foram remapeados para os três pela migration, porque
+`assert_event_segments` exige público `active` e um evento preso a um público
+inativo passaria a recusar qualquer edição.
 
 ### "Toda a base" é expandido na GRAVAÇÃO
 
 ```
 seleção: [Toda a base]
-gravado: [Associados, Empresas, Produtores, Universidades, Técnicos]
+gravado: [Criadores, Empresas, Técnicos, Universidades]
 ```
 
 O próprio atalho nunca fica vinculado a evento nenhum. A expansão acontece
@@ -147,12 +182,12 @@ não tem caso especial nenhum, e é disso que vem a confiança nela. Um slug má
 obrigaria toda leitura futura — chatbot, campanha, exportação, relatório — a
 conhecer a exceção, e a primeira que esquecesse mandaria comunicação para menos
 gente do que devia, **em silêncio**. Expandindo na gravação, o que está no banco
-diz exatamente quem é alcançado, e a auditoria registra os cinco ids.
+diz exatamente quem é alcançado, e a auditoria registra os quatro ids.
 
 **O que isso custa, dito na cara:**
 
 1. **A seleção não volta como foi feita.** Quem salvar com "Toda a base" e
-   reabrir a edição verá os cinco marcados, não o atalho. É a informação
+   reabrir a edição verá os quatro marcados, não o atalho. É a informação
    verdadeira, mas não é o clique que a pessoa deu.
 2. **A expansão é uma fotografia.** Um sexto público no catálogo amanhã não
    entra nos eventos salvos hoje. Eventos novos pegam os seis. Para um evento já

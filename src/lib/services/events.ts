@@ -266,7 +266,7 @@ export async function getEvent(eventId: string): Promise<EventSummary | null> {
  * O atalho "Toda a base" vai PRIMEIRO, fora da ordem alfabética. Por nome ele
  * cairia entre "Técnicos" e "Universidades" — no meio das caixas de seleção
  * comuns, sendo a única com semântica diferente (escolhê-lo grava os outros
- * cinco). Um controle que faz outra coisa não pode parecer igual aos vizinhos.
+ * quatro). Um controle que faz outra coisa não pode parecer igual aos vizinhos.
  */
 export async function listEventSegments(): Promise<EventSegment[]> {
   const supabase = await createClient();

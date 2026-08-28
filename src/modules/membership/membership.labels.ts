@@ -58,10 +58,20 @@ export const MEMBER_ORIGIN_LABELS: Record<MemberOrigin, string> = {
   manual: "Cadastro manual",
 };
 
+/**
+ * ⚠️ SINGULAR AQUI, PLURAL NO PÚBLICO-ALVO — e a diferença tem motivo.
+ *
+ * Este rótulo descreve UMA pessoa ou organização: aparece no selo de um
+ * associado, numa linha da lista. "Criadores" numa linha só ficaria errado.
+ * O catálogo `event_segments` usa o plural ("Criadores", "Técnicos") porque
+ * ali o nome descreve um GRUPO. São o mesmo perfil, ditos de dois jeitos
+ * conforme o que está sendo nomeado.
+ */
 export const MEMBERSHIP_PROFILE_TYPE_LABELS: Record<MembershipProfileType, string> = {
-  suinocultor: "Suinocultor",
-  profissional: "Profissional do setor",
+  criador: "Criador",
   empresa: "Empresa",
+  tecnico: "Técnico",
+  universidade: "Universidade",
 };
 
 export const MEMBERSHIP_AUDIT_ACTION_LABELS: Record<MembershipAuditAction, string> = {
