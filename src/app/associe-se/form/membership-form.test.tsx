@@ -162,14 +162,20 @@ describe("campos condicionais por perfil", () => {
     expect(screen.getByLabelText("Cargo ou função")).toBeInTheDocument();
   });
 
-  it("marcar “Outro” nos interesses revela o campo de texto", async () => {
+  /**
+   * ⚠️ A PERGUNTA DE INTERESSES FOI RETIRADA a pedido da APCS. O teste é pela
+   * ausência de propósito: um formulário público ganha campo com facilidade, e
+   * cada campo a mais é gente que desiste no meio. Se a pergunta voltar sem
+   * decisão, isto acusa.
+   */
+  it("não pergunta interesses", async () => {
     const user = userEvent.setup();
     render(<MembershipForm consent={CONSENTIMENTO} />);
     await ateAEtapa3(user);
 
+    expect(screen.queryByText(/temas mais interessam/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Bolsa de Suínos/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Qual outro interesse?")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Outro/ }));
-    expect(await screen.findByLabelText("Qual outro interesse?")).toBeInTheDocument();
   });
 });
 

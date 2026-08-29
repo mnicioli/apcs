@@ -93,7 +93,6 @@ function solicitacaoValida(extra: Record<string, unknown> = {}) {
     city: "Caxias do Sul",
     state: "RS" as const,
     productionCity: "Vacaria",
-    interests: [],
     consentAccepted: true as const,
     ...extra,
   };

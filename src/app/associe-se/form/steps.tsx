@@ -1,11 +1,10 @@
 "use client";
 
-import { CheckboxRow, SelectField, TextField, ToggleChip } from "./fields";
+import { CheckboxRow, SelectField, TextField } from "./fields";
 import { cn } from "@/lib/utils";
 import {
   formatCnpj,
   formatWhatsapp,
-  INTEREST_OPTIONS,
   PROFILE_OPTIONS,
   UFS,
   type MembershipApplicationInput,
@@ -222,17 +221,6 @@ export function StepContact({ values, errors, setField }: StepProps) {
 /* -------------------------------------------------------------------------- */
 
 export function StepContext({ values, errors, setField }: StepProps) {
-  const alternarInteresse = (interesse: string) => {
-    const atuais = values.interests ?? [];
-    const proximos = atuais.includes(interesse)
-      ? atuais.filter((item) => item !== interesse)
-      : [...atuais, interesse];
-    setField("interests", proximos);
-    // Desmarcou "Outro"? O campo de texto some — e o que estava escrito nele
-    // vai junto, senão ele seria enviado sem ninguém ver.
-    if (!proximos.includes("Outro")) setField("otherInterest", "");
-  };
-
   return (
     <div className="space-y-8">
       <fieldset className="space-y-6">
@@ -409,36 +397,6 @@ export function StepContext({ values, errors, setField }: StepProps) {
           </>
         )}
       </fieldset>
-
-      <fieldset>
-        <legend className="text-base font-semibold">
-          Quais temas mais interessam você?{" "}
-          <span className="text-muted-foreground font-normal">(opcional, várias opções)</span>
-        </legend>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {INTEREST_OPTIONS.map((interesse) => (
-            <ToggleChip
-              key={interesse}
-              pressed={(values.interests ?? []).includes(interesse)}
-              onClick={() => alternarInteresse(interesse)}
-            >
-              {interesse}
-            </ToggleChip>
-          ))}
-        </div>
-
-        {(values.interests ?? []).includes("Outro") && (
-          <div className="apcs-step-enter mt-4">
-            <TextField
-              id="otherInterest"
-              label="Qual outro interesse?"
-              value={values.otherInterest ?? ""}
-              error={errors["otherInterest"]}
-              onChange={(evento) => setField("otherInterest", evento.target.value)}
-            />
-          </div>
-        )}
-      </fieldset>
     </div>
   );
 }
@@ -477,7 +435,6 @@ export function ReviewConsent({
   onConsentChange: (checked: boolean) => void;
 }) {
   const perfil = PROFILE_OPTIONS.find((opcao) => opcao.value === values.profileType)?.label;
-  const interesses = (values.interests ?? []).join(", ");
 
   return (
     <section aria-labelledby="review-title" className="space-y-6">
@@ -512,8 +469,6 @@ export function ReviewConsent({
         <ReviewRow label="Inscrição Estadual" value={values.stateRegistration} />
         <ReviewRow label="Área de atuação" value={values.activityArea} />
         <ReviewRow label="Cargo ou função" value={values.jobTitle} />
-        <ReviewRow label="Interesses" value={interesses} />
-        <ReviewRow label="Outro interesse" value={values.otherInterest} />
       </dl>
 
       <div className="border-hairline bg-card rounded-xl border p-5">

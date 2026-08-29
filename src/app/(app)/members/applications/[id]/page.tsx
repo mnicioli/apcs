@@ -71,11 +71,8 @@ export default async function MembershipApplicationPage({
     [MEMBERSHIP_FIELD_LABELS.stateRegistration, solicitacao.stateRegistration],
     [MEMBERSHIP_FIELD_LABELS.activityArea, solicitacao.activityArea],
     [MEMBERSHIP_FIELD_LABELS.jobTitle, solicitacao.jobTitle],
-    [
-      MEMBERSHIP_FIELD_LABELS.interests,
-      solicitacao.interests.length > 0 ? solicitacao.interests.join(", ") : null,
-    ],
-    [MEMBERSHIP_FIELD_LABELS.otherInterest, solicitacao.otherInterest],
+    // Interesses saíram: a pergunta não existe mais no formulário público, e um
+    // campo que só pode vir vazio é uma linha a mais para ler em toda ficha.
   ];
 
   return (

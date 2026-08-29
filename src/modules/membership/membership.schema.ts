@@ -60,6 +60,10 @@ export const PROFILE_OPTIONS: Array<{
  * comunicação da APCS, e cada mudança viraria uma migration se fosse enum. O
  * banco guarda `text[]` e limita a dez itens; o que a pessoa escolheu fica
  * legível mesmo depois que a opção sair daqui.
+ *
+ * ⚠️ SÓ A FICHA DO ASSOCIADO USA ESTA LISTA. A pergunta saiu do formulário
+ * público a pedido da APCS — quem pode marcar um interesse hoje é quem edita o
+ * cadastro por dentro, e o que já foi coletado continua no banco.
  */
 export const INTEREST_OPTIONS = [
   "Representação institucional",
@@ -227,8 +231,17 @@ export const membershipApplicationSchema = z
     legalName: opcional,
     tradeName: opcional,
 
-    interests: z.array(z.string().max(80)).max(10).default([]),
-    otherInterest: z.string().trim().max(200).optional(),
+    /*
+      ⚠️ `interests` E `otherInterest` SAÍRAM DAQUI — e a ausência é decisão.
+      A pergunta "quais temas mais interessam você?" foi retirada do formulário
+      público a pedido da APCS. O contrato do envio a acompanha: campo que não é
+      perguntado não pode ser aceito, senão uma requisição forjada gravaria
+      interesses que ninguém escolheu.
+
+      A COLUNA CONTINUA NO BANCO, com o que já foi coletado. Ela segue editável
+      na ficha do associado (ver `updateMemberSchema`, mais abaixo) — o que
+      acabou é a coleta na porta de entrada, não o dado.
+    */
 
     // ⚠️ `z.literal(true)`, e não `z.boolean()`: o aceite não é um campo que
     // pode valer `false`, é uma condição para o envio existir. O banco repete a
@@ -282,13 +295,6 @@ export const membershipApplicationSchema = z
         });
       }
     }
-    if (data.interests.includes("Outro") && !data.otherInterest) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["otherInterest"],
-        message: "Conte brevemente qual é o outro interesse.",
-      });
-    }
   });
 
 export type MembershipApplicationInput = z.input<typeof membershipApplicationSchema>;
@@ -318,8 +324,6 @@ export const emptyApplication: MembershipApplicationInput = {
   jobTitle: "",
   legalName: "",
   tradeName: "",
-  interests: [],
-  otherInterest: "",
   consentAccepted: false as unknown as true,
 };
 

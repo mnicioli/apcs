@@ -34,7 +34,10 @@ const APPLICATION_COLUMNS =
 const APPLICATION_DETAIL_COLUMNS =
   APPLICATION_COLUMNS +
   ", farm_name, production_city, sow_count, cnpj, state_registration, " +
-  "activity_area, job_title, legal_name, trade_name, interests, other_interest, " +
+  // ⚠️ SEM `interests`/`other_interest`: a pergunta saiu do formulário público e
+  // a ficha da solicitação não os exibe mais. A COLUNA continua no banco, com o
+  // que já foi coletado, e a ficha do ASSOCIADO segue lendo e editando os dois.
+  "activity_area, job_title, legal_name, trade_name, " +
   "consent_at, consent_policy_version, review_note, " +
   "reviewer:profiles!membership_applications_reviewed_by_fkey (id, full_name), " +
   "member:members!membership_applications_member_id_fkey (" +
@@ -307,8 +310,6 @@ export async function getMembershipApplication(
           job_title: string | null;
           legal_name: string | null;
           trade_name: string | null;
-          interests: string[] | null;
-          other_interest: string | null;
           consent_at: string;
           consent_policy_version: string | null;
           review_note: string | null;
@@ -332,8 +333,6 @@ export async function getMembershipApplication(
     jobTitle: data.job_title,
     legalName: data.legal_name,
     tradeName: data.trade_name,
-    interests: data.interests ?? [],
-    otherInterest: data.other_interest,
     consentAt: data.consent_at,
     consentPolicyVersion: data.consent_policy_version,
     reviewNote: data.review_note,

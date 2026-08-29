@@ -104,8 +104,6 @@ export interface MembershipApplicationDetail extends MembershipApplicationRow {
   jobTitle: string | null;
   legalName: string | null;
   tradeName: string | null;
-  interests: string[];
-  otherInterest: string | null;
   consentAt: string;
   consentPolicyVersion: string | null;
   reviewNote: string | null;

@@ -227,26 +227,25 @@ describe("membershipApplicationSchema", () => {
     });
   });
 
-  describe("interesses", () => {
-    it("marcar “Outro” cobra o campo de texto", () => {
-      const resultado = membershipApplicationSchema.safeParse(valida({ interests: ["Outro"] }));
-      expect(resultado.success).toBe(false);
-      if (resultado.success) return;
-      expect(resultado.error.issues.some((i) => i.path[0] === "otherInterest")).toBe(true);
-    });
-
-    it("marcar “Outro” com o texto preenchido passa", () => {
+  /**
+   * ⚠️ A PERGUNTA DE INTERESSES SAIU DO FORMULÁRIO PÚBLICO, e o contrato do
+   * envio saiu junto. Este teste é o que impede o campo voltar pela porta dos
+   * fundos: enquanto ninguém pergunta, ninguém pode gravar — uma requisição
+   * forjada não escolhe interesses em nome de quem se cadastrou.
+   *
+   * O dado antigo continua no banco e continua editável na ficha do associado
+   * (ver `updateMemberSchema`). O que acabou é a coleta na porta de entrada.
+   */
+  describe("interesses não são mais coletados", () => {
+    it("o schema descarta o que for enviado", () => {
       const resultado = membershipApplicationSchema.safeParse(
-        valida({ interests: ["Outro"], otherInterest: "Genética" }),
+        valida({ interests: ["Bolsa de Suínos"], otherInterest: "Genética" } as never),
       );
-      expect(resultado.success).toBe(true);
-    });
 
-    it("não cobra o texto quando “Outro” não está marcado", () => {
-      const resultado = membershipApplicationSchema.safeParse(
-        valida({ interests: ["Bolsa de Suínos"] }),
-      );
       expect(resultado.success).toBe(true);
+      if (!resultado.success) return;
+      expect(resultado.data).not.toHaveProperty("interests");
+      expect(resultado.data).not.toHaveProperty("otherInterest");
     });
   });
 

@@ -114,8 +114,11 @@ export async function submitMembershipApplicationAction(
       p_job_title: dados.jobTitle,
       p_legal_name: dados.legalName,
       p_trade_name: dados.tradeName,
-      p_interests: dados.interests,
-      p_other_interest: dados.otherInterest,
+      // ⚠️ `p_interests` e `p_other_interest` NÃO SÃO MAIS ENVIADOS. A pergunta
+      // saiu do formulário público, e os dois parâmetros têm padrão no banco
+      // (`'{}'` e `null`) — omiti-los grava a solicitação sem interesse nenhum,
+      // que é a verdade. Mandar array vazio daqui daria no mesmo hoje e viraria
+      // uma mentira no dia em que a função ganhasse outro padrão.
       p_consent_policy_version: versaoConsentimento,
       p_source_ip_hash: ipHash ?? undefined,
       p_user_agent: cabecalhos.get("user-agent") ?? undefined,
