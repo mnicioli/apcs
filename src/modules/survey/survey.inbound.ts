@@ -87,6 +87,23 @@ export function normalizeReply(raw: string): string {
     .trim();
 }
 
+/**
+ * "Esta mensagem é um pedido para parar de receber?"
+ *
+ * ⚠️ EXPORTADA PARA SER USADA FORA DE ENQUETES, e é por isso que ela existe
+ * separada: quem recebe a divulgação de um EVENTO e responde SAIR não tem
+ * conversa de enquete nenhuma, então `readSurveyReply` nunca chegava a rodar
+ * para essa pessoa. Foi exatamente esse o bug.
+ *
+ * ⚠️ REUSA `PALAVRAS_SAIR`, e isso não é economia de linhas: duas listas de
+ * palavras de saída, uma para enquete e outra para evento, divergiriam na
+ * primeira vez que alguém acrescentasse um sinônimo em uma só — e o sintoma
+ * seria uma pessoa que consegue sair de um canal e não do outro.
+ */
+export function isOptOutRequest(raw: string): boolean {
+  return PALAVRAS_SAIR.has(normalizeReply(raw));
+}
+
 export function readSurveyReply(raw: string, options: readonly SurveyOption[]): SurveyReplyReading {
   const texto = normalizeReply(raw);
   if (texto.length === 0) return { kind: "unrelated" };

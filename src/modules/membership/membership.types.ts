@@ -128,6 +128,15 @@ export interface MemberRow {
   organization: string | null;
   joinedAt: string | null;
   createdAt: string;
+  /**
+   * Pediu para não receber notificações da APCS.
+   *
+   * ⚠️ NÃO É UMA COLUNA DE `members`, e não é preguiça: o bloqueio é do
+   * TELEFONE, e dois associados podem compartilhar um (marido e mulher na mesma
+   * granja, um número de escritório). Uma coluna criaria a possibilidade de os
+   * dois discordarem sobre o mesmo aparelho.
+   */
+  optedOut: boolean;
 }
 
 /** Contadores da caixa de entrada, por situação. */

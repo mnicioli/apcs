@@ -152,6 +152,7 @@ export default async function MembersPage({
                     <th className="px-4 py-3 font-medium">Cidade</th>
                     <th className="px-4 py-3 font-medium">Associado desde</th>
                     <th className="px-4 py-3 font-medium">Origem</th>
+                    <th className="px-4 py-3 font-medium">Notificações</th>
                     <th className="px-4 py-3 font-medium">Situação</th>
                   </tr>
                 </thead>
@@ -188,6 +189,22 @@ export default async function MembersPage({
                       </td>
                       <td className="text-muted-foreground px-4 py-3">
                         {MEMBER_ORIGIN_LABELS[membro.origin]}
+                      </td>
+                      {/*
+                        ⚠️ TRÊS ESTADOS, e não dois. "Recebe" e "Não recebe" não
+                        cobrem quem não tem WhatsApp cadastrado — essa pessoa não
+                        pediu para sair, mas também não vai receber nada. Mostrá-la
+                        como "Recebe" faria o time contar com um alcance que não
+                        existe.
+                      */}
+                      <td className="px-4 py-3">
+                        {!membro.whatsapp ? (
+                          <span className="text-muted-foreground text-xs">Sem WhatsApp</span>
+                        ) : membro.optedOut ? (
+                          <Badge variant="alert">Não recebe</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">Recebe</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={MEMBER_BADGE_VARIANT[membro.status]}>

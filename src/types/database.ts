@@ -1446,26 +1446,29 @@ export type Database = {
       notification_opt_outs: {
         Row: {
           channel: Database["public"]["Enums"]["survey_channel"];
-          contact_id: string;
+          contact_id: string | null;
           created_at: string;
           id: string;
           note: string | null;
+          phone_key: string | null;
           source: string;
         };
         Insert: {
           channel: Database["public"]["Enums"]["survey_channel"];
-          contact_id: string;
+          contact_id?: string | null;
           created_at?: string;
           id?: string;
           note?: string | null;
+          phone_key?: string | null;
           source: string;
         };
         Update: {
           channel?: Database["public"]["Enums"]["survey_channel"];
-          contact_id?: string;
+          contact_id?: string | null;
           created_at?: string;
           id?: string;
           note?: string | null;
+          phone_key?: string | null;
           source?: string;
         };
         Relationships: [
@@ -3251,7 +3254,22 @@ export type Database = {
       membership_is_writer: { Args: never; Returns: boolean };
       next_lecture_protocol: { Args: never; Returns: string };
       next_membership_protocol: { Args: never; Returns: string };
+      is_notification_blocked: { Args: { p_phone: string }; Returns: boolean };
+      member_notification_status: {
+        Args: { p_member_id: string };
+        Returns: { opted_out: boolean; opted_out_at: string | null; source: string | null }[];
+      };
       notification_phone_key: { Args: { p_phone: string }; Returns: string };
+      register_notification_opt_out: {
+        Args: {
+          p_channel?: Database["public"]["Enums"]["survey_channel"];
+          p_contact_id?: string;
+          p_note?: string;
+          p_phone: string;
+          p_source?: string;
+        };
+        Returns: string;
+      };
       open_survey_context: {
         Args: {
           p_channel: Database["public"]["Enums"]["survey_channel"];

@@ -4,6 +4,7 @@ import { ZApiProvider } from "@/lib/messaging/providers/z-api";
 import { logWhatsAppEvent, newCorrelationId } from "@/lib/messaging/telemetry";
 import { downloadPendingMedia, recordInboundEvents } from "@/lib/services/whatsapp-inbox";
 import { processInboundEvents } from "@/lib/services/survey-inbox";
+import { processOptOutRequests } from "@/lib/services/notification-optout";
 import type { InboundEvent } from "@/lib/messaging/messaging.types";
 
 /**
@@ -142,15 +143,39 @@ export async function POST(request: NextRequest, context: { params: Promise<{ se
     });
   }
 
+  // ⚠️ O PEDIDO PARA PARAR DE RECEBER VEM ANTES DE QUALQUER ROTEIRO.
+  //
+  // Antes daqui, "SAIR" só era interpretado DENTRO de uma conversa de enquete —
+  // então quem recebeu a divulgação de um evento e respondeu SAIR continuava
+  // recebendo. Um pedido para não ser incomodado não pode depender do canal que
+  // motivou o pedido.
+  //
+  // O que este passo trata é RETIRADO da lista das enquetes: `survey-inbox`
+  // também sabe responder a SAIR, e as duas rodando mandariam duas
+  // confirmações — a segunda depois de a pessoa ter pedido para não receber
+  // mensagens, que é a pior hora possível.
+  let optOut = { handled: [] as string[], registered: 0 };
+  try {
+    optOut = await processOptOutRequests(eventos, provider, correlationId);
+  } catch (error) {
+    logWhatsAppEvent("error", "inbox.webhook_received", {
+      correlationId,
+      provider: provider.name,
+      outcome: "opt-out falhou",
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  const tratados = new Set(optOut.handled);
+
   // ⚠️ O QUE SAIU DO NOSSO NÚMERO NÃO É RESPOSTA DE NINGUÉM.
   //
   // A Z-API avisa também sobre as mensagens que o próprio número mandou —
   // inclusive as que o bot de enquete acabou de mandar. Entregues ao motor de
   // enquetes, um "1" enviado POR NÓS seria lido como voto de quem o recebeu.
-  // A Cloud API nunca produziu este caso (ela não conta o que sai por fora), e
-  // é por isso que o filtro mora aqui e não lá dentro.
   const paraEnquetes = eventos.filter(
-    (e: InboundEvent) => e.kind !== "message" || e.conversation?.fromMe !== true,
+    (e: InboundEvent) =>
+      !tratados.has(e.eventId) && (e.kind !== "message" || e.conversation?.fromMe !== true),
   );
 
   let enquetes = { processed: 0, duplicates: 0, ignored: 0 };
@@ -179,7 +204,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ se
     });
   }
 
-  return ok({ events: eventos.length, surveys: enquetes.processed });
+  return ok({
+    events: eventos.length,
+    surveys: enquetes.processed,
+    optOuts: optOut.registered,
+  });
 }
 
 /**

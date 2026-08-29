@@ -110,8 +110,55 @@ function toApplicationRow(row: ApplicationRowShape): MembershipApplicationRow {
   };
 }
 
-function toMemberRow(row: MemberRowShape): MemberRow {
+/**
+ * A chave de comparação de telefone — a MESMA de `notification_phone_key()` no
+ * Postgres: os últimos 11 dígitos (DDD + celular).
+ *
+ * ⚠️ ESTÁ DUPLICADA EM DOIS LUGARES DE PROPÓSITO, e a duplicação é vigiada por
+ * teste. A alternativa seria uma ida ao banco por linha da lista só para
+ * calcular um `substring` — cinquenta consultas para desenhar uma página. Se as
+ * duas divergirem, a lista mostra "recebe" para quem pediu para sair, então o
+ * teste que as compara não é decoração.
+ */
+export function notificationPhoneKey(raw: string | null | undefined): string {
+  return (raw ?? "").replace(/\D/g, "").slice(-11);
+}
+
+/**
+ * Quais destes telefones pediram para não receber.
+ *
+ * Uma consulta para o conjunto todo. Falha devolve conjunto VAZIO e registra —
+ * ver o porquê em `listMembers`: a lista de associados é útil sem esta coluna,
+ * e derrubá-la porque o opt-out não respondeu trocaria um dado a menos por uma
+ * tela a menos.
+ */
+async function fetchBlockedPhoneKeys(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  phones: readonly (string | null | undefined)[],
+): Promise<Set<string>> {
+  const chaves = [...new Set(phones.map(notificationPhoneKey).filter(Boolean))];
+  if (chaves.length === 0) return new Set();
+
+  const { data, error } = await supabase
+    .from("notification_opt_outs")
+    .select("phone_key")
+    .in("phone_key", chaves);
+
+  if (error) {
+    console.error(`[membership] opt-outs falharam: ${error.message}`);
+    return new Set();
+  }
+
+  return new Set(
+    (data ?? [])
+      .map((o) => (o as { phone_key: string | null }).phone_key)
+      .filter((k): k is string => Boolean(k)),
+  );
+}
+
+function toMemberRow(row: MemberRowShape, blocked: ReadonlySet<string>): MemberRow {
   return {
+    optedOut: blocked.has(notificationPhoneKey(row.whatsapp)),
     id: row.id,
     code: row.code,
     status: row.status,
@@ -266,7 +313,10 @@ export async function getMembershipApplication(
     consentPolicyVersion: data.consent_policy_version,
     reviewNote: data.review_note,
     reviewedByName: data.reviewer?.full_name ?? null,
-    member: data.member ? toMemberRow(data.member) : null,
+    // Uma consulta para um associado só — é tela de detalhe, não lista.
+    member: data.member
+      ? toMemberRow(data.member, await fetchBlockedPhoneKeys(supabase, [data.member.whatsapp]))
+      : null,
   };
 }
 
@@ -356,8 +406,18 @@ export async function listMembers(filters: MemberFilters = {}): Promise<MemberPa
   const { data, error, count } = await query.returns<MemberRowShape[]>();
   if (error) throw error;
 
+  const rows = data ?? [];
+
+  // ⚠️ UMA CONSULTA PARA A PÁGINA INTEIRA, não uma por associado. Cinquenta
+  // linhas seriam cinquenta idas ao banco para desenhar uma tabela — e a
+  // resposta é a mesma: "este telefone está na lista de quem pediu para sair?".
+  const bloqueados = await fetchBlockedPhoneKeys(
+    supabase,
+    rows.map((r) => r.whatsapp),
+  );
+
   return {
-    rows: (data ?? []).map(toMemberRow),
+    rows: rows.map((row) => toMemberRow(row, bloqueados)),
     total: count ?? 0,
     page,
     pageSize: APPLICATIONS_PAGE_SIZE,
