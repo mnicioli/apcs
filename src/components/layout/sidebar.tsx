@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_SECTIONS, type NavBadge } from "@/config/navigation";
+import { isNavItemVisible, NAV_SECTIONS, type NavBadge } from "@/config/navigation";
 import { ApcsLogo } from "@/components/brand/apcs-logo";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import type { Role } from "@/lib/rbac/rbac.types";
@@ -48,9 +48,11 @@ export function Sidebar({
 
       <nav className="flex-1 space-y-6 overflow-y-auto p-4">
         {NAV_SECTIONS.map((section) => {
-          const items = section.items.filter(
-            (item) => !item.permission || hasPermission(role, item.permission),
-          );
+          // A regra mora em `isNavItemVisible` (navigation.ts), e não aqui: ela
+          // mistura "escondido" com "sem permissão", que se parecem e não são a
+          // mesma coisa. Lá ela é testada sem renderizar nada.
+          const items = section.items.filter((item) => isNavItemVisible(item, role, hasPermission));
+          // Seção que ficou sem item nenhum não vira um título solto.
           if (items.length === 0) return null;
 
           return (

@@ -25,7 +25,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import type { Permission } from "@/lib/rbac/rbac.types";
+import type { Permission, Role } from "@/lib/rbac/rbac.types";
 
 /**
  * Contadores que a navegação sabe exibir.
@@ -52,11 +52,50 @@ export interface NavItem {
    * "Em breve" e leva a um placeholder. Ao implementar o módulo, vire `true`.
    */
   available: boolean;
+  /**
+   * `true` = some do menu.
+   *
+   * ⚠️ É DIFERENTE DE `available: false`, e a diferença importa. Aquele diz
+   * "ainda não construímos" e mostra o item apagado com o selo "Em breve" — uma
+   * promessa visível. Este diz "não queremos isto no menu agora": o item
+   * desaparece, sem deixar rastro na navegação.
+   *
+   * ⚠️ SUMIR DO MENU NÃO É TIRAR DO AR. A rota continua de pé e quem tiver o
+   * endereço entra — as permissões do módulo é que continuam decidindo. Se a
+   * intenção for BLOQUEAR o acesso, o lugar é `rbac.config.ts` mais a RLS da
+   * tabela, não esta linha.
+   *
+   * ⚠️ ESCONDER É PREFERÍVEL A APAGAR quando o módulo existe e funciona. Apagar
+   * a entrada joga fora o ícone, a rota e a permissão certos — e trazer de
+   * volta vira arqueologia no histórico do Git.
+   */
+  hidden?: boolean;
 }
 
 export interface NavSection {
   title: string;
   items: NavItem[];
+}
+
+/**
+ * O item aparece no menu para este papel?
+ *
+ * ⚠️ FUNÇÃO PURA, E FORA DA SIDEBAR DE PROPÓSITO. A regra tem duas metades que
+ * se parecem e não são a mesma coisa — "escondido" (decisão de menu) e "sem
+ * permissão" (decisão de acesso) —, e é o tipo de condição que alguém
+ * simplifica sem perceber que trocou uma pela outra. Aqui ela é testável sem
+ * renderizar nada.
+ *
+ * A ordem importa: `hidden` decide primeiro. Um item escondido não chega a ser
+ * consultado contra a matriz de permissões.
+ */
+export function isNavItemVisible(
+  item: NavItem,
+  role: Role,
+  can: (role: Role, permission: Permission) => boolean,
+): boolean {
+  if (item.hidden) return false;
+  return !item.permission || can(role, item.permission);
 }
 
 /**
@@ -92,18 +131,25 @@ export const NAV_SECTIONS: NavSection[] = [
         available: true,
       },
       {
+        // Escondida a pedido. O módulo CONTINUA INTEIRO — telas, actions, RLS e
+        // testes — e a rota `/attendances` responde para quem tiver o endereço.
+        // Voltar ao menu é apagar a linha `hidden` abaixo.
         title: "Central de Atendimento",
         href: "/attendances",
         icon: Inbox,
         permission: "attendances.read",
         available: true,
+        hidden: true,
       },
       {
+        // Escondida a pedido. Esta nunca chegou a existir (`available: false`,
+        // ou seja, aparecia só como "Em breve") — some sem consequência nenhuma.
         title: "Conversas",
         href: "/conversations",
         icon: MessagesSquare,
         permission: "leads.read",
         available: false,
+        hidden: true,
       },
       {
         title: "Tickets",
