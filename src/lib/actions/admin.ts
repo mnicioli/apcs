@@ -5,19 +5,27 @@ import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/err
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { getSiteOrigin } from "@/lib/http/site-url";
 import {
   inviteUserSchema,
   publishConsentSchema,
+  resetUserPasswordSchema,
   resumeBlockSchema,
   setSettingSchema,
+  setUserActiveSchema,
   setUserRoleSchema,
   updateSegmentSchema,
+  updateUserSchema,
   type InviteUserInput,
   type PublishConsentInput,
+  type ResetUserPasswordInput,
   type ResumeBlockInput,
   type SetSettingInput,
+  type SetUserActiveInput,
   type SetUserRoleInput,
   type UpdateSegmentInput,
+  type UpdateUserInput,
 } from "@/modules/admin/admin.schema";
 
 /**
@@ -36,6 +44,8 @@ import {
 
 function revalidateAdmin(): void {
   revalidatePath("/users", "page");
+  revalidatePath("/users/[id]", "page");
+  revalidatePath("/permissions", "page");
   revalidatePath("/settings", "page");
   revalidatePath("/settings/segments", "page");
   revalidatePath("/settings/notifications", "page");
@@ -143,6 +153,179 @@ export async function inviteUserAction(
     return ok({ roleApplied: !papelError });
   } catch (erro) {
     console.error("[admin.invite] erro inesperado:", erro);
+    return fail("unexpected");
+  }
+}
+
+/**
+ * EDITA O CADASTRO: nome e e-mail.
+ *
+ * ⚠️ DOIS SISTEMAS, E A ORDEM É AUTH PRIMEIRO. O e-mail que autentica mora em
+ * `auth.users`; `profiles.email` é a cópia que a lista exibe. Se a cópia fosse
+ * gravada antes e a troca de identidade falhasse, a tela passaria a mostrar um
+ * endereço que NÃO entra no sistema — o pior estado possível, porque parece
+ * certo. Nesta ordem, a falha do segundo passo só deixa a tela desatualizada.
+ *
+ * ⚠️ `email_confirm: true` APLICA A TROCA NA HORA, sem mandar confirmação para
+ * o endereço novo. É deliberado: quem administra está corrigindo o cadastro de
+ * um colega, e o fluxo de confirmação deixaria a identidade suspensa entre dois
+ * endereços — com a cópia em `profiles` sem saber em qual. Quem digitar errado
+ * corrige de novo por aqui; o custo é uma edição, não um acesso perdido.
+ *
+ * ⚠️ SÓ CHAMA A API DE AUTH SE O E-MAIL MUDOU. Editar o nome de alguém não é
+ * motivo para tocar na identidade de login.
+ */
+export async function updateUserAction(input: UpdateUserInput): Promise<ActionResult<null>> {
+  const parsed = updateUserSchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const negado = await assertPermission<null>("users.manage");
+  if (negado) return negado;
+
+  const { userId, fullName, email } = parsed.data;
+
+  try {
+    const supabase = await createClient();
+
+    const { data: atual, error: erroLeitura } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle()
+      .returns<{ email: string } | null>();
+
+    if (erroLeitura) return fail(mapPostgresError(erroLeitura).code);
+    if (!atual) return fail("notFound");
+
+    if (atual.email !== email) {
+      const admin = createAdminClient();
+      const { error } = await admin.auth.admin.updateUserById(userId, {
+        email,
+        email_confirm: true,
+      });
+
+      if (error) {
+        console.error("[admin.updateUser] troca de e-mail falhou:", error.message);
+        if (/already|registered|exists/i.test(error.message)) return fail("emailInUse");
+        return fail("unexpected");
+      }
+    }
+
+    const { error } = await supabase.rpc("update_user_profile", {
+      p_user_id: userId,
+      p_full_name: fullName,
+      p_email: email,
+    } as never);
+
+    if (error) return fail(mapPostgresError(error).code);
+
+    revalidateAdmin();
+    return ok(null);
+  } catch (erro) {
+    console.error("[admin.updateUser] erro inesperado:", erro);
+    return fail("unexpected");
+  }
+}
+
+/** Liga ou desliga a conta. As travas de verdade estão em `set_user_active`. */
+export async function setUserActiveAction(input: SetUserActiveInput): Promise<ActionResult<null>> {
+  const parsed = setUserActiveSchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const negado = await assertPermission<null>("users.manage");
+  if (negado) return negado;
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("set_user_active", {
+      p_user_id: parsed.data.userId,
+      p_active: parsed.data.active,
+    } as never);
+
+    if (error) return fail(mapPostgresError(error).code);
+
+    revalidateAdmin();
+    return ok(null);
+  } catch (erro) {
+    console.error("[admin.setUserActive] erro inesperado:", erro);
+    return fail("unexpected");
+  }
+}
+
+/**
+ * MANDA O E-MAIL DE RECUPERAÇÃO DE SENHA para outra pessoa.
+ *
+ * ⚠️ O CLIENTE AQUI NÃO É O DA SESSÃO, E ESSA É A LINHA QUE FAZ O FLUXO
+ * FUNCIONAR. O cliente de `@/lib/supabase/server` usa PKCE: ao pedir a
+ * recuperação, ele grava um "verificador" num cookie DO NAVEGADOR DE QUEM
+ * PEDIU. Como quem pede é o administrador e quem clica no link é outra pessoa,
+ * o verificador estaria na máquina errada e a troca falharia com "link
+ * inválido" — sem nenhuma pista do motivo.
+ *
+ * Um cliente sem cookie nenhum não gera verificador, e o link do e-mail vale
+ * para quem o receber.
+ *
+ * ⚠️ ISSO EXIGE O MODELO DE E-MAIL COM TokenHash no painel do Supabase
+ * (Authentication > Email Templates > Reset Password), apontando para
+ * `/auth/callback`. Com o modelo padrão, o link sai no formato de fragmento
+ * (`#access_token=`), que o servidor não consegue ler — e a pessoa cai na tela
+ * de "link expirado". Está escrito no .env.example.
+ *
+ * ⚠️ O E-MAIL VEM DO BANCO, e não do formulário. Aceitar um endereço vindo da
+ * tela transformaria esta action num disparador de e-mails para qualquer
+ * endereço, assinado pelo domínio da APCS.
+ */
+export async function resetUserPasswordAction(
+  input: ResetUserPasswordInput,
+): Promise<ActionResult<{ email: string }>> {
+  const parsed = resetUserPasswordSchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const negado = await assertPermission<{ email: string }>("users.manage");
+  if (negado) return negado;
+
+  try {
+    const supabase = await createClient();
+
+    const { data: alvo, error: erroLeitura } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", parsed.data.userId)
+      .maybeSingle()
+      .returns<{ email: string } | null>();
+
+    if (erroLeitura) return fail(mapPostgresError(erroLeitura).code);
+    if (!alvo) return fail("notFound");
+
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !anonKey) return fail("unexpected");
+
+    const semCookie = createSupabaseClient(url, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const origem = await getSiteOrigin();
+    const { error } = await semCookie.auth.resetPasswordForEmail(alvo.email, {
+      redirectTo: origem + "/auth/callback?next=/auth/reset-password",
+    });
+
+    if (error) {
+      console.error("[admin.resetPassword] envio falhou:", error.message);
+      return fail("inviteFailed");
+    }
+
+    // A trilha registra DEPOIS do envio: registrar algo que não aconteceu é
+    // pior que não registrar.
+    const { error: erroTrilha } = await supabase.rpc("log_password_reset", {
+      p_email: alvo.email,
+    } as never);
+    if (erroTrilha) console.error("[admin.resetPassword] trilha falhou:", erroTrilha.message);
+
+    revalidateAdmin();
+    return ok({ email: alvo.email });
+  } catch (erro) {
+    console.error("[admin.resetPassword] erro inesperado:", erro);
     return fail("unexpected");
   }
 }

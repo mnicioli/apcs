@@ -1,10 +1,11 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
 import { updateEventSegmentAction } from "@/lib/actions/admin";
-import type { AdminSegment } from "@/modules/admin/admin.types";
+import type { AdminSegment, SegmentUse } from "@/modules/admin/admin.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,14 +69,9 @@ export function SegmentRow({ segment }: { segment: AdminSegment }) {
             da página. Mostrá-lo evita a pergunta "por que não posso mudar?". */}
         <span className="text-muted-foreground font-mono text-xs">{segment.slug}</span>
         {!segment.active && <Badge variant="done">Inativo</Badge>}
-        <span className="text-muted-foreground text-xs">
-          {segment.eventCount === 0
-            ? "Nenhum evento usa"
-            : segment.eventCount === 1
-              ? "1 evento usa"
-              : `${segment.eventCount} eventos usam`}
-        </span>
       </div>
+
+      <SegmentUsage segment={segment} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -132,6 +128,84 @@ export function SegmentRow({ segment }: { segment: AdminSegment }) {
           {erro}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * O QUE USA ESTE PÚBLICO — nominalmente, não em número.
+ *
+ * ⚠️ ANTES ERA "5 eventos usam", e o número escondia duas coisas. A primeira: as
+ * ENQUETES também segmentam por aqui (`survey_audience_criteria` aponta para a
+ * mesma tabela que `event_segment_links`), então um público usado por três
+ * enquetes aparecia como "Nenhum evento usa" — e desativá-lo parecia
+ * inofensivo. A segunda: "5 eventos" não responde a pergunta que se faz na
+ * hora de desativar, que é QUAIS.
+ *
+ * ⚠️ FECHADO POR PADRÃO. São seis públicos na tela; abrir todas as listas de
+ * uma vez transformaria uma página de edição numa página de leitura, e o campo
+ * que se veio editar ficaria três rolagens abaixo.
+ */
+function SegmentUsage({ segment }: { segment: AdminSegment }) {
+  const total = segment.events.length + segment.surveys.length;
+
+  if (total === 0) {
+    return (
+      <p className="text-muted-foreground text-xs">
+        Nenhum evento ou enquete usa este público. Desativar não afeta nada.
+      </p>
+    );
+  }
+
+  const partes = [
+    segment.events.length > 0 &&
+      `${segment.events.length} ${segment.events.length === 1 ? "evento" : "eventos"}`,
+    segment.surveys.length > 0 &&
+      `${segment.surveys.length} ${segment.surveys.length === 1 ? "enquete" : "enquetes"}`,
+  ].filter(Boolean);
+
+  return (
+    <details className="group">
+      <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-xs">
+        Usado por {partes.join(" e ")}
+        <span className="ml-1 group-open:hidden">— ver quais</span>
+      </summary>
+
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        {segment.events.length > 0 && <ListaDeUso titulo="Eventos" itens={segment.events} />}
+        {segment.surveys.length > 0 && <ListaDeUso titulo="Enquetes" itens={segment.surveys} />}
+      </div>
+
+      {/*
+        Dito uma vez, aqui, e não em cada linha: Normativas, Comunicação, Bolsa
+        e Palestras não escolhem destinatário por público-alvo. Sem esta frase,
+        "usado por 5 eventos" parece uma lista incompleta dos módulos que
+        mandam mensagem — quando é a lista completa dos que segmentam.
+      */}
+      <p className="text-muted-foreground mt-3 text-xs">
+        Só Eventos e Enquetes escolhem público-alvo. Normativas, Comunicação, Bolsa e Palestras não
+        segmentam destinatário.
+      </p>
+    </details>
+  );
+}
+
+function ListaDeUso({ titulo, itens }: { titulo: string; itens: SegmentUse[] }) {
+  return (
+    <div>
+      <p className="text-muted-foreground mb-1 text-[11px] font-medium tracking-wide uppercase">
+        {titulo}
+      </p>
+      <ul className="space-y-1">
+        {itens.map((item) => (
+          <li key={item.id} className="text-xs">
+            <Link href={item.href} className="hover:text-primary-strong hover:underline">
+              {item.title}
+            </Link>
+            {item.detail && <span className="text-muted-foreground"> · {item.detail}</span>}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

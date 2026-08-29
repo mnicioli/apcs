@@ -80,6 +80,9 @@ export type ActionErrorCode =
   | "lastAdmin"
   | "cannotChangeOwnRole"
   | "consentVersionExists"
+  | "cannotDeactivateSelf"
+  | "lastActiveAdmin"
+  | "emailInUse"
   // Caixa de entrada do WhatsApp. Códigos próprios porque o atendente está com
   // a mensagem escrita na tela e precisa saber se o problema é dele (o texto),
   // do associado (o número) ou do sistema (a integração) — as três reações são
@@ -184,6 +187,13 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   lastAdmin:
     "O sistema precisa de pelo menos um administrador. Promova outra pessoa antes de alterar este papel.",
   cannotChangeOwnRole: "Você não pode alterar o próprio papel. Peça a outro administrador.",
+  cannotDeactivateSelf: "Você não pode inativar a própria conta. Peça a outro administrador.",
+  // ⚠️ Fala em admin ATIVO, e não só "administrador": o sistema pode ter dois
+  // cadastrados com um deles desligado, e nesse caso ele tem UM. A mensagem
+  // precisa explicar por que o número na tela não bate com a recusa.
+  lastActiveAdmin:
+    "O sistema precisa de pelo menos um administrador ativo. Ative ou promova outra pessoa antes.",
+  emailInUse: "Já existe uma conta com este e-mail.",
   consentVersionExists:
     "Esta versão já existe e não pode ser reescrita — uma autorização vale só para o texto que a pessoa leu. Publique com uma versão nova.",
   membershipConsentRequired:
@@ -301,6 +311,10 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "cannotChangeOwnRole" };
     case "AD003":
       return { code: "consentVersionExists" };
+    case "AD004":
+      return { code: "cannotDeactivateSelf" };
+    case "AD005":
+      return { code: "lastActiveAdmin" };
     // Classe `WA` — a caixa de entrada do WhatsApp, pela mesma razão das
     // anteriores: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260822000000_create_whatsapp_inbox.sql.

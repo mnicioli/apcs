@@ -22,6 +22,16 @@ export interface AdminUser {
   role: Role;
   createdAt: string;
   /**
+   * A conta está ligada.
+   *
+   * ⚠️ Falsa NÃO significa "apagada". A pessoa continua no cadastro, e o
+   * histórico dela em todos os módulos continua legível — é para isso que a
+   * inativação existe em vez de um botão de excluir. O que ela perde é o
+   * acesso: `current_app_role()` passa a devolver `viewer` e nenhuma policy
+   * do banco deixa mais ela ler nada.
+   */
+  active: boolean;
+  /**
    * É o usuário que está olhando a tela.
    *
    * ⚠️ Vem do servidor e não é calculado no cliente: é o que esconde o seletor
@@ -32,6 +42,15 @@ export interface AdminUser {
   isSelf: boolean;
 }
 
+/** Uma coisa que aponta para um público-alvo. */
+export interface SegmentUse {
+  id: string;
+  title: string;
+  /** Para a tela poder linkar e datar sem inventar regra por módulo. */
+  href: string;
+  detail: string | null;
+}
+
 /** Um público-alvo do catálogo, como a tela de configuração o edita. */
 export interface AdminSegment {
   id: string;
@@ -40,8 +59,24 @@ export interface AdminSegment {
   name: string;
   description: string | null;
   active: boolean;
-  /** Quantos eventos já apontam para ele — o custo de desativá-lo. */
-  eventCount: number;
+
+  /**
+   * O QUE USA ESTE PÚBLICO — e é por isso que não é mais só um número.
+   *
+   * ⚠️ ENQUETES CONTAM TANTO QUANTO EVENTOS. `event_segments` nasceu no módulo
+   * de Eventos e ficou com o nome dele, mas `survey_audience_criteria` aponta
+   * para a MESMA tabela: uma enquete pode ser dirigida a "Criadores" igual a um
+   * evento. Enquanto a tela contava só eventos, um público usado por três
+   * enquetes aparecia como "Nenhum evento usa" — e desativá-lo parecia
+   * inofensivo.
+   *
+   * ⚠️ SÃO OS DOIS ÚNICOS MÓDULOS QUE SEGMENTAM PÚBLICO HOJE. Normativas,
+   * Comunicação, Bolsa e Palestras não têm público-alvo: o que sai delas não
+   * escolhe destinatário por segmento. Se um dia passarem a ter, é aqui que a
+   * lista cresce — e a FK para `event_segments` é o que este código procura.
+   */
+  events: SegmentUse[];
+  surveys: SegmentUse[];
 }
 
 /** Uma linha da lista de bloqueios de notificação. */

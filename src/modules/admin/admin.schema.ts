@@ -46,6 +46,47 @@ export const inviteUserSchema = z.object({
 
 export type InviteUserInput = z.input<typeof inviteUserSchema>;
 
+/**
+ * Editar o cadastro de um usuário.
+ *
+ * ⚠️ O PAPEL NÃO ESTÁ AQUI, e a ausência é decisão. Trocar papel tem duas
+ * travas próprias no banco (não rebaixar o último admin, não trocar o próprio),
+ * e uma delas depende de contar linhas. Misturar isso num "salvar" junto com o
+ * nome faria uma edição de nome falhar por causa de uma regra sobre papéis —
+ * e a pessoa não saberia qual campo recusou. Papel continua em `set_user_role`.
+ */
+export const updateUserSchema = z.object({
+  userId: z.string().uuid(),
+  fullName: z
+    .string()
+    .trim()
+    .min(2, { message: "Informe o nome de quem usa a conta." })
+    .max(120, { message: "Use no máximo 120 caracteres." }),
+  email: z
+    .string()
+    .trim()
+    .min(1, { message: "O e-mail não pode ficar vazio: é ele que faz o login." })
+    .max(254, { message: "E-mail muito longo." })
+    .email({ message: "E-mail inválido. Confira se há @ e domínio." })
+    .transform((v) => v.toLowerCase()),
+});
+
+export type UpdateUserInput = z.input<typeof updateUserSchema>;
+
+export const setUserActiveSchema = z.object({
+  userId: z.string().uuid(),
+  active: z.boolean(),
+});
+
+export type SetUserActiveInput = z.input<typeof setUserActiveSchema>;
+
+/** Disparar a recuperação de senha de alguém. Só o id: o e-mail vem do banco. */
+export const resetUserPasswordSchema = z.object({
+  userId: z.string().uuid(),
+});
+
+export type ResetUserPasswordInput = z.input<typeof resetUserPasswordSchema>;
+
 export const updateSegmentSchema = z.object({
   segmentId: z.string().uuid(),
   name: z

@@ -5,6 +5,7 @@ import type { Database } from "@/types/database";
 import { messagingProvider } from "@/lib/messaging/registry";
 import { isRole } from "@/lib/rbac/rbac.types";
 import { SETTING_KEYS, type SettingKey } from "@/modules/admin/admin.labels";
+import { formatCalendarDate } from "@/lib/utils";
 import type {
   AdminAuditAction,
   AdminAuditEntry,
@@ -13,6 +14,7 @@ import type {
   ConsentText,
   NotificationBlock,
   NotificationBlockPage,
+  SegmentUse,
   WhatsAppIntegrationStatus,
 } from "@/modules/admin/admin.types";
 
@@ -39,6 +41,29 @@ export const BLOCKS_PAGE_SIZE = 50;
  * redireciona antes — mas se algum dia ela esquecer, o pior caso é a pessoa ver
  * o próprio nome, não a lista inteira.
  */
+interface UserRow {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+  created_at: string;
+  active: boolean;
+}
+
+const USER_COLUMNS = "id, email, full_name, role, created_at, active";
+
+function toAdminUser(linha: UserRow, selfId: string | undefined): AdminUser {
+  return {
+    id: linha.id,
+    email: linha.email,
+    fullName: linha.full_name,
+    role: isRole(linha.role) ? linha.role : "viewer",
+    createdAt: linha.created_at,
+    active: linha.active,
+    isSelf: linha.id === selfId,
+  };
+}
+
 export async function listUsers(): Promise<AdminUser[]> {
   const supabase = await createClient();
 
@@ -48,28 +73,54 @@ export async function listUsers(): Promise<AdminUser[]> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, created_at")
+    .select(USER_COLUMNS)
+    // ⚠️ INATIVOS PRIMEIRO NÃO — ordem de entrada. A lista é lida para achar
+    // uma pessoa, não para auditar desligamentos: quem procura "a Ana" quer
+    // encontrá-la onde ela sempre esteve, e não descobrir que ela mudou de
+    // lugar porque alguém desligou a conta dela.
     .order("created_at", { ascending: true })
-    .returns<
-      {
-        id: string;
-        email: string;
-        full_name: string | null;
-        role: string;
-        created_at: string;
-      }[]
-    >();
+    .returns<UserRow[]>();
 
   if (error) throw error;
 
-  return (data ?? []).map((linha) => ({
-    id: linha.id,
-    email: linha.email,
-    fullName: linha.full_name,
-    role: isRole(linha.role) ? linha.role : "viewer",
-    createdAt: linha.created_at,
-    isSelf: linha.id === user?.id,
-  }));
+  return (data ?? []).map((linha) => toAdminUser(linha, user?.id));
+}
+
+/**
+ * Uma pessoa, pelo id. Devolve `null` quando não existe — a tela responde 404
+ * em vez de estourar, porque um link velho para alguém que saiu é normal.
+ */
+export async function getAdminUser(id: string): Promise<AdminUser | null> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(USER_COLUMNS)
+    .eq("id", id)
+    .maybeSingle()
+    .returns<UserRow | null>();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return toAdminUser(data, user?.id);
+}
+
+/** Quantos administradores ATIVOS existem — o número que trava a inativação. */
+export async function countActiveAdmins(): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("role", "admin")
+    .eq("active", true);
+
+  if (error) throw error;
+  return count ?? 0;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -83,24 +134,38 @@ export async function listUsers(): Promise<AdminUser[]> {
  * decisão diferente de desativar um que ninguém usa. Sem o número, as duas
  * parecem o mesmo clique.
  */
+interface SegmentRow {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  event_segment_links: { events: { id: string; name: string; event_date: string } | null }[] | null;
+  survey_audience_criteria: { surveys: { id: string; title: string } | null }[] | null;
+}
+
+/**
+ * ⚠️ A MESMA COISA PODE APARECER DUAS VEZES NA RESPOSTA, e por isso existe esta
+ * função. Uma enquete pode ter mais de uma linha em `survey_audience_criteria`
+ * apontando para o mesmo público (o editor de público não impede), e aí ela
+ * viria repetida — a tela diria "usado por 2 enquetes" sobre uma enquete só.
+ */
+function dedupe(itens: SegmentUse[]): SegmentUse[] {
+  const vistos = new Set<string>();
+  return itens.filter((item) => (vistos.has(item.id) ? false : (vistos.add(item.id), true)));
+}
+
 export async function listSegments(): Promise<AdminSegment[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("event_segments")
-    .select("id, slug, name, description, active, event_segment_links(count)")
+    .select(
+      "id, slug, name, description, active, event_segment_links(events(id, name, event_date)), survey_audience_criteria(surveys(id, title))",
+    )
     .order("active", { ascending: false })
     .order("name", { ascending: true })
-    .returns<
-      {
-        id: string;
-        slug: string;
-        name: string;
-        description: string | null;
-        active: boolean;
-        event_segment_links: { count: number }[] | null;
-      }[]
-    >();
+    .returns<SegmentRow[]>();
 
   if (error) throw error;
 
@@ -110,7 +175,28 @@ export async function listSegments(): Promise<AdminSegment[]> {
     name: linha.name,
     description: linha.description,
     active: linha.active,
-    eventCount: linha.event_segment_links?.[0]?.count ?? 0,
+    events: dedupe(
+      (linha.event_segment_links ?? [])
+        .map((elo) => elo.events)
+        .filter((evento) => evento !== null)
+        .map((evento) => ({
+          id: evento.id,
+          title: evento.name,
+          href: `/events/${evento.id}`,
+          detail: formatCalendarDate(evento.event_date),
+        })),
+    ),
+    surveys: dedupe(
+      (linha.survey_audience_criteria ?? [])
+        .map((criterio) => criterio.surveys)
+        .filter((enquete) => enquete !== null)
+        .map((enquete) => ({
+          id: enquete.id,
+          title: enquete.title,
+          href: `/surveys/${enquete.id}`,
+          detail: null,
+        })),
+    ),
   }));
 }
 
@@ -361,23 +447,32 @@ export async function getWhatsAppIntegrationStatus(): Promise<WhatsAppIntegratio
 /* Trilha                                                                     */
 /* -------------------------------------------------------------------------- */
 
-export async function listAdminAudit(limit = 30): Promise<AdminAuditEntry[]> {
+export async function listAdminAudit(limit = 30, target?: string): Promise<AdminAuditEntry[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+
+  let consulta = supabase
     .from("admin_audit_logs")
     .select("id, action, target, actor_name, created_at, metadata")
     .order("created_at", { ascending: false })
-    .limit(limit)
-    .returns<
-      {
-        id: string;
-        action: AdminAuditAction;
-        target: string | null;
-        actor_name: string | null;
-        created_at: string;
-        metadata: Record<string, unknown> | null;
-      }[]
-    >();
+    .limit(limit);
+
+  // ⚠️ O ALVO É O E-MAIL, e é por isso que o histórico de alguém pode parecer
+  // incompleto: as linhas gravadas ANTES de uma troca de endereço ficaram com o
+  // endereço antigo. É o preço de a trilha guardar um texto legível em vez de
+  // um id — e é o certo, porque a trilha precisa continuar legível depois que a
+  // conta some.
+  if (target) consulta = consulta.eq("target", target);
+
+  const { data, error } = await consulta.returns<
+    {
+      id: string;
+      action: AdminAuditAction;
+      target: string | null;
+      actor_name: string | null;
+      created_at: string;
+      metadata: Record<string, unknown> | null;
+    }[]
+  >();
 
   if (error) throw error;
 

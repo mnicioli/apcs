@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser, getCurrentUserRole } from "@/lib/auth/current-user";
+import { Lock } from "lucide-react";
+import { getCurrentUser, getCurrentUserRole, isCurrentUserActive } from "@/lib/auth/current-user";
+import { logoutAction } from "@/lib/auth/actions";
+import { Button } from "@/components/ui/button";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import { countPendingLectures } from "@/lib/services/lectures";
 import { countPendingMembershipApplications } from "@/lib/services/membership";
@@ -20,6 +23,40 @@ import { Topbar } from "@/components/layout/topbar";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  /*
+    ⚠️ A CONTA DESLIGADA PARA AQUI, e não com um `redirect` para `/login`.
+
+    O middleware manda quem TEM sessão e abre `/login` de volta para o painel —
+    um redirect daqui entraria em pingue-pongue com ele até o navegador desistir.
+    A sessão só termina quando a pessoa clica em sair, e sair é uma Server Action
+    (POST): fazer isso por um GET automático seria um logout que qualquer imagem
+    de terceiro consegue disparar.
+
+    Enquanto ela não sai, nada vaza: `getCurrentUserRole` já devolveu `viewer`,
+    e no banco `current_app_role()` também — nenhuma policy entrega uma linha.
+    O que esta tela acrescenta é a EXPLICAÇÃO, sem a qual a pessoa veria um
+    sistema vazio e abriria um chamado.
+  */
+  if (!(await isCurrentUserActive())) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center p-6">
+        <div className="border-border bg-card w-full max-w-md rounded-lg border p-6 text-center shadow-sm">
+          <Lock className="text-muted-foreground mx-auto h-8 w-8" aria-hidden="true" />
+          <h1 className="mt-3 text-lg font-semibold">Seu acesso foi desativado</h1>
+          <p className="text-muted-foreground mt-2 text-sm">
+            A conta {user.email} não está mais ativa no sistema da APCS. Se isso não deveria ter
+            acontecido, fale com um administrador.
+          </p>
+          <form action={logoutAction} className="mt-5">
+            <Button type="submit" variant="outline" className="w-full">
+              Sair
+            </Button>
+          </form>
+        </div>
+      </main>
+    );
+  }
 
   const role = await getCurrentUserRole();
   // As contagens em paralelo: são independentes, e somar os tempos de ida ao

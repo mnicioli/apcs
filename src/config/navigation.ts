@@ -17,6 +17,7 @@ import {
   Presentation,
   ScrollText,
   Settings,
+  ShieldCheck,
   Ticket,
   Timer,
   TrendingUp,
@@ -291,6 +292,16 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Usuários",
         href: "/users",
         icon: Users,
+        permission: "users.manage",
+        available: true,
+      },
+      {
+        title: "Matriz de Acesso",
+        href: "/permissions",
+        icon: ShieldCheck,
+        // Mesma permissão de Usuários, e não `settings.manage`: a matriz
+        // responde "quem pode o quê", que é a pergunta de quem administra
+        // pessoas — não a de quem mexe em textos e integrações.
         permission: "users.manage",
         available: true,
       },

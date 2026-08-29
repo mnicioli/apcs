@@ -17,6 +17,10 @@ export const ADMIN_AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
   consent_text_published: "Texto de consentimento publicado",
   setting_updated: "Configuração alterada",
   notification_block_revoked: "Bloqueio de notificação desfeito",
+  user_updated: "Cadastro de usuário editado",
+  user_deactivated: "Conta inativada",
+  user_reactivated: "Conta reativada",
+  user_password_reset: "Recuperação de senha enviada",
 };
 
 /**

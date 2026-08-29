@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
@@ -28,9 +29,9 @@ export const metadata: Metadata = { title: USERS_TITLE };
  *
  * ⚠️ NÃO HÁ BOTÃO DE EXCLUIR, e a ausência é decisão. Apagar um usuário do
  * `auth.users` derruba junto o perfil (cascade) e deixa a trilha de auditoria
- * de todos os módulos apontando para ninguém — "aprovado por [vazio]". Quem
- * saiu da APCS vira `Visualização`, que é acesso a quase nada, e o histórico
- * continua legível. Bloquear o login de vez é operação do painel do Supabase.
+ * de todos os módulos apontando para ninguém — "aprovado por [vazio]". Quem sai
+ * da APCS tem a conta INATIVADA: perde o acesso na hora, inclusive em abas já
+ * abertas, e o histórico continua legível. É em `/users/[id]`.
  */
 export default async function UsersPage() {
   const role = await getCurrentUserRole();
@@ -38,7 +39,10 @@ export default async function UsersPage() {
 
   const [usuarios, trilha] = await Promise.all([listUsers(), listAdminAudit(15)]);
 
-  const admins = usuarios.filter((u) => u.role === "admin").length;
+  // ⚠️ ADMINS **ATIVOS**. Um administrador desligado não administra nada — a
+  // conta dele devolve `viewer` em toda regra do banco. Contá-lo aqui faria o
+  // aviso de "administrador único" sumir justamente quando ele é verdade.
+  const admins = usuarios.filter((u) => u.role === "admin" && u.active).length;
 
   return (
     <div className="space-y-6">
@@ -58,8 +62,8 @@ export default async function UsersPage() {
       */}
       {admins <= 1 && (
         <div className="border-border bg-muted/40 text-muted-foreground rounded-lg border px-4 py-3 text-sm">
-          Há apenas um administrador no sistema. O papel dele não pode ser alterado enquanto for o
-          único — promova outra pessoa primeiro.
+          Há apenas um administrador ativo no sistema. O papel dele não pode ser alterado, e a conta
+          não pode ser inativada, enquanto for o único — promova outra pessoa primeiro.
         </div>
       )}
 
@@ -72,6 +76,7 @@ export default async function UsersPage() {
                   <th className="px-4 py-3 font-medium">Pessoa</th>
                   <th className="px-4 py-3 font-medium">Papel</th>
                   <th className="px-4 py-3 font-medium">O que pode fazer</th>
+                  <th className="px-4 py-3 font-medium">Situação</th>
                   <th className="px-4 py-3 font-medium">No sistema desde</th>
                 </tr>
               </thead>
@@ -82,7 +87,15 @@ export default async function UsersPage() {
                     className="border-border hover:bg-muted/50 border-b last:border-0"
                   >
                     <td className="px-4 py-3">
-                      <span className="font-medium">{usuario.fullName ?? "Sem nome"}</span>
+                      {/* O nome é o caminho para o cadastro. Um botão "editar"
+                          numa coluna extra seria mais um alvo para a mesma
+                          ação, e a linha já tem seletor de papel. */}
+                      <Link
+                        href={`/users/${usuario.id}`}
+                        className="hover:text-primary-strong font-medium hover:underline"
+                      >
+                        {usuario.fullName ?? "Sem nome"}
+                      </Link>
                       {usuario.isSelf && <Badge className="ml-2">você</Badge>}
                       <span className="text-muted-foreground block text-xs">{usuario.email}</span>
                     </td>
@@ -99,6 +112,13 @@ export default async function UsersPage() {
                     </td>
                     <td className="text-muted-foreground px-4 py-3 text-xs">
                       {ROLE_DESCRIPTIONS[usuario.role] ?? "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {usuario.active ? (
+                        <Badge variant="done">Ativa</Badge>
+                      ) : (
+                        <Badge variant="alert">Inativa</Badge>
+                      )}
                     </td>
                     <td className="text-muted-foreground px-4 py-3">
                       {formatDateTime(usuario.createdAt)}

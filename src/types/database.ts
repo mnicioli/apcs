@@ -1588,6 +1588,7 @@ export type Database = {
       };
       profiles: {
         Row: {
+          active: boolean;
           avatar_url: string | null;
           created_at: string;
           email: string;
@@ -1597,6 +1598,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          active?: boolean;
           avatar_url?: string | null;
           created_at?: string;
           email: string;
@@ -1606,6 +1608,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          active?: boolean;
           avatar_url?: string | null;
           created_at?: string;
           email?: string;
@@ -2467,6 +2470,36 @@ export type Database = {
           to: "surveys";
           isOneToOne: true;
           isSetofReturn: false;
+        };
+      };
+      log_password_reset: {
+        Args: { p_email: string };
+        Returns: undefined;
+      };
+      set_user_active: {
+        Args: { p_active: boolean; p_user_id: string };
+        Returns: {
+          active: boolean;
+          avatar_url: string | null;
+          created_at: string;
+          email: string;
+          full_name: string | null;
+          id: string;
+          role: Database["public"]["Enums"]["app_role"];
+          updated_at: string;
+        };
+      };
+      update_user_profile: {
+        Args: { p_email: string; p_full_name: string; p_user_id: string };
+        Returns: {
+          active: boolean;
+          avatar_url: string | null;
+          created_at: string;
+          email: string;
+          full_name: string | null;
+          id: string;
+          role: Database["public"]["Enums"]["app_role"];
+          updated_at: string;
         };
       };
       list_notification_blocks: {
@@ -4524,7 +4557,11 @@ export type Database = {
         | "segment_updated"
         | "consent_text_published"
         | "setting_updated"
-        | "notification_block_revoked";
+        | "notification_block_revoked"
+        | "user_updated"
+        | "user_deactivated"
+        | "user_reactivated"
+        | "user_password_reset";
       member_status: "active" | "inactive" | "suspended";
       membership_application_status: "pending" | "in_review" | "approved" | "rejected";
       membership_audit_action:
@@ -4816,6 +4853,10 @@ export const Constants = {
         "consent_text_published",
         "setting_updated",
         "notification_block_revoked",
+        "user_updated",
+        "user_deactivated",
+        "user_reactivated",
+        "user_password_reset",
       ],
       member_status: ["active", "inactive", "suspended"],
       membership_application_status: ["pending", "in_review", "approved", "rejected"],

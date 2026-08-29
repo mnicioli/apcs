@@ -38,7 +38,7 @@ vi.mock("@/lib/supabase/server", () => ({
         eq: () => ({
           returns: () => ({
             maybeSingle: async () => ({
-              data: papelAtual === null ? null : { role: papelAtual },
+              data: papelAtual === null ? null : { role: papelAtual, active: true },
               error: null,
             }),
           }),
