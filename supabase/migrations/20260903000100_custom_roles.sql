@@ -317,6 +317,50 @@ create trigger profiles_sync_role_key
   for each row execute procedure public.profiles_sync_role_key();
 
 
+-- ⚠️⚠️ A ESCALADA DE PRIVILÉGIO QUE `role_key` ABRIRIA — E QUE ESTA FUNÇÃO FECHA.
+--
+-- A policy `profiles_update_own` (init.sql) deixa cada pessoa editar a PRÓPRIA
+-- linha, e é ela que faz a tela /profile funcionar. Ela não limita COLUNAS.
+-- Quem impedia a autopromoção era este trigger, olhando `role`.
+--
+-- Com `role_key` na tabela, `role` deixou de ser a única porta:
+--
+--   1. a pessoa manda um PATCH em `profiles` com `role_key: 'admin'`;
+--   2. `prevent_role_escalation` roda ANTES (os gatilhos BEFORE disparam em
+--      ordem alfabética, e "prevent_" < "profiles_") e vê `role` intacto — logo,
+--      não levanta nada;
+--   3. `profiles_sync_role_key` roda em seguida e grava `role := 'admin'`.
+--
+-- Fim: administrador. Sem nenhum erro, sem nenhuma linha de log.
+--
+-- A guarda vai AQUI, e não dentro do gatilho de sincronia, porque é aqui que
+-- alguém procura quando pergunta "dá para se autopromover?". O gatilho de
+-- sincronia continua sendo só mecânico.
+create or replace function public.prevent_role_escalation()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+begin
+  if new.role is distinct from old.role and not public.is_admin() then
+    raise exception 'Apenas administradores podem alterar o papel (role) de um usuário.'
+      using errcode = '42501';
+  end if;
+
+  if new.role_key is distinct from old.role_key and not public.is_admin() then
+    raise exception 'Apenas administradores podem alterar o cargo de um usuário.'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$fn$;
+
+comment on function public.prevent_role_escalation() is
+  'Impede autopromocao pela policy profiles_update_own. Cobre as DUAS colunas: role e role_key — mexer numa sem a outra reabre o buraco.';
+
+
 -- ----------------------------------------------------------------------------
 -- 4. RLS — todo mundo LÊ a matriz, ninguém a ESCREVE por fora
 -- ----------------------------------------------------------------------------
