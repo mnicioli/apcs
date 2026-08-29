@@ -27,6 +27,7 @@ import {
   typeDescription,
 } from "@/modules/lecture/lecture.rules";
 import type { Lecture } from "@/modules/lecture/lecture.types";
+import { BroadcastPanel } from "@/components/broadcast/broadcast-panel";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LectureActions } from "../lecture-actions";
@@ -219,6 +220,11 @@ export default async function LectureDetailPage({
       )}
 
       <RequesterCard lecture={lecture} />
+
+      {/* `lectureStatus` vai como prop porque só Palestras tem restrição de
+          ESTADO — divulgar uma palestra cancelada mandaria gente para uma sala
+          vazia. O painel usa isso para explicar por que o botão não aparece. */}
+      <BroadcastPanel source="lecture" sourceId={lecture.id} lectureStatus={lecture.status} />
 
       {canWrite && <LectureHistory entries={audit} />}
     </div>

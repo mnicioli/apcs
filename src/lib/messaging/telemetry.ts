@@ -159,6 +159,59 @@ export function logEventDispatch(
   else console.info(linha);
 }
 
+/**
+ * A DIVULGAÇÃO GENÉRICA — Normativas, Comunicação, Bolsa e Palestras.
+ *
+ * Escopo próprio pelo mesmo motivo de `event.dispatch`: quem investiga "por que
+ * o boletim de sexta não saiu?" filtra por escopo e não quer a divulgação de
+ * evento do mesmo minuto no meio.
+ *
+ * ⚠️ `source` ENTRA NO LOG, e `title` NÃO. Saber que foi uma normativa ajuda a
+ * achar a corrida; o nome dela não acrescenta nada e é conteúdo. As mesmas
+ * proibições de sempre: nunca o telefone inteiro, nunca o nome de quem recebe.
+ */
+export type BroadcastEvent =
+  | "broadcast.started"
+  | "broadcast.finished"
+  | "broadcast.interrupted"
+  | "broadcast.skipped"
+  | "send.ok"
+  | "send.error"
+  | "send.ineligible"
+  | "send.breaker_open";
+
+export interface BroadcastLogFields {
+  correlationId?: string;
+  broadcastId?: string;
+  source?: string;
+  recipientId?: string;
+  providerMessageId?: string;
+  provider?: string;
+  outcome?: string;
+  reason?: string;
+  attempt?: number;
+  count?: number;
+  durationMs?: number;
+  /** Telefone JÁ MASCARADO. Ver `maskPhone`. */
+  phone?: string;
+}
+
+export function logBroadcast(
+  level: "info" | "error",
+  event: BroadcastEvent,
+  fields: BroadcastLogFields = {},
+): void {
+  const linha = JSON.stringify({
+    ts: new Date().toISOString(),
+    scope: "broadcast",
+    event,
+    ...fields,
+  });
+
+  if (level === "error") console.error(linha);
+  else console.info(linha);
+}
+
 export type WhatsAppInboxEvent =
   | "inbox.webhook_received"
   | "inbox.webhook_rejected"

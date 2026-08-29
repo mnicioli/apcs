@@ -3,6 +3,7 @@ import { verifyHmacSignature, WHATSAPP_SIGNATURE_HEADER } from "../signature";
 import type {
   InboundEvent,
   MessagingProvider,
+  OutboundDocumentMessage,
   OutboundImageMessage,
   OutboundTextMessage,
   SendResult,
@@ -240,6 +241,82 @@ export class CloudApiProvider implements MessagingProvider {
         retryable: true,
         code: "no_message_id",
         message: "O fornecedor aceitou a imagem mas não devolveu o id dela.",
+      };
+    }
+
+    return { ok: true, providerMessageId: id };
+  }
+
+  /**
+   * ⚠️ A META CHAMA O CAMPO DE `filename`, tudo minúsculo — e não `fileName`,
+   * como a Z-API. Trocar um pelo outro NÃO dá erro: a API aceita o objeto,
+   * ignora o campo que não conhece e entrega o PDF com o nome que ela inventar.
+   * O defeito só apareceria na conversa de quem recebeu.
+   */
+  async sendDocument(message: OutboundDocumentMessage): Promise<SendResult> {
+    if (!this.config) {
+      return {
+        ok: false,
+        retryable: false,
+        code: "not_configured",
+        message: `Integração de WhatsApp não configurada: falta ${this.missing.join(", ")}.`,
+      };
+    }
+
+    const resultado = await fetchWithTimeout(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${this.config.phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.config.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: message.to,
+          type: "document",
+          document: {
+            link: message.documentUrl,
+            caption: message.caption.slice(0, 1024),
+            filename: message.fileName,
+          },
+        }),
+      },
+    );
+
+    if (!resultado.ok) {
+      return {
+        ok: false,
+        retryable: true,
+        code: resultado.timedOut ? "timeout" : "network",
+        message: resultado.error,
+      };
+    }
+
+    const { response } = resultado;
+    const corpo: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const erro = extrairErro(corpo);
+      return {
+        ok: false,
+        retryable:
+          response.status === 429 ||
+          response.status >= 500 ||
+          (erro.code !== null && !CODIGOS_DEFINITIVOS.has(erro.code)),
+        code: erro.code !== null ? `wa_${erro.code}` : `http_${response.status}`,
+        message: erro.message ?? `O fornecedor respondeu ${response.status}.`,
+      };
+    }
+
+    const id = extrairMessageId(corpo);
+    if (!id) {
+      return {
+        ok: false,
+        retryable: true,
+        code: "no_message_id",
+        message: "O fornecedor aceitou o documento mas não devolveu o id dele.",
       };
     }
 

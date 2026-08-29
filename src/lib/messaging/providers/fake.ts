@@ -3,6 +3,7 @@ import { parseCloudApiWebhook } from "./cloud-api";
 import type {
   InboundEvent,
   MessagingProvider,
+  OutboundDocumentMessage,
   OutboundImageMessage,
   OutboundTextMessage,
   SendResult,
@@ -30,6 +31,7 @@ export class FakeProvider implements MessagingProvider {
 
   readonly sent: OutboundTextMessage[] = [];
   readonly sentImages: OutboundImageMessage[] = [];
+  readonly sentDocuments: OutboundDocumentMessage[] = [];
 
   /** Números que sempre falham, com o motivo. Erro DEFINITIVO. */
   private readonly failFor = new Map<string, string>();
@@ -76,6 +78,7 @@ export class FakeProvider implements MessagingProvider {
   reset() {
     this.sent.length = 0;
     this.sentImages.length = 0;
+    this.sentDocuments.length = 0;
     this.failFor.clear();
     this.failTimes.clear();
     this.downFor = 0;
@@ -145,6 +148,42 @@ export class FakeProvider implements MessagingProvider {
 
     this.sequence += 1;
     this.sentImages.push(message);
+    return { ok: true, providerMessageId: `fake.${this.runId}.${this.sequence}` };
+  }
+
+  /**
+   * Espelha `sendImage`: as MESMAS falhas programadas valem para o anexo. Um
+   * duplo que só soubesse falhar em texto deixaria o caminho do documento sem
+   * teste de erro — que é justamente onde a divulgação de Bolsa e Normativas
+   * vive.
+   *
+   * O registro vai para `sentDocuments`, separado dos outros dois: um teste que
+   * conta mensagens não pode somar um PDF com uma legenda a um texto puro.
+   */
+  async sendDocument(message: OutboundDocumentMessage): Promise<SendResult> {
+    if (this.downFor > 0) {
+      this.downFor -= 1;
+      return {
+        ok: false,
+        retryable: true,
+        code: "http_503",
+        message: "O fornecedor respondeu 503.",
+      };
+    }
+
+    const definitivo = this.failFor.get(message.to);
+    if (definitivo) {
+      return { ok: false, retryable: false, code: "wa_131026", message: definitivo };
+    }
+
+    const restantes = this.failTimes.get(message.to) ?? 0;
+    if (restantes > 0) {
+      this.failTimes.set(message.to, restantes - 1);
+      return { ok: false, retryable: true, code: "timeout", message: "Sem resposta a tempo." };
+    }
+
+    this.sequence += 1;
+    this.sentDocuments.push(message);
     return { ok: true, providerMessageId: `fake.${this.runId}.${this.sequence}` };
   }
 

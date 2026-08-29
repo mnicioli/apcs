@@ -17,6 +17,7 @@ import {
 import { marketHref } from "@/modules/market/market.routes";
 import { isAvailableForChatbot, versionSituation } from "@/modules/market/market.rules";
 import type { MarketBulletinDetail, MarketBulletinVersion } from "@/modules/market/market.types";
+import { BroadcastPanel } from "@/components/broadcast/broadcast-panel";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BulletinFormDialog } from "../bulletin-form-dialog";
@@ -186,6 +187,8 @@ export default async function BulletinHistoryPage({ params }: { params: Promise<
           </CardContent>
         </Card>
       )}
+
+      <BroadcastPanel source="market_bulletin" sourceId={bulletin.id} />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
 import { categoryFromSlug, documentsHref } from "@/modules/document/document.routes";
 import { versionLabel } from "@/modules/document/document.rules";
 import type { DocumentVersion } from "@/modules/document/document.types";
+import { BroadcastPanel } from "@/components/broadcast/broadcast-panel";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UploadVersionDialog } from "../upload-version-dialog";
@@ -166,6 +167,11 @@ export default async function DocumentHistoryPage({
           )}
         </CardContent>
       </Card>
+
+      {/* A divulgação fica DEPOIS do histórico de versões, e não antes: quem
+          abre esta tela vem conferir o documento; divulgar é o passo seguinte,
+          e um painel de envio no topo convidaria a clicar antes de conferir. */}
+      <BroadcastPanel source={category} sourceId={document.id} />
     </div>
   );
 }

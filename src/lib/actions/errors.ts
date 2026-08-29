@@ -83,6 +83,10 @@ export type ActionErrorCode =
   | "cannotDeactivateSelf"
   | "lastActiveAdmin"
   | "emailInUse"
+  | "broadcastNoAudience"
+  | "broadcastEmptyBody"
+  | "broadcastUnknownSegment"
+  | "broadcastNotReady"
   // Caixa de entrada do WhatsApp. Códigos próprios porque o atendente está com
   // a mensagem escrita na tela e precisa saber se o problema é dele (o texto),
   // do associado (o número) ou do sistema (a integração) — as três reações são
@@ -194,6 +198,14 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   lastActiveAdmin:
     "O sistema precisa de pelo menos um administrador ativo. Ative ou promova outra pessoa antes.",
   emailInUse: "Já existe uma conta com este e-mail.",
+  broadcastNoAudience: "Escolha ao menos um público-alvo antes de divulgar.",
+  broadcastEmptyBody: "A mensagem ficou vazia. Confira se o registro tem os dados necessários.",
+  broadcastUnknownSegment:
+    "Um dos públicos escolhidos não existe mais ou foi desativado. Recarregue a página.",
+  // ⚠️ Diz O QUE FALTA, e não só "não pode". Sem versão ativa, divulgar
+  // mandaria a base atrás de um arquivo que a APCS tirou do ar de propósito.
+  broadcastNotReady:
+    "Não há o que divulgar: publique uma versão ativa (ou confirme a palestra) antes.",
   consentVersionExists:
     "Esta versão já existe e não pode ser reescrita — uma autorização vale só para o texto que a pessoa leu. Publique com uma versão nova.",
   membershipConsentRequired:
@@ -315,6 +327,13 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "cannotDeactivateSelf" };
     case "AD005":
       return { code: "lastActiveAdmin" };
+    // Classe `BC` — divulgação genérica. Ver 20260901000100_broadcasts.sql.
+    case "BC001":
+      return { code: "broadcastNoAudience" };
+    case "BC002":
+      return { code: "broadcastEmptyBody" };
+    case "BC003":
+      return { code: "broadcastUnknownSegment" };
     // Classe `WA` — a caixa de entrada do WhatsApp, pela mesma razão das
     // anteriores: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260822000000_create_whatsapp_inbox.sql.

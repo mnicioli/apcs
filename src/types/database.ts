@@ -8,6 +8,167 @@ export type Database = {
   };
   public: {
     Tables: {
+      broadcast_recipients: {
+        Row: {
+          attempts: number;
+          broadcast_id: string;
+          created_at: string;
+          id: string;
+          member_id: string | null;
+          member_name: string | null;
+          member_phone: string;
+          provider_message_id: string | null;
+          status: Database["public"]["Enums"]["broadcast_recipient_status"];
+          last_attempt_at: string | null;
+          last_error: string | null;
+        };
+        Insert: {
+          attempts?: number;
+          broadcast_id: string;
+          created_at?: string;
+          id?: string;
+          last_attempt_at?: string | null;
+          last_error?: string | null;
+          member_id?: string | null;
+          member_name?: string | null;
+          member_phone: string;
+          provider_message_id?: string | null;
+          status?: Database["public"]["Enums"]["broadcast_recipient_status"];
+        };
+        Update: {
+          attempts?: number;
+          broadcast_id?: string;
+          created_at?: string;
+          id?: string;
+          last_attempt_at?: string | null;
+          last_error?: string | null;
+          member_id?: string | null;
+          member_name?: string | null;
+          member_phone?: string;
+          provider_message_id?: string | null;
+          status?: Database["public"]["Enums"]["broadcast_recipient_status"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_recipients_broadcast_id_fkey";
+            columns: ["broadcast_id"];
+            isOneToOne: false;
+            referencedRelation: "broadcasts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcast_recipients_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "members";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      broadcast_segments: {
+        Row: {
+          broadcast_id: string;
+          segment_id: string;
+        };
+        Insert: {
+          broadcast_id: string;
+          segment_id: string;
+        };
+        Update: {
+          broadcast_id?: string;
+          segment_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_segments_broadcast_id_fkey";
+            columns: ["broadcast_id"];
+            isOneToOne: false;
+            referencedRelation: "broadcasts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcast_segments_segment_id_fkey";
+            columns: ["segment_id"];
+            isOneToOne: false;
+            referencedRelation: "event_segments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      broadcasts: {
+        Row: {
+          body: string;
+          created_by: string | null;
+          created_by_name: string | null;
+          finished_at: string | null;
+          id: string;
+          last_error: string | null;
+          media_bucket: string | null;
+          media_filename: string | null;
+          media_mime: string | null;
+          media_path: string | null;
+          source: Database["public"]["Enums"]["broadcast_source"];
+          source_id: string;
+          started_at: string;
+          status: Database["public"]["Enums"]["broadcast_status"];
+          title: string;
+          total_blocked: number;
+          total_errors: number;
+          total_recipients: number;
+          total_sent: number;
+        };
+        Insert: {
+          body: string;
+          created_by?: string | null;
+          created_by_name?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          last_error?: string | null;
+          media_bucket?: string | null;
+          media_filename?: string | null;
+          media_mime?: string | null;
+          media_path?: string | null;
+          source: Database["public"]["Enums"]["broadcast_source"];
+          source_id: string;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["broadcast_status"];
+          title: string;
+          total_blocked?: number;
+          total_errors?: number;
+          total_recipients?: number;
+          total_sent?: number;
+        };
+        Update: {
+          body?: string;
+          created_by?: string | null;
+          created_by_name?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          last_error?: string | null;
+          media_bucket?: string | null;
+          media_filename?: string | null;
+          media_mime?: string | null;
+          media_path?: string | null;
+          source?: Database["public"]["Enums"]["broadcast_source"];
+          source_id?: string;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["broadcast_status"];
+          title?: string;
+          total_blocked?: number;
+          total_errors?: number;
+          total_recipients?: number;
+          total_sent?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "broadcasts_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       chat_contacts: {
         Row: {
           city: string | null;
@@ -2472,6 +2633,59 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      broadcast_audience_size: {
+        Args: { p_segment_ids: string[] };
+        Returns: { reachable: number; blocked: number }[];
+      };
+      broadcast_is_writer: {
+        Args: Record<PropertyKey, never>;
+        Returns: boolean;
+      };
+      start_broadcast: {
+        Args: {
+          p_body: string;
+          p_media_bucket?: string | null;
+          p_media_filename?: string | null;
+          p_media_mime?: string | null;
+          p_media_path?: string | null;
+          p_segment_ids: string[];
+          p_source: Database["public"]["Enums"]["broadcast_source"];
+          p_source_id: string;
+          p_title: string;
+        };
+        Returns: { broadcast_id: string; queued: number; blocked: number }[];
+      };
+      claim_broadcast_recipients: {
+        Args: { p_broadcast_id: string; p_limit?: number };
+        Returns: {
+          id: string;
+          member_id: string | null;
+          member_name: string | null;
+          member_phone: string;
+          attempts: number;
+        }[];
+      };
+      settle_broadcast_recipient: {
+        Args: {
+          p_error?: string | null;
+          p_ok: boolean;
+          p_provider_message_id?: string | null;
+          p_recipient_id: string;
+        };
+        Returns: undefined;
+      };
+      release_stale_broadcast_recipients: {
+        Args: { p_broadcast_id: string; p_older_than?: unknown };
+        Returns: number;
+      };
+      finish_broadcast: {
+        Args: { p_broadcast_id: string; p_last_error?: string | null };
+        Returns: Database["public"]["Tables"]["broadcasts"]["Row"];
+      };
+      retry_failed_broadcast_recipients: {
+        Args: { p_broadcast_id: string; p_max_attempts?: number };
+        Returns: number;
+      };
       log_password_reset: {
         Args: { p_email: string };
         Returns: undefined;
@@ -4495,6 +4709,9 @@ export type Database = {
         | "version_viewed"
         | "version_downloaded";
       document_category: "normative" | "communication";
+      broadcast_recipient_status: "pending" | "sending" | "sent" | "error" | "blocked";
+      broadcast_source: "normative" | "communication" | "market_bulletin" | "lecture";
+      broadcast_status: "running" | "done" | "failed";
       document_version_status: "active" | "inactive";
       event_audit_action:
         | "event_created"
@@ -4785,6 +5002,9 @@ export const Constants = {
         "version_downloaded",
       ],
       document_category: ["normative", "communication"],
+      broadcast_recipient_status: ["pending", "sending", "sent", "error", "blocked"],
+      broadcast_source: ["normative", "communication", "market_bulletin", "lecture"],
+      broadcast_status: ["running", "done", "failed"],
       document_version_status: ["active", "inactive"],
       event_audit_action: [
         "event_created",

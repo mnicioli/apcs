@@ -6,6 +6,7 @@ import type {
   InboundMedia,
   InboundMediaKind,
   MessagingProvider,
+  OutboundDocumentMessage,
   OutboundImageMessage,
   OutboundTextMessage,
   SendResult,
@@ -262,6 +263,80 @@ export class ZApiProvider implements MessagingProvider {
         retryable: true,
         code: "no_message_id",
         message: "O fornecedor aceitou a imagem mas não devolveu o id dela.",
+      };
+    }
+
+    return { ok: true, providerMessageId: id };
+  }
+
+  /**
+   * ⚠️ A EXTENSÃO VAI NO CAMINHO DA URL, e não é detalhe da Z-API: o endpoint
+   * dela é `send-document/{extensao}`. Mandar sempre "pdf" seria mentir no dia
+   * em que a APCS publicar um .docx — e o fornecedor entregaria um arquivo que
+   * não abre. A extensão sai do nome do arquivo; sem nome utilizável, cai em
+   * "pdf", que é o que este sistema publica hoje.
+   */
+  async sendDocument(message: OutboundDocumentMessage): Promise<SendResult> {
+    if (!this.config) {
+      return {
+        ok: false,
+        retryable: false,
+        code: "not_configured",
+        message: `Integração de WhatsApp não configurada: falta ${this.missing.join(", ")}.`,
+      };
+    }
+
+    const extensao = (message.fileName.split(".").pop() ?? "").toLowerCase();
+    const caminho = /^[a-z0-9]{1,5}$/.test(extensao) ? extensao : "pdf";
+
+    const resultado = await fetchWithTimeout(
+      this.endpoint(`send-document/${caminho}`),
+      {
+        method: "POST",
+        headers: {
+          "Client-Token": this.config.clientToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: message.to,
+          document: message.documentUrl,
+          fileName: message.fileName,
+          caption: message.caption,
+        }),
+      },
+      // Mesma folga da imagem: a Z-API BAIXA o arquivo antes de responder, e um
+      // boletim de vários megabytes não cabe em 15 segundos.
+      IMAGE_SEND_TIMEOUT_MS,
+    );
+
+    if (!resultado.ok) {
+      return {
+        ok: false,
+        retryable: true,
+        code: resultado.timedOut ? "timeout" : "network",
+        message: resultado.error,
+      };
+    }
+
+    const { response } = resultado;
+    const corpo: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        retryable: response.status === 429 || response.status >= 500,
+        code: `zapi_http_${response.status}`,
+        message: extrairErro(corpo) ?? `O fornecedor respondeu ${response.status}.`,
+      };
+    }
+
+    const id = extrairMessageId(corpo);
+    if (!id) {
+      return {
+        ok: false,
+        retryable: true,
+        code: "no_message_id",
+        message: "O fornecedor aceitou o documento mas não devolveu o id dele.",
       };
     }
 

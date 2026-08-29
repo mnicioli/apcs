@@ -48,6 +48,35 @@ export interface OutboundImageMessage {
 }
 
 /**
+ * Um DOCUMENTO (PDF) com legenda.
+ *
+ * ⚠️ É O ANEXO, E NÃO UM LINK NO TEXTO. Uma normativa ou um boletim de preços
+ * chega para o associado no WhatsApp, e ele não tem login no CRM: um link para
+ * uma tela autenticada seria um beco sem saída, e um link assinado colado no
+ * corpo da mensagem é um endereço enorme que o WhatsApp encurta mal e que
+ * qualquer pessoa reencaminha sem saber que é uma credencial.
+ *
+ * ⚠️ `fileName` VIAJA JUNTO porque é o que a pessoa vê na conversa e o que ela
+ * vai procurar seis meses depois. Sem ele, a Z-API entrega algo como
+ * "documento.pdf" — e a caixa de entrada de quem recebe cinco boletins por ano
+ * fica com cinco arquivos de nome igual.
+ *
+ * ⚠️ `documentUrl` PRECISA SER ALCANÇÁVEL PELO FORNECEDOR, não por nós. Quem
+ * baixa o arquivo é o servidor da Z-API, então uma URL assinada precisa
+ * continuar válida no momento em que ELE for buscar — não no momento em que a
+ * montamos. Ver como `drainBroadcastQueue` assina, uma vez por corrida.
+ */
+export interface OutboundDocumentMessage {
+  to: string;
+  documentUrl: string;
+  /** Nome que aparece na conversa. Com a extensão. */
+  fileName: string;
+  /** O texto que vai junto do anexo. Vazio manda o arquivo sozinho. */
+  caption: string;
+  correlationId: string;
+}
+
+/**
  * ⚠️ `retryable` NÃO É OPINIÃO DO CHAMADOR — é o adaptador traduzindo o que o
  * fornecedor disse.
  *
@@ -155,6 +184,16 @@ export interface MessagingProvider {
    * isso pelo `SendResult`, no mesmo vocabulário de todo o resto.
    */
   sendImage(message: OutboundImageMessage): Promise<SendResult>;
+
+  /**
+   * Manda um documento (PDF) com legenda.
+   *
+   * Obrigatório na porta pelo mesmo motivo de `sendImage`: quem não sabe mandar
+   * anexo diz isso pelo `SendResult`, e não pela ausência do método — assim a
+   * decisão de cair para texto puro é tomada num lugar só, pelo chamador que
+   * já trata `ok: false`.
+   */
+  sendDocument(message: OutboundDocumentMessage): Promise<SendResult>;
 
   /** §18. A assinatura do webhook. Sem assinatura configurada → inválido. */
   verifySignature(rawBody: string, headers: Headers): SignatureCheck;
