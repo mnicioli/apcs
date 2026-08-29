@@ -102,10 +102,22 @@ const EDICAO = {
   allowsResponseChange: false,
 };
 
+/**
+ * ⚠️ O ENCERRAMENTO É 23:55, E ERA 23:59 ATÉ A GRADE DE 5 MINUTOS EXISTIR.
+ *
+ * Vale registrar por que mudou, porque a troca não é cosmética: “fechar a urna
+ * às 23:59” é o jeito idiomático de dizer “no fim do dia”, e a política de
+ * horários de 5 em 5 minutos passou a recusá-lo. 23:55 diz a mesma coisa em
+ * termos práticos — cinco minutos a menos numa enquete que fica dias aberta.
+ *
+ * Se um dia alguém precisar do minuto exato num agendamento, o lugar de
+ * afrouxar é o schema de agendamento em survey.schema.ts; este comentário é
+ * onde a decisão fica registrada.
+ */
 const AGENDAMENTO = {
   scheduledAt: "2026-09-01T09:00:00Z",
   startsAt: "2026-09-01T00:00:00Z",
-  endsAt: "2026-09-10T23:59:00Z",
+  endsAt: "2026-09-10T23:55:00Z",
 };
 
 const PUBLICO = [{ dimension: "all" as const }];

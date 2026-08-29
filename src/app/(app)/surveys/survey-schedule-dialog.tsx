@@ -7,6 +7,7 @@ import { ACTION_ERROR_MESSAGES, type ActionResult } from "@/lib/actions/errors";
 import { audienceSummary } from "@/modules/survey/survey.labels";
 import type { SurveyScheduleInput } from "@/modules/survey/survey.schema";
 import type { SurveyAudienceCriterion, SurveyWithQuestion } from "@/modules/survey/survey.types";
+import { TIME_STEP_SECONDS } from "@/lib/time/step";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -144,6 +145,7 @@ export function SurveyScheduleDialog({
             <Input
               id={sendId}
               type="datetime-local"
+              step={TIME_STEP_SECONDS}
               value={scheduledAt}
               disabled={isPending}
               aria-invalid={noPassado || envioAntesDoInicio}
@@ -156,6 +158,7 @@ export function SurveyScheduleDialog({
             <Input
               id={startId}
               type="datetime-local"
+              step={TIME_STEP_SECONDS}
               value={startsAt}
               disabled={isPending}
               onChange={(event) => setStartsAt(event.target.value)}
@@ -170,6 +173,7 @@ export function SurveyScheduleDialog({
             <Input
               id={endId}
               type="datetime-local"
+              step={TIME_STEP_SECONDS}
               value={endsAt}
               disabled={isPending}
               aria-invalid={janelaInvalida}

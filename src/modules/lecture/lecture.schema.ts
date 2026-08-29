@@ -6,6 +6,7 @@ import {
   LECTURE_STATUSES,
   LECTURE_TYPES,
 } from "./lecture.types";
+import { isOnTimeStep, TIME_STEP_MESSAGE } from "@/lib/time/step";
 
 /**
  * Contratos de entrada de Palestras. Os mesmos schemas rodam no cliente (React
@@ -36,10 +37,28 @@ export const lectureDateSchema = z
     return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
   }, "Data inválida.");
 
-/** Hora no formato HH:MM, que é o que o `<input type="time">` produz. */
+/**
+ * Hora no formato HH:MM, que é o que o `<input type="time">` produz.
+ *
+ * ⚠️ O PASSO DE 5 MINUTOS É VALIDADO AQUI, e não só no `step` do campo. Os
+ * formulários são `noValidate` (as mensagens são do Zod, não do navegador),
+ * então `step` mexe apenas na LISTA que o seletor oferece — quem digitar 08:07
+ * direto na caixa passaria batido. A regra de verdade é esta.
+ *
+ * ⚠️ NÃO HÁ CHECK EQUIVALENTE NO BANCO, pela mesma razão de Eventos: uma
+ * palestra antiga gravada com 08:07 faria o CHECK recusar QUALQUER update
+ * daquela linha — mudar o tema falharia por causa do horário. É política de
+ * apresentação, não invariante de integridade.
+ *
+ * Consequência prática: uma palestra já marcada em minuto fora do passo vai
+ * pedir o ajuste do horário na primeira vez que for REAGENDADA. O cadastro em
+ * si não pede, porque o formulário de edição não mexe em data nem hora — elas
+ * saem por "Reagendar".
+ */
 const timeSchema = z
   .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Informe um horário válido (HH:MM).");
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Informe um horário válido (HH:MM).")
+  .refine(isOnTimeStep, { message: TIME_STEP_MESSAGE });
 
 /** Campo de hora opcional: string vazia significa "não informado". */
 const optionalTimeSchema = z.union([timeSchema, z.literal("")]).optional();

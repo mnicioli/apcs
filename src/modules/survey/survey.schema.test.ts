@@ -6,6 +6,7 @@ import {
   surveyQuestionSchema,
   surveyReplySchema,
   surveyResponseSchema,
+  surveyFiltersSchema,
   surveyScheduleSchema,
 } from "./survey.schema";
 
@@ -250,5 +251,46 @@ describe("os contratos do chatbot (§73)", () => {
     expect(surveyReplySchema.safeParse({ ...base, reply: "3" }).success).toBe(true);
     expect(surveyReplySchema.safeParse({ ...base, reply: "" }).success).toBe(false);
     expect(surveyReplySchema.safeParse({ ...base, reply: "x".repeat(201) }).success).toBe(false);
+  });
+});
+
+describe("agendamento de 5 em 5 minutos", () => {
+  /**
+   * A mesma grade de Eventos e Palestras, aplicada ao INSTANTE. Enquetes marcam
+   * `datetime-local`, não `time`, então quem decide é `isInstantOnTimeStep` —
+   * que lê os minutos em UTC para sobreviver à conversão de fuso.
+   */
+  it("aceita um agendamento na grade", () => {
+    const r = surveyCoreSchema.safeParse({
+      ...BASE,
+      startsAt: "2026-09-01T12:00:00.000Z",
+      endsAt: "2026-09-10T23:55:00.000Z",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("recusa um agendamento fora da grade", () => {
+    const r = surveyCoreSchema.safeParse({
+      ...BASE,
+      startsAt: "2026-09-01T12:00:00.000Z",
+      endsAt: "2026-09-10T23:59:00.000Z",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  /**
+   * ⚠️ O TESTE QUE IMPEDE A REGRA DE VAZAR PARA O FILTRO DA LISTA.
+   *
+   * `surveyFiltersSchema` usa o instante SEM a grade de propósito: o campo "até"
+   * do filtro vira `AAAA-MM-DDT23:59:59.999Z` — o dia inteiro, que é o que quem
+   * filtra "até 20/08" espera. Se alguém "simplificar" pondo o passo dentro do
+   * `instantSchema`, a lista de enquetes para de filtrar por data.
+   */
+  it("não vale para o filtro da lista, que precisa do fim do dia", () => {
+    const r = surveyFiltersSchema.safeParse({
+      from: "2026-09-01T00:00:00.000Z",
+      to: "2026-09-10T23:59:59.999Z",
+    });
+    expect(r.success).toBe(true);
   });
 });

@@ -13,9 +13,9 @@ import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
 import {
   createEventFormSchema,
   editEventFormSchema,
-  TIME_STEP_SECONDS,
   type EventFormData,
 } from "@/modules/event/event.schema";
+import { TIME_STEP_HINT, TIME_STEP_SECONDS } from "@/lib/time/step";
 import type { EventSegment, EventSummary } from "@/modules/event/event.types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -275,7 +275,7 @@ export function EventForm({
               label="Hora de início"
               required
               error={errors.startTime?.message}
-              hint="De 5 em 5 minutos."
+              hint={TIME_STEP_HINT}
             >
               <Input
                 id={startId}
@@ -291,7 +291,7 @@ export function EventForm({
               id={endId}
               label="Hora de término"
               error={errors.endTime?.message}
-              hint="Opcional. De 5 em 5 minutos."
+              hint={`Opcional. ${TIME_STEP_HINT}`}
             >
               <Input
                 id={endId}

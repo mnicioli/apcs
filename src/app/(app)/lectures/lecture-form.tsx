@@ -29,6 +29,7 @@ import {
   LECTURE_TYPES,
   type Lecture,
 } from "@/modules/lecture/lecture.types";
+import { TIME_STEP_HINT, TIME_STEP_SECONDS } from "@/lib/time/step";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -300,19 +301,35 @@ function CreateLectureForm({
             />
           </Field>
 
-          <Field id={startId} label="Hora de início" error={errors.startTime?.message}>
+          {/* `step` em SEGUNDOS — é assim que o `<input type="time">` mede.
+              300 s faz o seletor listar 00, 05, 10... 55. Ele muda só a LISTA:
+              o formulário é `noValidate`, então quem digitar 08:07 na caixa é
+              barrado pelo Zod. Ver `timeSchema` em lecture.schema.ts. */}
+          <Field
+            id={startId}
+            label="Hora de início"
+            error={errors.startTime?.message}
+            hint={TIME_STEP_HINT}
+          >
             <Input
               id={startId}
               type="time"
+              step={TIME_STEP_SECONDS}
               aria-invalid={!!errors.startTime}
               {...register("startTime")}
             />
           </Field>
 
-          <Field id={endId} label="Hora de término" error={errors.endTime?.message}>
+          <Field
+            id={endId}
+            label="Hora de término"
+            error={errors.endTime?.message}
+            hint={TIME_STEP_HINT}
+          >
             <Input
               id={endId}
               type="time"
+              step={TIME_STEP_SECONDS}
               aria-invalid={!!errors.endTime}
               {...register("endTime")}
             />

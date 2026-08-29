@@ -8,6 +8,7 @@ import { rescheduleLectureAction } from "@/lib/actions/lectures";
 import { formatCalendarDate, formatTimeRange } from "@/lib/utils";
 import { shiftedEndTime } from "@/modules/lecture/lecture.calendar";
 import type { Lecture, LectureConflict } from "@/modules/lecture/lecture.types";
+import { TIME_STEP_SECONDS } from "@/lib/time/step";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -179,6 +180,7 @@ export function LectureScheduleDialog({
               <Input
                 id={startId}
                 type="time"
+                step={TIME_STEP_SECONDS}
                 value={startTime}
                 disabled={isPending}
                 aria-invalid={terminoSemInicio}
@@ -191,6 +193,7 @@ export function LectureScheduleDialog({
               <Input
                 id={endId}
                 type="time"
+                step={TIME_STEP_SECONDS}
                 value={endTime}
                 disabled={isPending}
                 aria-invalid={horarioInvertido}

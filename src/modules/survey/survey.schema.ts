@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isAudienceDimensionAvailable } from "./survey.rules";
 import { SURVEY_AUDIENCE_DIMENSIONS, SURVEY_SORT_FIELDS, SURVEY_STATUSES } from "./survey.types";
+import { isInstantOnTimeStep, TIME_STEP_MESSAGE } from "@/lib/time/step";
 
 /**
  * Contratos de entrada de Enquetes. Os mesmos schemas rodam no cliente (React
@@ -48,6 +49,24 @@ const instantSchema = z
       !Number.isNaN(reconstruida.getTime()) && reconstruida.toISOString().startsWith(parteData)
     );
   }, "Data inválida.");
+
+/**
+ * O instante de um AGENDAMENTO — o mesmo de cima, preso à grade de 5 minutos.
+ *
+ * ⚠️ É UM SCHEMA SEPARADO, E ISSO NÃO É ZELO: `instantSchema` também valida o
+ * `from`/`to` do filtro da lista, e ali o "até" é montado como
+ * `AAAA-MM-DDT23:59:59.999Z` — o dia inteiro, como quem filtra "até 20/08"
+ * espera. O minuto 59 não está na grade de 5. Se a regra do passo entrasse no
+ * `instantSchema`, o filtro da lista de enquetes pararia de funcionar por causa
+ * de uma política que só diz respeito a quem MARCA horário.
+ *
+ * ⚠️ Os minutos são lidos em UTC (ver `isInstantOnTimeStep`), porque o que
+ * chega aqui já passou por `fromLocalInput` no formulário e virou instante
+ * absoluto.
+ */
+const scheduledInstantSchema = instantSchema.refine(isInstantOnTimeStep, {
+  message: TIME_STEP_MESSAGE,
+});
 
 /** Aceita string vazia como "não informado", em vez de exigir `undefined`. */
 function optional<T extends z.ZodTypeAny>(schema: T) {
@@ -138,9 +157,9 @@ export const surveyCoreSchema = z
       .max(500, "Pergunta muito longa (máximo de 500 caracteres)."),
     options: surveyOptionsSchema,
 
-    startsAt: optional(instantSchema),
-    endsAt: optional(instantSchema),
-    scheduledAt: optional(instantSchema),
+    startsAt: optional(scheduledInstantSchema),
+    endsAt: optional(scheduledInstantSchema),
+    scheduledAt: optional(scheduledInstantSchema),
 
     isAnonymous: z.boolean().default(false),
     allowsResponseChange: z.boolean().default(false),
@@ -184,9 +203,9 @@ export const surveyDetailsSchema = z
     description: optional(
       z.string().trim().max(2000, "Descrição muito longa (máximo de 2000 caracteres)."),
     ),
-    startsAt: optional(instantSchema),
-    endsAt: optional(instantSchema),
-    scheduledAt: optional(instantSchema),
+    startsAt: optional(scheduledInstantSchema),
+    endsAt: optional(scheduledInstantSchema),
+    scheduledAt: optional(scheduledInstantSchema),
     isAnonymous: z.boolean().default(false),
     allowsResponseChange: z.boolean().default(false),
   })
@@ -299,9 +318,9 @@ export type SurveyAudienceInput = z.input<typeof surveyAudienceSchema>;
 
 export const surveyScheduleSchema = z
   .object({
-    scheduledAt: instantSchema,
-    startsAt: optional(instantSchema),
-    endsAt: instantSchema,
+    scheduledAt: scheduledInstantSchema,
+    startsAt: optional(scheduledInstantSchema),
+    endsAt: scheduledInstantSchema,
   })
   .refine((d) => !d.startsAt || Date.parse(d.endsAt) > Date.parse(d.startsAt), {
     message: "A data de encerramento deve ser posterior à data de início.",

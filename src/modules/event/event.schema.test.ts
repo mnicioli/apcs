@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
+import { TIME_STEP_MINUTES, TIME_STEP_SECONDS } from "@/lib/time/step";
 import {
   createEventFormSchema,
   createEventSchema,
@@ -9,8 +10,6 @@ import {
   imageExtensionOf,
   isSafeHttpUrl,
   MAX_IMAGE_SIZE_BYTES,
-  TIME_STEP_MINUTES,
-  TIME_STEP_SECONDS,
   updateEventSchema,
   validateImageCandidate,
 } from "./event.schema";

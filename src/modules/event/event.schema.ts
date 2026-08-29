@@ -26,6 +26,7 @@ export {
   type AcceptedImageMime,
   type ImageUploadIssue,
 } from "@/lib/files/image";
+import { isOnTimeStep, TIME_STEP_MESSAGE } from "@/lib/time/step";
 
 /**
  * Data do evento: AAAA-MM-DD, o formato que o `<input type="date">` produz e que
@@ -42,18 +43,6 @@ export const eventDateSchema = z
     const parsed = new Date(`${value}T00:00:00Z`);
     return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
   }, "Data do evento inválida.");
-
-/**
- * O PASSO DO RELÓGIO: de cinco em cinco minutos.
- *
- * ⚠️ SÃO DOIS NÚMEROS PARA A MESMA REGRA porque quem os consome fala línguas
- * diferentes: o `<input type="time">` mede `step` em SEGUNDOS, e o resto do
- * mundo pensa em minutos. Derivar um do outro é o que impede alguém mudar a
- * política para 10 minutos no formulário e esquecer da validação — e o sintoma
- * seria um seletor que oferece 08:10 e uma action que recusa.
- */
-export const TIME_STEP_MINUTES = 5;
-export const TIME_STEP_SECONDS = TIME_STEP_MINUTES * 60;
 
 /**
  * Hora no formato HH:MM, que é o que o `<input type="time">` produz.
@@ -73,9 +62,7 @@ export const TIME_STEP_SECONDS = TIME_STEP_MINUTES * 60;
 const timeSchema = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Informe um horário válido (HH:MM).")
-  .refine((value) => Number(value.slice(3, 5)) % TIME_STEP_MINUTES === 0, {
-    message: `Escolha um horário de ${TIME_STEP_MINUTES} em ${TIME_STEP_MINUTES} minutos (00, 05, 10... 55).`,
-  });
+  .refine(isOnTimeStep, { message: TIME_STEP_MESSAGE });
 
 /**
  * O link de inscrição — DADO EXTERNO NÃO CONFIÁVEL.

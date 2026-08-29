@@ -336,3 +336,38 @@ describe("listagem e calendário (§31, §48, §49)", () => {
     expect(lectureCalendarSchema.safeParse({ startDate: "2026-09-01" }).success).toBe(false);
   });
 });
+
+describe("horários de 5 em 5 minutos", () => {
+  /**
+   * A mesma grade de Eventos e Enquetes, na mesma função compartilhada
+   * (`src/lib/time/step.ts`). Aqui se prova que Palestras a usa de verdade —
+   * o `step` do campo não valida nada, porque os formulários são `noValidate`.
+   */
+  it("aceita o horário na grade", () => {
+    expect(lectureCoreSchema.safeParse({ ...NUCLEO, startTime: "08:00" }).success).toBe(true);
+    expect(lectureCoreSchema.safeParse({ ...NUCLEO, startTime: "08:45" }).success).toBe(true);
+  });
+
+  it("recusa o horário fora da grade", () => {
+    expect(lectureCoreSchema.safeParse({ ...NUCLEO, startTime: "08:07" }).success).toBe(false);
+    expect(
+      lectureCoreSchema.safeParse({ ...NUCLEO, startTime: "08:00", endTime: "09:23" }).success,
+    ).toBe(false);
+  });
+
+  /**
+   * ⚠️ O REAGENDAMENTO É ONDE ISSO APARECE PARA QUEM JÁ TEM PALESTRA MARCADA.
+   * O formulário de edição não mexe em data nem hora — elas saem por
+   * "Reagendar" —, então é este schema que vai pedir o ajuste de uma palestra
+   * antiga gravada em minuto quebrado.
+   */
+  it("vale também no reagendamento", () => {
+    const base = { lectureId: "3f1b7c9e-2a4d-4f8b-9c1e-0d5a6b7c8e9f", eventDate: "2026-09-10" };
+    expect(rescheduleLectureSchema.safeParse({ ...base, startTime: "14:30" }).success).toBe(true);
+    expect(rescheduleLectureSchema.safeParse({ ...base, startTime: "14:33" }).success).toBe(false);
+  });
+
+  it("não atrapalha o horário em branco, que é opcional", () => {
+    expect(lectureCoreSchema.safeParse({ ...NUCLEO, startTime: "" }).success).toBe(true);
+  });
+});
