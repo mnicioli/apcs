@@ -3176,6 +3176,7 @@ export type Database = {
         }[];
       };
       is_admin: { Args: never; Returns: boolean };
+      is_notification_blocked: { Args: { p_phone: string }; Returns: boolean };
       lock_document: { Args: { p_document_id: string }; Returns: undefined };
       lock_event: { Args: { p_event_id: string }; Returns: undefined };
       lock_lecture: { Args: { p_lecture_id: string }; Returns: undefined };
@@ -3249,27 +3250,20 @@ export type Database = {
         Args: { p_date: string };
         Returns: string;
       };
+      member_notification_status: {
+        Args: { p_member_id: string };
+        Returns: {
+          opted_out: boolean;
+          opted_out_at: string;
+          source: string;
+        }[];
+      };
       membership_ip_hourly_limit: { Args: never; Returns: number };
       membership_is_reader: { Args: never; Returns: boolean };
       membership_is_writer: { Args: never; Returns: boolean };
       next_lecture_protocol: { Args: never; Returns: string };
       next_membership_protocol: { Args: never; Returns: string };
-      is_notification_blocked: { Args: { p_phone: string }; Returns: boolean };
-      member_notification_status: {
-        Args: { p_member_id: string };
-        Returns: { opted_out: boolean; opted_out_at: string | null; source: string | null }[];
-      };
       notification_phone_key: { Args: { p_phone: string }; Returns: string };
-      register_notification_opt_out: {
-        Args: {
-          p_channel?: Database["public"]["Enums"]["survey_channel"];
-          p_contact_id?: string;
-          p_note?: string;
-          p_phone: string;
-          p_source?: string;
-        };
-        Returns: string;
-      };
       open_survey_context: {
         Args: {
           p_channel: Database["public"]["Enums"]["survey_channel"];
@@ -3383,6 +3377,16 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      register_notification_opt_out: {
+        Args: {
+          p_channel?: Database["public"]["Enums"]["survey_channel"];
+          p_contact_id?: string;
+          p_note?: string;
+          p_phone: string;
+          p_source?: string;
+        };
+        Returns: string;
       };
       register_survey_opt_out: {
         Args: {
