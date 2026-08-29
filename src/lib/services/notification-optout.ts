@@ -31,10 +31,40 @@ import type { InboundEvent, MessagingProvider } from "@/lib/messaging/messaging.
  * Então o webhook chama este primeiro e RETIRA da lista o que foi tratado aqui.
  */
 
-/** O que a pessoa recebe de volta. Uma frase, e a confirmação de que parou. */
-const OPT_OUT_CONFIRMED =
+/**
+ * O que a pessoa recebe de volta. Uma frase, e a confirmação de que parou.
+ *
+ * ⚠️ O TEXTO É EDITÁVEL EM CONFIGURAÇÕES, e esta constante virou o PADRÃO — não
+ * o valor. Se a linha sumir do banco (uma migration não aplicada, uma
+ * restauração parcial), é ela que impede a APCS de mandar uma mensagem vazia
+ * para quem acabou de pedir para não receber nada. A pessoa concluiria que o
+ * pedido não funcionou, e a saída restante seria bloquear o número.
+ */
+const OPT_OUT_CONFIRMED_FALLBACK =
   "Pronto. Você não receberá mais mensagens da APCS. " +
   "Se mudar de ideia, é só falar com a associação.";
+
+/**
+ * Lê o texto configurado, com o padrão acima como rede.
+ *
+ * Uma consulta por lote do webhook (não por pessoa): o texto é o mesmo para
+ * todo mundo, e buscá-lo por destinatário seria uma ida ao banco por mensagem.
+ */
+async function readOptOutText(admin: ReturnType<typeof createAdminClient>): Promise<string> {
+  const { data, error } = await admin
+    .from("app_settings")
+    .select("value")
+    .eq("key", "whatsapp.opt_out_confirmed")
+    .maybeSingle<{ value: string }>();
+
+  if (error) {
+    // Sem derrubar nada: o padrão responde, e o log conta o que houve.
+    console.error("[optout] texto configurado não veio:", error.message);
+    return OPT_OUT_CONFIRMED_FALLBACK;
+  }
+
+  return data?.value?.trim() || OPT_OUT_CONFIRMED_FALLBACK;
+}
 
 export interface OptOutOutcome {
   /** Os `eventId` das mensagens que ESTE serviço tratou. */
@@ -68,6 +98,10 @@ export async function processOptOutRequests(
   if (pedidos.length === 0) return resultado;
 
   const admin = createAdminClient();
+
+  // UMA leitura para o lote inteiro: o texto é o mesmo para todo mundo, e
+  // buscá-lo por destinatário seria uma ida ao banco por mensagem.
+  const textoConfirmacao = await readOptOutText(admin);
 
   for (const pedido of pedidos) {
     const telefone = toWhatsAppNumber(pedido.from);
@@ -127,7 +161,7 @@ export async function processOptOutRequests(
     // muita gente é número que o WhatsApp derruba.
     const envio = await provider.send({
       to: telefone.e164,
-      body: OPT_OUT_CONFIRMED,
+      body: textoConfirmacao,
       correlationId,
     });
 

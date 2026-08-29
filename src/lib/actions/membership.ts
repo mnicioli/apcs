@@ -78,6 +78,16 @@ export async function submitMembershipApplicationAction(
 
   const dados = parsed.data;
 
+  // ⚠️ A VERSÃO QUE A PESSOA LEU, não a vigente agora. O formulário a recebeu do
+  // servidor junto do texto e a devolve no envio; se um administrador publicar
+  // uma versão nova enquanto alguém preenche, a solicitação tem de guardar a que
+  // estava na tela — uma autorização só vale para o texto que foi lido.
+  //
+  // A constante entra quando o campo não veio (uma aba aberta antes deste campo
+  // existir). Recusar a solicitação nesse caso seria perder o cadastro de quem
+  // preencheu quinze campos por um detalhe que não é dela.
+  const versaoConsentimento = dados.consentVersion ?? MEMBERSHIP_CONSENT_VERSION;
+
   // Sem `assertPermission`: não há usuário. O que substitui a permissão aqui é
   // a estreiteza da função do banco somada ao limite de taxa por IP.
   const cabecalhos = await headers();
@@ -106,7 +116,7 @@ export async function submitMembershipApplicationAction(
       p_trade_name: dados.tradeName,
       p_interests: dados.interests,
       p_other_interest: dados.otherInterest,
-      p_consent_policy_version: MEMBERSHIP_CONSENT_VERSION,
+      p_consent_policy_version: versaoConsentimento,
       p_source_ip_hash: ipHash ?? undefined,
       p_user_agent: cabecalhos.get("user-agent") ?? undefined,
     });

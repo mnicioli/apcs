@@ -10,7 +10,6 @@ import {
   UFS,
   type MembershipApplicationInput,
 } from "@/modules/membership/membership.schema";
-import { MEMBERSHIP_CONSENT_TEXT } from "@/modules/membership/membership.labels";
 import type { MembershipProfileType } from "@/modules/membership/membership.types";
 
 /**
@@ -462,10 +461,18 @@ function ReviewRow({ label, value }: { label: string; value?: string | undefined
 
 export function ReviewConsent({
   values,
+  consentText,
   consentError,
   onConsentChange,
 }: {
   values: MembershipApplicationInput;
+  /**
+   * ⚠️ VEM DO SERVIDOR, e não da constante do código. O texto é editável em
+   * Configurações e vive em `consent_texts`; a constante virou apenas o padrão
+   * de emergência. Se esta prop virasse opcional com fallback aqui, a landing
+   * poderia mostrar um texto e a solicitação gravar a versão de outro.
+   */
+  consentText: string;
   consentError?: string | undefined;
   onConsentChange: (checked: boolean) => void;
 }) {
@@ -516,7 +523,7 @@ export function ReviewConsent({
           onChange={onConsentChange}
           error={consentError}
         >
-          {MEMBERSHIP_CONSENT_TEXT}{" "}
+          {consentText}{" "}
           {/* A política de privacidade oficial ainda não tem endereço público.
               Dizer isso é melhor que um link quebrado numa caixa de aceite. */}
           <span className="text-muted-foreground">

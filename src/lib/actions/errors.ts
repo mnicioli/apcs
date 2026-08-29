@@ -73,6 +73,13 @@ export type ActionErrorCode =
   // Reativar notificações. Código próprio porque a frase precisa dizer que o
   // que falta não é "um campo": é o registro de quem autorizou.
   | "membershipConsentRequired"
+  // Administração. Códigos próprios porque, nestes quatro, a solução NÃO está
+  // no sistema nem no formulário: convite que não sai é SMTP do Supabase, e
+  // "erro inesperado" mandaria a pessoa tentar de novo para sempre.
+  | "inviteFailed"
+  | "lastAdmin"
+  | "cannotChangeOwnRole"
+  | "consentVersionExists"
   // Caixa de entrada do WhatsApp. Códigos próprios porque o atendente está com
   // a mensagem escrita na tela e precisa saber se o problema é dele (o texto),
   // do associado (o número) ou do sistema (a integração) — as três reações são
@@ -172,6 +179,13 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   membershipEmailTaken:
     "Este e-mail já pertence a outro associado. O registro não aceita o mesmo e-mail duas vezes.",
   membershipCodeTaken: "Esta matrícula já pertence a outro associado.",
+  inviteFailed:
+    "Não foi possível enviar o convite. Confira se o envio de e-mail está configurado no projeto Supabase (Authentication → SMTP).",
+  lastAdmin:
+    "O sistema precisa de pelo menos um administrador. Promova outra pessoa antes de alterar este papel.",
+  cannotChangeOwnRole: "Você não pode alterar o próprio papel. Peça a outro administrador.",
+  consentVersionExists:
+    "Esta versão já existe e não pode ser reescrita — uma autorização vale só para o texto que a pessoa leu. Publique com uma versão nova.",
   membershipConsentRequired:
     "Registre quem pediu para voltar a receber e por onde — é esse registro que autoriza a APCS a mandar mensagem de novo.",
   // WhatsApp. A primeira é para quem cuida do sistema; as outras duas, para
@@ -280,6 +294,13 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
     // MA008 — a reativação. Ver 20260829180100_resume_notifications.sql.
     case "MA008":
       return { code: "membershipConsentRequired" };
+    // Classe `AD` — Administração. Ver 20260830100000_admin_module.sql.
+    case "AD001":
+      return { code: "lastAdmin" };
+    case "AD002":
+      return { code: "cannotChangeOwnRole" };
+    case "AD003":
+      return { code: "consentVersionExists" };
     // Classe `WA` — a caixa de entrada do WhatsApp, pela mesma razão das
     // anteriores: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260822000000_create_whatsapp_inbox.sql.

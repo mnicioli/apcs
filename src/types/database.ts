@@ -1443,6 +1443,102 @@ export type Database = {
           },
         ];
       };
+      admin_audit_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["admin_audit_action"];
+          actor_id: string | null;
+          actor_name: string | null;
+          created_at: string;
+          id: string;
+          metadata: Json;
+          target: string | null;
+        };
+        Insert: {
+          action: Database["public"]["Enums"]["admin_audit_action"];
+          actor_id?: string | null;
+          actor_name?: string | null;
+          created_at?: string;
+          id?: string;
+          metadata?: Json;
+          target?: string | null;
+        };
+        Update: {
+          action?: Database["public"]["Enums"]["admin_audit_action"];
+          actor_id?: string | null;
+          actor_name?: string | null;
+          created_at?: string;
+          id?: string;
+          metadata?: Json;
+          target?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "admin_audit_logs_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      app_settings: {
+        Row: {
+          key: string;
+          updated_at: string;
+          updated_by: string | null;
+          value: string;
+        };
+        Insert: {
+          key: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          value: string;
+        };
+        Update: {
+          key?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          value?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "app_settings_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      consent_texts: {
+        Row: {
+          body: string;
+          created_at: string;
+          created_by: string | null;
+          version: string;
+        };
+        Insert: {
+          body: string;
+          created_at?: string;
+          created_by?: string | null;
+          version: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          created_by?: string | null;
+          version?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "consent_texts_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       notification_opt_outs: {
         Row: {
           channel: Database["public"]["Enums"]["survey_channel"];
@@ -2371,6 +2467,77 @@ export type Database = {
           to: "surveys";
           isOneToOne: true;
           isSetofReturn: false;
+        };
+      };
+      list_notification_blocks: {
+        Args: { p_include_revoked?: boolean; p_limit?: number; p_offset?: number };
+        Returns: {
+          channel: Database["public"]["Enums"]["survey_channel"];
+          contact_name: string;
+          created_at: string;
+          id: string;
+          member_id: string;
+          member_name: string;
+          note: string;
+          phone_key: string;
+          revoked_at: string;
+          revoked_note: string;
+          source: string;
+          total_count: number;
+        }[];
+      };
+      log_user_invite: {
+        Args: { p_email: string; p_role: Database["public"]["Enums"]["app_role"] };
+        Returns: undefined;
+      };
+      publish_consent_text: {
+        Args: { p_body: string; p_version: string };
+        Returns: {
+          body: string;
+          created_at: string;
+          created_by: string | null;
+          version: string;
+        };
+      };
+      resume_notification_block: {
+        Args: { p_note: string; p_opt_out_id: string };
+        Returns: boolean;
+      };
+      set_app_setting: {
+        Args: { p_key: string; p_value: string };
+        Returns: {
+          key: string;
+          updated_at: string;
+          updated_by: string | null;
+          value: string;
+        };
+      };
+      set_user_role: {
+        Args: { p_role: Database["public"]["Enums"]["app_role"]; p_user_id: string };
+        Returns: {
+          avatar_url: string | null;
+          created_at: string;
+          email: string;
+          full_name: string | null;
+          id: string;
+          role: Database["public"]["Enums"]["app_role"];
+          updated_at: string;
+        };
+      };
+      update_event_segment: {
+        Args: {
+          p_active: boolean;
+          p_description: string;
+          p_name: string;
+          p_segment_id: string;
+        };
+        Returns: {
+          active: boolean;
+          created_at: string;
+          description: string | null;
+          id: string;
+          name: string;
+          slug: string;
         };
       };
       approve_membership_application: {
@@ -4351,6 +4518,13 @@ export type Database = {
       market_bulletin_status_reason: "manual" | "superseded";
       market_bulletin_version_status: "active" | "inactive";
       member_origin: "application" | "import" | "manual";
+      admin_audit_action:
+        | "user_role_changed"
+        | "user_invited"
+        | "segment_updated"
+        | "consent_text_published"
+        | "setting_updated"
+        | "notification_block_revoked";
       member_status: "active" | "inactive" | "suspended";
       membership_application_status: "pending" | "in_review" | "approved" | "rejected";
       membership_audit_action:
@@ -4635,6 +4809,14 @@ export const Constants = {
       market_bulletin_status_reason: ["manual", "superseded"],
       market_bulletin_version_status: ["active", "inactive"],
       member_origin: ["application", "import", "manual"],
+      admin_audit_action: [
+        "user_role_changed",
+        "user_invited",
+        "segment_updated",
+        "consent_text_published",
+        "setting_updated",
+        "notification_block_revoked",
+      ],
       member_status: ["active", "inactive", "suspended"],
       membership_application_status: ["pending", "in_review", "approved", "rejected"],
       membership_audit_action: [

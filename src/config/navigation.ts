@@ -282,6 +282,9 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    // ⚠️ A ÚNICA SEÇÃO SÓ DE ADMINISTRADOR. Todas as outras abrem para Gestor e,
+    // em leitura, para Atendente — aqui não: um Gestor decide sobre associados,
+    // eventos e enquetes, mas quem decide QUEM DECIDE é outra coisa.
     title: "Administração",
     items: [
       {
@@ -289,14 +292,14 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/users",
         icon: Users,
         permission: "users.manage",
-        available: false,
+        available: true,
       },
       {
         title: "Configurações",
         href: "/settings",
         icon: Settings,
         permission: "settings.manage",
-        available: false,
+        available: true,
       },
     ],
   },

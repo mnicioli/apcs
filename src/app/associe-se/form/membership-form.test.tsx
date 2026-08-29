@@ -3,6 +3,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 /**
+ * O texto de consentimento agora vem do SERVIDOR (é editável em Configurações),
+ * então o formulário o recebe por prop. O teste fornece um valor fixo: o que
+ * está sob prova aqui é a decisão da tela, não de onde o texto veio.
+ */
+const CONSENTIMENTO = { version: "2026-08-v1", body: "Autorizo a APCS a tratar meus dados." };
+
+/**
  * O formulário público, em três etapas.
  *
  * A action é `"use server"` — importá-la de verdade tentaria abrir o Supabase. O
@@ -67,14 +74,14 @@ async function ateAEtapa3(user: ReturnType<typeof userEvent.setup>, perfil = "So
 
 describe("navegação entre etapas", () => {
   it("começa na etapa 1, pedindo o perfil", () => {
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     expect(etapaAtual()).toBe(1);
     expect(screen.getByRole("radiogroup")).toBeInTheDocument();
   });
 
   it("não avança sem escolher o perfil", async () => {
     const user = userEvent.setup();
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
@@ -86,7 +93,7 @@ describe("navegação entre etapas", () => {
 
   it("avança para o contato depois de escolher o perfil", async () => {
     const user = userEvent.setup();
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
 
     await user.click(screen.getByRole("radio", { name: /Sou criador/ }));
     await user.click(screen.getByRole("button", { name: "Continuar" }));
@@ -97,7 +104,7 @@ describe("navegação entre etapas", () => {
 
   it("a etapa 2 cobra os campos dela e não os da etapa 3", async () => {
     const user = userEvent.setup();
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
 
     await user.click(screen.getByRole("radio", { name: /Sou criador/ }));
     await user.click(screen.getByRole("button", { name: "Continuar" }));
@@ -111,7 +118,7 @@ describe("navegação entre etapas", () => {
 
   it("o botão Voltar devolve para a etapa anterior mantendo o preenchido", async () => {
     const user = userEvent.setup();
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
 
     await user.click(screen.getByRole("radio", { name: /Sou criador/ }));
     await user.click(screen.getByRole("button", { name: "Continuar" }));
@@ -128,7 +135,7 @@ describe("navegação entre etapas", () => {
 describe("campos condicionais por perfil", () => {
   it("criador vê matrizes e propriedade", async () => {
     const user = userEvent.setup();
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     await ateAEtapa3(user);
 
     expect(await screen.findByLabelText(/Número aproximado de matrizes/)).toBeInTheDocument();
@@ -138,7 +145,7 @@ describe("campos condicionais por perfil", () => {
 
   it("empresa vê razão social e CNPJ, e não vê matrizes", async () => {
     const user = userEvent.setup();
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     await ateAEtapa3(user, "Represento uma empresa");
 
     expect(await screen.findByLabelText("Razão social")).toBeInTheDocument();
@@ -148,7 +155,7 @@ describe("campos condicionais por perfil", () => {
 
   it("técnico vê área de atuação e cargo", async () => {
     const user = userEvent.setup();
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     await ateAEtapa3(user, "Sou técnico");
 
     expect(await screen.findByLabelText("Área de atuação")).toBeInTheDocument();
@@ -157,7 +164,7 @@ describe("campos condicionais por perfil", () => {
 
   it("marcar “Outro” nos interesses revela o campo de texto", async () => {
     const user = userEvent.setup();
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     await ateAEtapa3(user);
 
     expect(screen.queryByLabelText("Qual outro interesse?")).not.toBeInTheDocument();
@@ -169,7 +176,7 @@ describe("campos condicionais por perfil", () => {
 describe("consentimento", () => {
   it("não é cobrado ao avançar entre etapas", async () => {
     const user = userEvent.setup();
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
 
     await user.click(screen.getByRole("radio", { name: /Sou criador/ }));
     await user.click(screen.getByRole("button", { name: "Continuar" }));
@@ -181,7 +188,7 @@ describe("consentimento", () => {
 
   it("é cobrado no envio", async () => {
     const user = userEvent.setup();
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     await ateAEtapa3(user);
 
     await user.type(await screen.findByLabelText("Município da produção"), "Vacaria");
@@ -208,7 +215,7 @@ describe("envio", () => {
       data: { protocol: "ASC-000042", duplicate: false },
     });
 
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     await preencherTudo(user);
     await user.click(screen.getByRole("button", { name: "Enviar minha solicitação" }));
 
@@ -223,7 +230,7 @@ describe("envio", () => {
       data: { protocol: "ASC-000043", duplicate: false },
     });
 
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     await preencherTudo(user);
     await user.click(screen.getByRole("button", { name: "Enviar minha solicitação" }));
 
@@ -242,7 +249,7 @@ describe("envio", () => {
       () => new Promise((resolve) => (resolver = resolve)),
     );
 
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     await preencherTudo(user);
 
     const botao = screen.getByRole("button", { name: "Enviar minha solicitação" });
@@ -260,7 +267,7 @@ describe("envio", () => {
       error: { code: "membershipRateLimited" },
     });
 
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     await preencherTudo(user);
     await user.click(screen.getByRole("button", { name: "Enviar minha solicitação" }));
 
@@ -274,7 +281,7 @@ describe("envio", () => {
     const user = userEvent.setup();
     submitMembershipApplicationAction.mockRejectedValue(new Error("network"));
 
-    render(<MembershipForm />);
+    render(<MembershipForm consent={CONSENTIMENTO} />);
     await preencherTudo(user);
     await user.click(screen.getByRole("button", { name: "Enviar minha solicitação" }));
 

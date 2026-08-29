@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApcsAnimatedLogo } from "../apcs-logo";
 import { ReviewConsent, StepContact, StepContext, StepProfile } from "./steps";
 import { submitMembershipApplicationAction } from "@/lib/actions/membership";
+import type { ConsentSnapshot } from "@/modules/membership/membership.types";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
 import {
   emptyApplication,
@@ -61,7 +62,7 @@ const STAGE_FIELDS: Record<number, string[]> = {
 const TOTAL_STAGES = 3;
 const STAGE_LABELS = ["Perfil", "Contato", "Contexto"];
 
-export function MembershipForm() {
+export function MembershipForm({ consent }: { consent: ConsentSnapshot }) {
   const [values, setValues] = useState<MembershipApplicationInput>(emptyApplication);
   const [errors, setErrors] = useState<Errors>({});
   const [stage, setStage] = useState(1);
@@ -176,7 +177,15 @@ export function MembershipForm() {
     setSubmitError(null);
 
     try {
-      const resultado = await submitMembershipApplicationAction(values);
+      // ⚠️ A VERSÃO VIAJA COM O ENVIO, e não é lida de novo no servidor. Se um
+      // administrador publicar um texto novo enquanto alguém preenche o
+      // formulário, a solicitação tem de guardar a versão que ESSA PESSOA leu —
+      // buscar a vigente no momento do envio gravaria uma autorização para um
+      // texto que ela nunca viu.
+      const resultado = await submitMembershipApplicationAction({
+        ...values,
+        consentVersion: consent.version,
+      });
       if (resultado.ok) {
         // `duplicate` não vira mensagem: quem clicou duas vezes enviou UMA
         // solicitação e recebe UM protocolo. Contar o detalhe técnico só
@@ -304,6 +313,7 @@ export function MembershipForm() {
                 <StepContext values={values} errors={errors} setField={setField} />
                 <ReviewConsent
                   values={values}
+                  consentText={consent.body}
                   consentError={errors["consentAccepted"]}
                   onConsentChange={(marcado) =>
                     setField("consentAccepted", marcado as unknown as true)

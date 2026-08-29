@@ -236,6 +236,21 @@ export const membershipApplicationSchema = z
     consentAccepted: z.literal(true, {
       errorMap: () => ({ message: "É necessário aceitar o tratamento de dados para enviar." }),
     }),
+
+    /**
+     * A versão do texto que a pessoa leu, vinda do servidor com o formulário.
+     *
+     * ⚠️ OPCIONAL PARA NÃO QUEBRAR UM ENVIO ANTIGO. Uma aba aberta antes deste
+     * campo existir ainda submete sem ele, e a action cai na versão vigente —
+     * o que é pior que o ideal e muito melhor que recusar a solicitação de
+     * alguém que preencheu quinze campos.
+     */
+    consentVersion: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .transform((v) => (v ? v : undefined)),
   })
   .superRefine((data, ctx) => {
     const exigir = (campo: keyof typeof data, mensagem: string) => {

@@ -1,3 +1,4 @@
+import { getCurrentConsentText } from "@/lib/services/admin";
 import { MembershipForm } from "./form/membership-form";
 import { Reveal } from "./reveal";
 import { Hero, ProcessSection, SiteFooter, SiteHeader, ValueSection } from "./sections";
@@ -16,7 +17,26 @@ import { StickyCta } from "./sticky-cta";
  * certo para todo o resto do sistema e o errado para esta página.
  */
 
-export default function AssocieSePage() {
+/**
+ * ⚠️ A PÁGINA CONTINUA ESTÁTICA, e o `revalidate` é o que garante isso.
+ *
+ * Ela passou a ler o texto de consentimento do banco. Sem esta linha, o Next
+ * regeneraria a página a cada visita — a landing pública mais acessada do
+ * sistema batendo no banco por um texto que muda duas vezes por ano.
+ *
+ * Uma hora é o teto, não a latência: `publishConsentTextAction` chama
+ * `revalidatePath("/associe-se")`, então um texto novo aparece IMEDIATAMENTE.
+ * O prazo só cobre o caso de alguém escrever direto no banco.
+ */
+export const revalidate = 3600;
+
+export default async function AssocieSePage() {
+  // ⚠️ O TEXTO DE CONSENTIMENTO VEM DO BANCO, e é lido AQUI, no servidor, sem
+  // sessão nenhuma — a policy de `consent_texts` é aberta a `anon` de
+  // propósito. Ele desce para o formulário junto da VERSÃO: a solicitação grava
+  // a versão que esta pessoa leu, e não a vigente no instante do envio.
+  const consent = await getCurrentConsentText();
+
   return (
     <>
       <SiteHeader />
@@ -53,7 +73,7 @@ export default function AssocieSePage() {
               </Reveal>
 
               <div className="mt-10">
-                <MembershipForm />
+                <MembershipForm consent={{ version: consent.version, body: consent.body }} />
               </div>
             </div>
           </div>

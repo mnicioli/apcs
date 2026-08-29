@@ -167,5 +167,17 @@ export interface MemberDetail extends MemberRow {
   applicationId: string | null;
 }
 
+/**
+ * O texto de consentimento vigente, como a landing pública o recebe.
+ *
+ * ⚠️ A VERSÃO ANDA JUNTO DO TEXTO, e é por isso que este tipo existe em vez de
+ * uma `string`. A solicitação grava a versão que a pessoa LEU — separar os dois
+ * abriria a porta para mostrar um texto e registrar autorização para outro.
+ */
+export interface ConsentSnapshot {
+  version: string;
+  body: string;
+}
+
 /** Contadores da caixa de entrada, por situação. */
 export type MembershipApplicationCounts = Record<MembershipApplicationStatus, number>;
