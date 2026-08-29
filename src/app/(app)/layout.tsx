@@ -1,9 +1,15 @@
 import { redirect } from "next/navigation";
 import { Lock } from "lucide-react";
-import { getCurrentUser, getCurrentUserRole, isCurrentUserActive } from "@/lib/auth/current-user";
+import {
+  getCurrentPermissions,
+  getCurrentUser,
+  getCurrentUserRole,
+  isCurrentUserActive,
+} from "@/lib/auth/current-user";
 import { logoutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { hasPermission } from "@/lib/rbac/rbac.config";
+import { getRoleLabel } from "@/lib/services/roles";
 import { countPendingLectures } from "@/lib/services/lectures";
 import { countPendingMembershipApplications } from "@/lib/services/membership";
 import { countUnreadWhatsAppChats } from "@/lib/services/whatsapp";
@@ -59,6 +65,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const role = await getCurrentUserRole();
+  // ⚠️ AS PERMISSÕES SÃO RESOLVIDAS AQUI porque a Sidebar roda no navegador e
+  // a matriz mora no banco. Ver o comentário no topo de sidebar.tsx.
+  const [permissions, roleLabel] = await Promise.all([getCurrentPermissions(), getRoleLabel(role)]);
   // As contagens em paralelo: são independentes, e somar os tempos de ida ao
   // banco em SÉRIE no layout atrasaria TODAS as telas do sistema.
   const [lecturesPending, membershipPending, whatsappUnread] = await Promise.all([
@@ -69,9 +78,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh">
-      <Sidebar role={role} badges={{ lecturesPending, membershipPending, whatsappUnread }} />
+      <Sidebar
+        permissions={permissions}
+        badges={{ lecturesPending, membershipPending, whatsappUnread }}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar user={user} role={role} />
+        <Topbar user={user} roleLabel={roleLabel} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>

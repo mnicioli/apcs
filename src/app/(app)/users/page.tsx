@@ -4,11 +4,10 @@ import { redirect } from "next/navigation";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import { listAdminAudit, listUsers } from "@/lib/services/admin";
+import { listRoleDefinitions } from "@/lib/services/roles";
 import { formatDateTime } from "@/lib/utils";
-import { ROLE_LABELS } from "@/lib/rbac/rbac.types";
 import {
   ADMIN_AUDIT_ACTION_LABELS,
-  ROLE_DESCRIPTIONS,
   USERS_SUBTITLE,
   USERS_TITLE,
 } from "@/modules/admin/admin.labels";
@@ -37,7 +36,15 @@ export default async function UsersPage() {
   const role = await getCurrentUserRole();
   if (!hasPermission(role, "users.manage")) redirect("/dashboard");
 
-  const [usuarios, trilha] = await Promise.all([listUsers(), listAdminAudit(15)]);
+  const [usuarios, trilha, cargos] = await Promise.all([
+    listUsers(),
+    listAdminAudit(15),
+    listRoleDefinitions(),
+  ]);
+
+  // Rótulo e descrição saem do CARGO, e não de uma tabela no código: um cargo
+  // criado ontem precisa aparecer com o nome que a APCS deu a ele.
+  const porChave = new Map(cargos.map((cargo) => [cargo.key, cargo]));
 
   // ⚠️ ADMINS **ATIVOS**. Um administrador desligado não administra nada — a
   // conta dele devolve `viewer` em toda regra do banco. Contá-lo aqui faria o
@@ -51,7 +58,7 @@ export default async function UsersPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{USERS_TITLE}</h1>
           <p className="text-muted-foreground text-sm">{USERS_SUBTITLE}</p>
         </div>
-        <InviteUserDialog />
+        <InviteUserDialog roles={cargos} />
       </div>
 
       {/*
@@ -74,7 +81,7 @@ export default async function UsersPage() {
               <thead className="border-border text-muted-foreground border-b text-left">
                 <tr>
                   <th className="px-4 py-3 font-medium">Pessoa</th>
-                  <th className="px-4 py-3 font-medium">Papel</th>
+                  <th className="px-4 py-3 font-medium">Cargo</th>
                   <th className="px-4 py-3 font-medium">O que pode fazer</th>
                   <th className="px-4 py-3 font-medium">Situação</th>
                   <th className="px-4 py-3 font-medium">No sistema desde</th>
@@ -102,7 +109,8 @@ export default async function UsersPage() {
                     <td className="px-4 py-3">
                       <UserRoleSelect
                         userId={usuario.id}
-                        role={usuario.role}
+                        roleKey={usuario.roleKey}
+                        roles={cargos}
                         // Quem olha não troca o próprio papel (AD002), e o
                         // último administrador não deixa de ser (AD001). O
                         // seletor some nos dois casos, em vez de oferecer um
@@ -111,7 +119,7 @@ export default async function UsersPage() {
                       />
                     </td>
                     <td className="text-muted-foreground px-4 py-3 text-xs">
-                      {ROLE_DESCRIPTIONS[usuario.role] ?? "—"}
+                      {porChave.get(usuario.roleKey)?.description ?? "—"}
                     </td>
                     <td className="px-4 py-3">
                       {usuario.active ? (
@@ -153,7 +161,8 @@ export default async function UsersPage() {
                   </p>
                   {entrada.action === "user_role_changed" && (
                     <p className="text-muted-foreground text-xs">
-                      {rotuloPapel(entrada.metadata.from)} → {rotuloPapel(entrada.metadata.to)}
+                      {rotuloPapel(entrada.metadata.from, porChave)} →{" "}
+                      {rotuloPapel(entrada.metadata.to, porChave)}
                     </p>
                   )}
                   <p className="text-muted-foreground text-xs">
@@ -171,12 +180,12 @@ export default async function UsersPage() {
 }
 
 /**
- * O papel gravado na trilha vem de uma coluna `jsonb`, então o tipo declarado
- * não prova nada sobre o valor. Um papel que saiu do enum um dia aparece cru em
- * vez de derrubar a página — uma linha de histórico feia é melhor que uma tela
- * que não abre.
+ * O cargo gravado na trilha vem de uma coluna `jsonb`, então o tipo declarado
+ * não prova nada sobre o valor. Um cargo já EXCLUÍDO aparece cru em vez de
+ * derrubar a página — e é justamente o caso interessante: o histórico precisa
+ * continuar legível depois que o cargo deixou de existir.
  */
-function rotuloPapel(valor: unknown): string {
+function rotuloPapel(valor: unknown, cargos: Map<string, { label: string }>): string {
   if (typeof valor !== "string") return "—";
-  return ROLE_LABELS[valor as keyof typeof ROLE_LABELS] ?? valor;
+  return cargos.get(valor)?.label ?? valor;
 }

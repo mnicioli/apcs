@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { VALID_ROLES } from "@/lib/rbac/rbac.types";
+import { roleKeySchema } from "./role.schema";
 import { SETTING_KEYS } from "./admin.labels";
 
 /**
@@ -7,15 +7,6 @@ import { SETTING_KEYS } from "./admin.labels";
  * dentro das actions — e o banco repete cada regra numa função `SECURITY
  * DEFINER`, que é quem realmente decide.
  */
-
-export const setUserRoleSchema = z.object({
-  userId: z.string().uuid(),
-  role: z.enum(VALID_ROLES, {
-    errorMap: () => ({ message: "Selecione um papel válido." }),
-  }),
-});
-
-export type SetUserRoleInput = z.input<typeof setUserRoleSchema>;
 
 /**
  * O convite.
@@ -39,9 +30,10 @@ export const inviteUserSchema = z.object({
     .max(120, { message: "Use no máximo 120 caracteres." })
     .optional()
     .transform((v) => (v ? v : undefined)),
-  role: z.enum(VALID_ROLES, {
-    errorMap: () => ({ message: "Selecione o papel de quem está sendo convidado." }),
-  }),
+  // ⚠️ CARGO, e não papel do enum. Desde 20260903000100 a APCS cria cargos
+  // próprios, e convidar alguém só para "Comercial" quando existe um
+  // "Secretaria" seria oferecer metade da lista.
+  role: roleKeySchema,
 });
 
 export type InviteUserInput = z.input<typeof inviteUserSchema>;

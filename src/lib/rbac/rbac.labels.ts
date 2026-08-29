@@ -134,3 +134,16 @@ export const PERMISSION_GROUP_NOTES: Record<PermissionGroupStatus, string | null
     "Chaves que vieram do modelo genérico em que o sistema nasceu. Nenhuma tela do APCS as consulta — " +
     "estão aqui para a matriz não esconder nada.",
 };
+
+/**
+ * Todas as permissões, na ordem da matriz.
+ *
+ * ⚠️ DERIVADA DOS GRUPOS, e não uma lista à parte. `rbac.labels.test.ts` prova
+ * que os grupos cobrem cada permissão exatamente uma vez — então esta lista
+ * está sempre completa, e uma permissão nova entra aqui pelo mesmo caminho por
+ * onde entra na tela. Uma segunda lista escrita à mão envelheceria em silêncio,
+ * e o sintoma seria um cargo que não consegue receber a permissão nova.
+ */
+export const ALL_PERMISSIONS: readonly Permission[] = PERMISSION_GROUPS.flatMap(
+  (grupo) => grupo.permissions,
+);

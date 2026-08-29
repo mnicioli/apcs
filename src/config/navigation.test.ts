@@ -17,17 +17,17 @@ function item(extra: Partial<NavItem> = {}): NavItem {
 describe("isNavItemVisible", () => {
   it("mostra item sem permissão declarada para qualquer papel", () => {
     for (const papel of VALID_ROLES) {
-      expect(isNavItemVisible(item(), papel, hasPermission)).toBe(true);
+      expect(isNavItemVisible(item(), (perm) => hasPermission(papel, perm))).toBe(true);
     }
   });
 
   it("esconde de quem não tem a permissão", () => {
-    expect(isNavItemVisible(item({ permission: "users.manage" }), "admin", hasPermission)).toBe(
-      true,
-    );
-    expect(isNavItemVisible(item({ permission: "users.manage" }), "comercial", hasPermission)).toBe(
-      false,
-    );
+    expect(
+      isNavItemVisible(item({ permission: "users.manage" }), (p) => hasPermission("admin", p)),
+    ).toBe(true);
+    expect(
+      isNavItemVisible(item({ permission: "users.manage" }), (p) => hasPermission("comercial", p)),
+    ).toBe(false);
   });
 
   /**
@@ -41,12 +41,12 @@ describe("isNavItemVisible", () => {
   it("esconde item marcado como `hidden` MESMO de quem tem permissão", () => {
     const escondido = item({ permission: "users.manage", hidden: true });
     for (const papel of VALID_ROLES) {
-      expect(isNavItemVisible(escondido, papel, hasPermission)).toBe(false);
+      expect(isNavItemVisible(escondido, (perm) => hasPermission(papel, perm))).toBe(false);
     }
   });
 
   it("`hidden` também vence quando não há permissão declarada", () => {
-    expect(isNavItemVisible(item({ hidden: true }), "admin", hasPermission)).toBe(false);
+    expect(isNavItemVisible(item({ hidden: true }), (p) => hasPermission("admin", p))).toBe(false);
   });
 });
 
@@ -78,8 +78,38 @@ describe("o menu declarado", () => {
 
   it("nenhuma seção fica sem item visível para o administrador", () => {
     for (const secao of NAV_SECTIONS) {
-      const visiveis = secao.items.filter((i) => isNavItemVisible(i, "admin", hasPermission));
+      const visiveis = secao.items.filter((i) =>
+        isNavItemVisible(i, (p) => hasPermission("admin", p)),
+      );
       expect(visiveis.length, `a seção "${secao.title}" ficou vazia`).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * O menu passou a nascer recolhido (menos Geral e Atendimento). Estes testes
+ * cobrem o que o recolhimento pode quebrar em silêncio.
+ */
+describe("seções recolhíveis", () => {
+  it("Atendimento nasce aberta — é a tela que fica no ar o dia inteiro", () => {
+    const atendimento = NAV_SECTIONS.find((s) => s.title === "Atendimento");
+    expect(atendimento?.defaultOpen).toBe(true);
+  });
+
+  it("as demais nascem recolhidas", () => {
+    for (const secao of NAV_SECTIONS) {
+      if (secao.title === "Geral" || secao.title === "Atendimento") continue;
+      expect(secao.defaultOpen, `a seção "${secao.title}" nasceria aberta`).not.toBe(true);
+    }
+  });
+
+  /**
+   * ⚠️ O TÍTULO VIRA A CHAVE de armazenamento da preferência e o `id` do
+   * `aria-controls`. Dois títulos iguais fariam abrir uma abrir a outra junto,
+   * e dois elementos com o mesmo `id` quebram a navegação por leitor de tela.
+   */
+  it("não repete título de seção", () => {
+    const titulos = NAV_SECTIONS.map((s) => s.title);
+    expect(new Set(titulos).size).toBe(titulos.length);
   });
 });

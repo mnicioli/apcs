@@ -1,43 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
-import { SETTING_KEYS, SETTING_LABELS, ROLE_DESCRIPTIONS } from "./admin.labels";
+import { SETTING_KEYS, SETTING_LABELS } from "./admin.labels";
 import {
   inviteUserSchema,
   publishConsentSchema,
   resumeBlockSchema,
   setSettingSchema,
-  setUserRoleSchema,
   updateSegmentSchema,
 } from "./admin.schema";
-import { VALID_ROLES } from "@/lib/rbac/rbac.types";
 
 /**
  * Os contratos de entrada da Administração.
  *
  * ⚠️ O que estes testes NÃO provam: as travas de verdade. "Não deixar o sistema
- * sem administrador" e "ninguém troca o próprio papel" vivem em
- * `set_user_role()`, no Postgres, porque dependem de contar linhas e de saber
- * quem está chamando — coisas que um schema não sabe. Aqui se prova o formato;
- * a bateria SQL prova o resto.
+ * sem administrador" e "ninguém troca o próprio cargo" vivem em
+ * `set_user_role_key()`, no Postgres, porque dependem de contar linhas e de
+ * saber quem está chamando — coisas que um schema não sabe. Aqui se prova o
+ * formato; a bateria SQL prova o resto.
  */
 
 const ID = "11111111-1111-4111-8111-111111111111";
-
-describe("setUserRoleSchema", () => {
-  it("aceita todos os papéis do sistema", () => {
-    for (const papel of VALID_ROLES) {
-      expect(setUserRoleSchema.safeParse({ userId: ID, role: papel }).success).toBe(true);
-    }
-  });
-
-  it("recusa um papel inventado", () => {
-    expect(setUserRoleSchema.safeParse({ userId: ID, role: "chefe" }).success).toBe(false);
-  });
-
-  it("recusa um id que não é uuid", () => {
-    expect(setUserRoleSchema.safeParse({ userId: "abc", role: "admin" }).success).toBe(false);
-  });
-});
 
 describe("inviteUserSchema", () => {
   it("aceita um convite completo", () => {
@@ -171,20 +153,6 @@ describe("resumeBlockSchema", () => {
     expect(resumeBlockSchema.safeParse({ blockId: ID, note: "pediu por telefone" }).success).toBe(
       true,
     );
-  });
-});
-
-describe("as descrições de papel", () => {
-  /**
-   * ⚠️ ESTE TESTE PROTEGE UMA ESCOLHA, não uma string. Quem convida alguém lê a
-   * descrição para decidir o papel — e "Gestor" sozinho não diz nada. Um papel
-   * novo sem descrição apareceria como "—" no diálogo de convite, e a pessoa
-   * escolheria no escuro.
-   */
-  it("todo papel tem uma", () => {
-    for (const papel of VALID_ROLES) {
-      expect(ROLE_DESCRIPTIONS[papel]?.length ?? 0).toBeGreaterThan(0);
-    }
   });
 });
 

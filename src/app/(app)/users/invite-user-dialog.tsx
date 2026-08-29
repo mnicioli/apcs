@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { UserPlus } from "lucide-react";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
 import { inviteUserAction } from "@/lib/actions/admin";
-import { ROLE_LABELS, VALID_ROLES, type Role } from "@/lib/rbac/rbac.types";
-import { ROLE_DESCRIPTIONS } from "@/modules/admin/admin.labels";
+import type { RoleDefinition } from "@/lib/rbac/rbac.runtime";
+import type { RoleKey } from "@/lib/rbac/rbac.types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,7 @@ import { Select } from "@/components/ui/select";
  * ter acesso ao projeto, criar o usuário à mão e depois lembrar de voltar aqui
  * para dar o papel. Duas ferramentas e dois passos para uma tarefa que é uma só.
  *
- * ⚠️ O PAPEL É ESCOLHIDO AGORA, JUNTO DO CONVITE. Toda pessoa convidada nasce
+ * ⚠️ O CARGO É ESCOLHIDO AGORA, JUNTO DO CONVITE. Toda pessoa convidada nasce
  * como `viewer` (é o trigger `handle_new_user`, e está certo: nunca confiar em
  * metadata de signup para definir permissão). O papel escolhido aqui é aplicado
  * logo depois, pela mesma action. Sem isso, alguém entraria e não veria nada,
@@ -30,7 +30,12 @@ import { Select } from "@/components/ui/select";
  * isso — porque a solução é no painel do Supabase, não aqui. "Erro inesperado"
  * mandaria a pessoa tentar de novo para sempre.
  */
-export function InviteUserDialog() {
+/**
+ * ⚠️ OS CARGOS VÊM DE FORA. A APCS cria cargos próprios desde
+ * 20260903000100 — uma lista fixa aqui convidaria sempre para os quatro
+ * embutidos, e o cargo criado ontem não apareceria.
+ */
+export function InviteUserDialog({ roles }: { roles: readonly RoleDefinition[] }) {
   const router = useRouter();
   const emailId = useId();
   const nomeId = useId();
@@ -39,7 +44,17 @@ export function InviteUserDialog() {
   const [aberto, setAberto] = useState(false);
   const [email, setEmail] = useState("");
   const [nome, setNome] = useState("");
-  const [papel, setPapel] = useState<Role>("comercial");
+  // ⚠️ NUNCA COMEÇA EM ADMINISTRADOR. O primeiro da lista é ele (é o de maior
+  // ordem na matriz), e um convite enviado sem alguém reparar no seletor daria
+  // acesso total. "Comercial" é o cargo de quem trabalha no dia a dia; sem ele,
+  // o de menor alcance.
+  const [papel, setPapel] = useState<RoleKey>(
+    () =>
+      roles.find((cargo) => cargo.key === "comercial")?.key ??
+      roles.find((cargo) => cargo.key === "viewer")?.key ??
+      roles[roles.length - 1]?.key ??
+      "viewer",
+  );
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
@@ -61,13 +76,13 @@ export function InviteUserDialog() {
         return;
       }
 
-      // ⚠️ O CONVITE JÁ FOI, mesmo que o papel não tenha sido aplicado. Dizer
+      // ⚠️ O CONVITE JÁ FOI, mesmo que o cargo não tenha sido aplicado. Dizer
       // "tudo certo" nesse caso deixaria a pessoa entrando como Visualização
       // sem ninguém saber por quê.
       setAviso(
         resultado.data.roleApplied
           ? `Convite enviado para ${email}.`
-          : `Convite enviado para ${email}, mas o papel não foi aplicado — ajuste na lista abaixo.`,
+          : `Convite enviado para ${email}, mas o cargo não foi aplicado — ajuste na lista abaixo.`,
       );
 
       setEmail("");
@@ -94,7 +109,7 @@ export function InviteUserDialog() {
         open={aberto}
         onClose={fechar}
         title="Convidar para o sistema"
-        description="A pessoa recebe um e-mail com o link para criar a própria senha. O papel escolhido aqui já vale no primeiro acesso."
+        description="A pessoa recebe um e-mail com o link para criar a própria senha. O cargo escolhido aqui já vale no primeiro acesso."
       >
         <div className="space-y-4">
           <div className="space-y-2">
@@ -125,22 +140,24 @@ export function InviteUserDialog() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={papelId}>Papel</Label>
+            <Label htmlFor={papelId}>Cargo</Label>
             <Select
               id={papelId}
               value={papel}
               disabled={pendente}
-              onChange={(evento) => setPapel(evento.target.value as Role)}
+              onChange={(evento) => setPapel(evento.target.value)}
             >
-              {VALID_ROLES.map((valor) => (
-                <option key={valor} value={valor}>
-                  {ROLE_LABELS[valor]}
+              {roles.map((cargo) => (
+                <option key={cargo.key} value={cargo.key}>
+                  {cargo.label}
                 </option>
               ))}
             </Select>
-            {/* A descrição muda com a escolha: "Gestor" não diz nada a quem
-                está decidindo, e errar aqui é dar acesso demais ou de menos. */}
-            <p className="text-muted-foreground text-xs">{ROLE_DESCRIPTIONS[papel]}</p>
+            {/* A descrição muda com a escolha: o nome de um cargo não diz o que
+                ele abre, e errar aqui é dar acesso demais ou de menos. */}
+            <p className="text-muted-foreground text-xs">
+              {roles.find((cargo) => cargo.key === papel)?.description ?? ""}
+            </p>
           </div>
 
           {erro && (

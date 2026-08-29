@@ -46,11 +46,23 @@ interface UserRow {
   email: string;
   full_name: string | null;
   role: string;
+  role_key?: string | null;
   created_at: string;
   active: boolean;
 }
 
-const USER_COLUMNS = "id, email, full_name, role, created_at, active";
+const USER_COLUMNS = "id, email, full_name, role, role_key, created_at, active";
+
+/**
+ * ⚠️ MESMA REDE DE SEGURANÇA DE `current-user.ts`, PELO MESMO MOTIVO.
+ *
+ * `profiles.role_key` nasce em 20260903000100_custom_roles.sql. Se este código
+ * subir antes de a migration rodar, a consulta falha com 42703 e a tela de
+ * Usuários — justamente a de quem precisaria consertar — para de abrir.
+ *
+ * REMOVER quando a migration estiver aplicada em produção.
+ */
+const USER_COLUMNS_LEGADO = "id, email, full_name, role, created_at, active";
 
 function toAdminUser(linha: UserRow, selfId: string | undefined): AdminUser {
   return {
@@ -58,6 +70,9 @@ function toAdminUser(linha: UserRow, selfId: string | undefined): AdminUser {
     email: linha.email,
     fullName: linha.full_name,
     role: isRole(linha.role) ? linha.role : "viewer",
+    // Sem cargo (banco anterior à migration), o papel do enum faz as vezes: os
+    // quatro cargos embutidos têm exatamente as chaves do enum.
+    roleKey: linha.role_key ?? linha.role,
     createdAt: linha.created_at,
     active: linha.active,
     isSelf: linha.id === selfId,
@@ -71,15 +86,22 @@ export async function listUsers(): Promise<AdminUser[]> {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select(USER_COLUMNS)
-    // ⚠️ INATIVOS PRIMEIRO NÃO — ordem de entrada. A lista é lida para achar
-    // uma pessoa, não para auditar desligamentos: quem procura "a Ana" quer
-    // encontrá-la onde ela sempre esteve, e não descobrir que ela mudou de
-    // lugar porque alguém desligou a conta dela.
-    .order("created_at", { ascending: true })
-    .returns<UserRow[]>();
+  async function consultar(colunas: string) {
+    return (
+      supabase
+        .from("profiles")
+        .select(colunas)
+        // ⚠️ INATIVOS PRIMEIRO NÃO — ordem de entrada. A lista é lida para achar
+        // uma pessoa, não para auditar desligamentos: quem procura "a Ana" quer
+        // encontrá-la onde ela sempre esteve, e não descobrir que ela mudou de
+        // lugar porque alguém desligou a conta dela.
+        .order("created_at", { ascending: true })
+        .returns<UserRow[]>()
+    );
+  }
+
+  let { data, error } = await consultar(USER_COLUMNS);
+  if (error?.code === "42703") ({ data, error } = await consultar(USER_COLUMNS_LEGADO));
 
   if (error) throw error;
 
@@ -97,12 +119,17 @@ export async function getAdminUser(id: string): Promise<AdminUser | null> {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select(USER_COLUMNS)
-    .eq("id", id)
-    .maybeSingle()
-    .returns<UserRow | null>();
+  async function consultar(colunas: string) {
+    return supabase
+      .from("profiles")
+      .select(colunas)
+      .eq("id", id)
+      .maybeSingle()
+      .returns<UserRow | null>();
+  }
+
+  let { data, error } = await consultar(USER_COLUMNS);
+  if (error?.code === "42703") ({ data, error } = await consultar(USER_COLUMNS_LEGADO));
 
   if (error) throw error;
   if (!data) return null;

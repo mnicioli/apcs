@@ -1,5 +1,5 @@
 import type { Database } from "@/types/database";
-import type { Role } from "@/lib/rbac/rbac.types";
+import type { Role, RoleKey } from "@/lib/rbac/rbac.types";
 
 /**
  * Tipos do domínio Administração — Usuários e Configurações.
@@ -19,7 +19,17 @@ export interface AdminUser {
   id: string;
   email: string;
   fullName: string | null;
+  /**
+   * O PAPEL-BASE, que é o que a RLS enxerga.
+   *
+   * ⚠️ NÃO É O QUE A TELA MOSTRA. Desde 20260903000100 a pessoa tem um CARGO
+   * (`roleKey`), que pode ser um dos quatro embutidos ou um criado pela APCS.
+   * Este campo continua aqui porque as travas de "último administrador"
+   * contam papel-base, e não cargo.
+   */
   role: Role;
+  /** O cargo — o que a lista exibe e o que o seletor troca. */
+  roleKey: RoleKey;
   createdAt: string;
   /**
    * A conta está ligada.

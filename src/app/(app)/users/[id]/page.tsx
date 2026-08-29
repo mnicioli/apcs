@@ -4,10 +4,10 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
-import { ROLE_LABELS } from "@/lib/rbac/rbac.types";
 import { countActiveAdmins, getAdminUser, listAdminAudit } from "@/lib/services/admin";
+import { listRoleDefinitions } from "@/lib/services/roles";
 import { formatDateTime } from "@/lib/utils";
-import { ADMIN_AUDIT_ACTION_LABELS, ROLE_DESCRIPTIONS } from "@/modules/admin/admin.labels";
+import { ADMIN_AUDIT_ACTION_LABELS } from "@/modules/admin/admin.labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserRoleSelect } from "../user-role-select";
@@ -19,7 +19,7 @@ export const metadata: Metadata = { title: "Usuário" };
 /**
  * O CADASTRO DE UMA PESSOA COM ACESSO.
  *
- * ⚠️ TRÊS CARTÕES, E A SEPARAÇÃO NÃO É ESTÉTICA. Editar o nome, trocar o papel
+ * ⚠️ TRÊS CARTÕES, E A SEPARAÇÃO NÃO É ESTÉTICA. Editar o nome, trocar o cargo
  * e desligar a conta têm consequências de tamanhos muito diferentes, e travas
  * de banco diferentes. Um formulão com tudo junto faria "corrigi um sobrenome"
  * ser recusado por uma regra sobre administradores — e a pessoa não saberia
@@ -41,10 +41,13 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
   // ⚠️ A TRILHA É BUSCADA PELO E-MAIL ATUAL. Linhas gravadas antes de uma troca
   // de endereço ficaram com o antigo e não aparecem aqui — está dito na tela,
   // porque um histórico que parece completo e não é engana mais que um vazio.
-  const [admins, trilha] = await Promise.all([
+  const [admins, trilha, cargos] = await Promise.all([
     countActiveAdmins(),
     listAdminAudit(20, usuario.email),
+    listRoleDefinitions(),
   ]);
+
+  const cargo = cargos.find((c) => c.key === usuario.roleKey);
 
   const ultimoAdmin = usuario.role === "admin" && usuario.active && admins <= 1;
 
@@ -67,7 +70,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
           {!usuario.active && <Badge variant="alert">Conta inativa</Badge>}
         </div>
         <p className="text-muted-foreground text-sm">
-          {usuario.email} · {ROLE_LABELS[usuario.role]} · no sistema desde{" "}
+          {usuario.email} · {cargo?.label ?? usuario.roleKey} · no sistema desde{" "}
           {formatDateTime(usuario.createdAt)}
         </p>
       </div>
@@ -96,15 +99,16 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Papel</CardTitle>
+              <CardTitle>Cargo</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <UserRoleSelect
                 userId={usuario.id}
-                role={usuario.role}
+                roleKey={usuario.roleKey}
+                roles={cargos}
                 locked={usuario.isSelf || ultimoAdmin}
               />
-              <p className="text-muted-foreground text-sm">{ROLE_DESCRIPTIONS[usuario.role]}</p>
+              <p className="text-muted-foreground text-sm">{cargo?.description ?? ""}</p>
               {ultimoAdmin && (
                 <p className="text-muted-foreground text-xs">
                   É o único administrador ativo. Promova outra pessoa antes de mudar isto.
@@ -112,7 +116,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
               )}
               <p className="text-xs">
                 <Link href="/permissions" className="text-primary-strong hover:underline">
-                  Ver o que cada papel pode fazer
+                  Ver o que cada cargo pode fazer
                 </Link>
               </p>
             </CardContent>

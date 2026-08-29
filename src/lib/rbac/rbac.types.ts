@@ -22,7 +22,35 @@ export const VALID_ROLES = ["admin", "comercial", "financeiro", "viewer"] as con
 
 export type Role = (typeof VALID_ROLES)[number];
 
-/** Rótulos PT-BR de cada papel, para exibir na UI. */
+/**
+ * A identificação de um CARGO — e ela é `string`, não `Role`, de propósito.
+ *
+ * ⚠️ PAPEL E CARGO NÃO SÃO A MESMA COISA, e confundi-los é o erro que este tipo
+ * existe para evitar.
+ *
+ * • `Role` (o enum `app_role`) é o que o BANCO entende. Está em
+ *   `profiles.role`, é o que `current_app_role()` devolve e é o que as 122
+ *   policies de RLS consultam. Só muda por migration.
+ *
+ * • `RoleKey` é o que a APCS cria pela tela: "Editor de Conteúdo", "Secretaria".
+ *   Cada cargo se apoia num papel-base e só pode conter permissões que a base
+ *   já tem — ou seja, um cargo TIRA, nunca acrescenta. Ver a migration
+ *   20260903000100_custom_roles.sql, que explica a regra inteira.
+ *
+ * Os quatro papéis embutidos existem também como cargo, com a mesma chave, para
+ * que a interface tenha um único vocabulário. Por isso todo `Role` é um
+ * `RoleKey` válido — a recíproca é que não vale.
+ */
+export type RoleKey = string;
+
+/**
+ * Rótulos PT-BR dos papéis EMBUTIDOS.
+ *
+ * ⚠️ É A CÓPIA DE EMERGÊNCIA, não a fonte. Desde 20260903000100 os rótulos
+ * moram em `app_roles.label`, no banco, junto com os dos cargos criados pela
+ * APCS. Esta lista serve para quando a consulta ainda não aconteceu (o cliente,
+ * um teste) e para os quatro nomes que nunca mudam.
+ */
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrador",
   comercial: "Comercial",

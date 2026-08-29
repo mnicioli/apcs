@@ -5,6 +5,8 @@ import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/err
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { untyped } from "@/lib/supabase/untyped";
+import { invalidateRoleCache } from "@/lib/services/roles";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getSiteOrigin } from "@/lib/http/site-url";
 import {
@@ -14,7 +16,6 @@ import {
   resumeBlockSchema,
   setSettingSchema,
   setUserActiveSchema,
-  setUserRoleSchema,
   updateSegmentSchema,
   updateUserSchema,
   type InviteUserInput,
@@ -23,7 +24,6 @@ import {
   type ResumeBlockInput,
   type SetSettingInput,
   type SetUserActiveInput,
-  type SetUserRoleInput,
   type UpdateSegmentInput,
   type UpdateUserInput,
 } from "@/modules/admin/admin.schema";
@@ -50,36 +50,32 @@ function revalidateAdmin(): void {
   revalidatePath("/settings/segments", "page");
   revalidatePath("/settings/notifications", "page");
   revalidatePath("/settings/texts", "page");
+  // Trocar o papel/cargo de alguém muda o MENU dessa pessoa, e o menu é
+  // desenhado no layout das rotas autenticadas — não na página.
+  invalidateRoleCache();
+  revalidatePath("/", "layout");
 }
 
 /* -------------------------------------------------------------------------- */
 /* Usuários                                                                   */
 /* -------------------------------------------------------------------------- */
 
-export async function setUserRoleAction(input: SetUserRoleInput): Promise<ActionResult<null>> {
-  const parsed = setUserRoleSchema.safeParse(input);
-  if (!parsed.success) return fail("invalidInput");
-
-  const negado = await assertPermission<null>("users.manage");
-  if (negado) return negado;
-
-  try {
-    const supabase = await createClient();
-    const { error } = await supabase.rpc("set_user_role", {
-      p_user_id: parsed.data.userId,
-      p_role: parsed.data.role,
-    } as never);
-
-    if (error) return fail(mapPostgresError(error).code);
-
-    revalidateAdmin();
-    return ok(null);
-  } catch (erro) {
-    console.error("[admin.setUserRole] erro inesperado:", erro);
-    return fail("unexpected");
-  }
-}
-
+/*
+ * ⚠️ `setUserRoleAction` FOI REMOVIDA, e a ausência é decisão.
+ *
+ * Ela chamava `set_user_role` (o PAPEL do enum). Desde
+ * 20260903000100_custom_roles.sql quem manda é o CARGO, e a função de cargo
+ * (`set_user_role_key`) tem uma trava que a antiga não tem: não deixar o
+ * sistema sem ninguém capaz de administrar usuários (AR006). Duas portas para
+ * a mesma decisão, uma delas sem a trava, é o tipo de coisa que só aparece no
+ * dia em que alguém usa a errada.
+ *
+ * A função `set_user_role` continua no banco — é ela que atende uma correção
+ * manual no SQL Editor, e o trigger `profiles_sync_role_key` mantém o cargo
+ * de acordo depois.
+ *
+ * Trocar cargo agora é `setUserRoleKeyAction`, em src/lib/actions/roles.ts.
+ */
 /**
  * CONVIDA ALGUÉM PARA O SISTEMA.
  *
@@ -135,19 +131,23 @@ export async function inviteUserAction(
     const novoId = data?.user?.id;
     if (!novoId) return fail("unexpected");
 
-    // O papel, agora que o perfil existe. Pelo cliente AUTENTICADO: é
-    // `set_user_role` que audita, e ela precisa saber quem está convidando.
+    // O cargo, agora que o perfil existe. Pelo cliente AUTENTICADO: é
+    // `set_user_role_key` que audita, e ela precisa saber quem está
+    // convidando.
     const supabase = await createClient();
-    const { error: papelError } = await supabase.rpc("set_user_role", {
+    const { error: papelError } = await untyped(supabase).rpc("set_user_role_key", {
       p_user_id: novoId,
-      p_role: role,
-    } as never);
+      p_role_key: role,
+    });
 
     if (papelError) {
       console.error("[admin.invite] papel não aplicado:", papelError.code);
     }
 
-    await supabase.rpc("log_user_invite", { p_email: email, p_role: role } as never);
+    await untyped(supabase).rpc("log_user_invite_cargo", {
+      p_email: email,
+      p_role_key: role,
+    });
 
     revalidateAdmin();
     return ok({ roleApplied: !papelError });

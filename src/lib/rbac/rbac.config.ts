@@ -1,4 +1,5 @@
-import type { Permission, Role } from "./rbac.types";
+import { currentRoleMatrix } from "./rbac.runtime";
+import { isRole, type Permission, type Role, type RoleKey } from "./rbac.types";
 
 /**
  * Matriz de permissões: quais papéis têm cada permissão.
@@ -7,8 +8,12 @@ import type { Permission, Role } from "./rbac.types";
  * (deny-by-default). Esta matriz é a 1ª camada (app-side). A 2ª camada é a
  * RLS no banco — as duas devem contar a mesma história.
  *
- * Estes são padrões SENSATOS de partida — ajuste conforme as regras reais da
- * empresa. Ao mudar aqui, lembre de refletir nas policies RLS das tabelas.
+ * ⚠️ DESDE 20260903000100_custom_roles.sql, ESTA MATRIZ É O TETO, NÃO A PALAVRA
+ * FINAL. Ela declara o que cada PAPEL do enum recebe da RLS — e é copiada para
+ * `app_role_ceilings` no banco, que é quem impede um cargo de prometer mais do
+ * que o Postgres entrega. O que a APCS edita pela tela são os CARGOS, e um
+ * cargo só consegue TIRAR do teto do papel-base. Mexer aqui continua sendo
+ * mexer em migration junto: são as duas camadas, como sempre foram.
  *
  * ⚠️ SÓ O ADMINISTRADOR PUBLICA, e isso foi uma decisão, não um descuido.
  * Existia um nível intermediário (`ceo`, o "Gestor") que publicava normativa,
@@ -173,10 +178,48 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "settings.manage": ["admin"],
 };
 
-export function hasPermission(role: Role, permission: Permission): boolean {
-  return PERMISSION_MATRIX[permission].includes(role);
+/**
+ * O cargo abre esta permissão?
+ *
+ * ⚠️ DUAS FONTES, E A ORDEM IMPORTA.
+ *
+ * 1. O RETRATO VIVO (`rbac.runtime`), quando existe. É o que a APCS editou na
+ *    Matriz de Acesso, lido do banco. Cargo desconhecido dentro de um retrato
+ *    existente é NEGADO — um cargo que acabou de ser excluído não pode
+ *    continuar abrindo tela.
+ *
+ * 2. A MATRIZ DO CÓDIGO, quando não há retrato: no navegador (componentes de
+ *    cliente não consultam banco), num teste, ou antes da primeira consulta.
+ *
+ * ⚠️ O caso 2 IGNORA as restrições que a APCS tenha feito, e isso é deliberado.
+ * As duas alternativas eram piores: negar tudo derrubaria o sistema inteiro a
+ * cada soluço do banco, e não ter fallback nenhum faria o mesmo. O caso 2 nunca
+ * é mais largo que a RLS — ele É a RLS —, então o pior que acontece é uma tela
+ * aparecer para quem a APCS preferia que não a visse, até a próxima consulta.
+ * Restrição de cargo é recorte de interface, não tranca de banco; a migration
+ * 20260903000100 explica por quê.
+ *
+ * Um cargo criado pela APCS (chave que não é papel do enum) cai em NEGADO no
+ * caso 2, que é a direção certa.
+ */
+export function hasPermission(role: RoleKey, permission: Permission): boolean {
+  const vivo = currentRoleMatrix();
+  if (vivo) return vivo.get(role)?.has(permission) ?? false;
+
+  return isRole(role) && PERMISSION_MATRIX[permission].includes(role);
 }
 
-export function hasAnyPermission(role: Role, permissions: Permission[]): boolean {
+export function hasAnyPermission(role: RoleKey, permissions: Permission[]): boolean {
   return permissions.some((p) => hasPermission(role, p));
+}
+
+/** Tudo o que um cargo abre — o que a Sidebar recebe pronta do servidor. */
+export function permissionsOf(role: RoleKey): readonly Permission[] {
+  const vivo = currentRoleMatrix();
+  if (vivo) return [...(vivo.get(role) ?? [])];
+
+  if (!isRole(role)) return [];
+  return (Object.keys(PERMISSION_MATRIX) as Permission[]).filter((permissao) =>
+    PERMISSION_MATRIX[permissao].includes(role),
+  );
 }

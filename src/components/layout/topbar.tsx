@@ -3,14 +3,19 @@ import { LogOut, UserRound } from "lucide-react";
 import { ApcsMark } from "@/components/brand/apcs-logo";
 import { logoutAction } from "@/lib/auth/actions";
 import { getInitials, type SessionUser } from "@/lib/auth/session";
-import { ROLE_LABELS, type Role } from "@/lib/rbac/rbac.types";
 import { Button } from "@/components/ui/button";
 
 /**
  * Barra superior: identificação do usuário, atalho para o perfil e logout.
  * É um Server Component — o logout usa Server Action via `<form action>`.
  */
-export function Topbar({ user, role }: { user: SessionUser; role: Role }) {
+/**
+ * ⚠️ RECEBE O RÓTULO PRONTO, e não o cargo. Desde 20260903000100 o nome do
+ * cargo mora em `app_roles.label`, no banco — inclusive o dos cargos que a
+ * APCS cria. Traduzir a chave aqui só funcionaria para os quatro embutidos, e
+ * quem tivesse um cargo próprio veria `editor-conteudo` sob o próprio nome.
+ */
+export function Topbar({ user, roleLabel }: { user: SessionUser; roleLabel: string }) {
   return (
     <header className="border-border bg-background flex h-14 shrink-0 items-center justify-between gap-3 border-b px-4">
       {/*
@@ -30,7 +35,7 @@ export function Topbar({ user, role }: { user: SessionUser; role: Role }) {
       <div className="flex items-center gap-3">
         <div className="hidden text-right sm:block">
           <p className="text-sm leading-tight font-medium">{user.fullName}</p>
-          <p className="text-muted-foreground text-xs">{ROLE_LABELS[role]}</p>
+          <p className="text-muted-foreground text-xs">{roleLabel}</p>
         </div>
 
         <Link

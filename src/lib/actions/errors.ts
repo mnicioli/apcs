@@ -88,6 +88,14 @@ export type ActionErrorCode =
   | "broadcastUnknownSegment"
   | "broadcastNotReady"
   | "retiredRole"
+  // Cargos. Cada um diz O QUE FAZER em seguida, e `roleAboveCeiling` diz a
+  // regra inteira porque ela não é óbvia: um cargo só TIRA do papel-base.
+  | "roleKeyInvalid"
+  | "roleKeyTaken"
+  | "roleAboveCeiling"
+  | "roleBuiltinLocked"
+  | "roleInUse"
+  | "lastUserManager"
   // Caixa de entrada do WhatsApp. Códigos próprios porque o atendente está com
   // a mensagem escrita na tela e precisa saber se o problema é dele (o texto),
   // do associado (o número) ou do sistema (a integração) — as três reações são
@@ -200,6 +208,16 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
     "O sistema precisa de pelo menos um administrador ativo. Ative ou promova outra pessoa antes.",
   emailInUse: "Já existe uma conta com este e-mail.",
   retiredRole: "Este papel foi aposentado e não pode mais ser atribuído. Recarregue a página.",
+  roleKeyInvalid:
+    "A identificação do cargo deve começar por letra e usar apenas letras minúsculas, números e hífen.",
+  roleKeyTaken: "Já existe um cargo com esta identificação. Escolha outra.",
+  roleAboveCeiling:
+    "Esta permissão não existe no papel-base do cargo. Um cargo só pode TIRAR do papel-base, nunca acrescentar — para dar este acesso, escolha outro papel-base ao criar o cargo.",
+  roleBuiltinLocked:
+    "Os cargos originais do sistema não podem ser alterados aqui. Crie um cargo novo apoiado neste e retire o que não deve abrir.",
+  roleInUse: "Há pessoas com este cargo. Mova essas pessoas para outro cargo antes de excluí-lo.",
+  lastUserManager:
+    "Isto deixaria o sistema sem ninguém capaz de administrar usuários. Dê o acesso a outra pessoa antes.",
   broadcastNoAudience: "Escolha ao menos um público-alvo antes de divulgar.",
   broadcastEmptyBody: "A mensagem ficou vazia. Confira se o registro tem os dados necessários.",
   broadcastUnknownSegment:
@@ -331,6 +349,19 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "lastActiveAdmin" };
     case "AD006":
       return { code: "retiredRole" };
+    // Classe `AR` — cargos. Ver 20260903000100_custom_roles.sql.
+    case "AR001":
+      return { code: "roleKeyInvalid" };
+    case "AR002":
+      return { code: "roleKeyTaken" };
+    case "AR003":
+      return { code: "roleAboveCeiling" };
+    case "AR004":
+      return { code: "roleBuiltinLocked" };
+    case "AR005":
+      return { code: "roleInUse" };
+    case "AR006":
+      return { code: "lastUserManager" };
     // Classe `BC` — divulgação genérica. Ver 20260901000100_broadcasts.sql.
     case "BC001":
       return { code: "broadcastNoAudience" };

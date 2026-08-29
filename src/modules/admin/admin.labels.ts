@@ -23,29 +23,15 @@ export const ADMIN_AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
   user_password_reset: "Recuperação de senha enviada",
 };
 
-/**
- * O que cada papel PODE, em uma frase.
+/*
+ * ⚠️ `ROLE_DESCRIPTIONS` SAIU DAQUI em 20260903000100_custom_roles.sql.
  *
- * Existe porque "Gestor" e "Comercial" não dizem nada a quem está escolhendo, e
- * a consequência de errar é concreta: dar acesso de escrita a quem devia só
- * consultar, ou o contrário — e descobrir semanas depois, quando alguém não
- * conseguiu fazer o próprio trabalho.
- *
- * ⚠️ Estas frases descrevem a matriz de `rbac.config.ts`. Ao mexer lá, mexa
- * aqui: uma descrição desatualizada é pior que nenhuma, porque é acreditada.
+ * A frase que explica um cargo passou a morar com o cargo, em
+ * `app_roles.description` — inclusive a dos cargos que a APCS cria, que este
+ * arquivo nunca poderia conhecer. As quatro frases originais foram levadas
+ * para o seed daquela migration; mantê-las aqui também criaria duas verdades
+ * sobre a mesma coisa, e a do código envelheceria em silêncio.
  */
-export const ROLE_DESCRIPTIONS: Record<string, string> = {
-  admin: "Faz tudo: publica, aprova, divulga, e gerencia usuários e configurações.",
-  comercial: "Atende no WhatsApp e consulta os cadastros. Não publica nem aprova.",
-  // ⚠️ A frase diz a verdade incômoda: com Clientes, Projetos e Financeiro
-  // fora do ar, este papel hoje não abre tela nenhuma. Escrever "Financeiro e
-  // rentabilidade" faria quem convida achar que está dando um acesso que não
-  // existe — e a pessoa convidada descobriria sozinha, entrando num sistema
-  // vazio.
-  financeiro: "Reservado para quando o módulo Financeiro existir. Hoje não abre nenhuma tela.",
-  viewer: "Entra no sistema e não vê quase nada. É como todo usuário novo nasce.",
-};
-
 /* -------------------------------------------------------------------------- */
 /* Chaves de configuração                                                     */
 /* -------------------------------------------------------------------------- */

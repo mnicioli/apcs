@@ -25,7 +25,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import type { Permission, Role } from "@/lib/rbac/rbac.types";
+import type { Permission } from "@/lib/rbac/rbac.types";
 
 /**
  * Contadores que a navegação sabe exibir.
@@ -75,10 +75,24 @@ export interface NavItem {
 export interface NavSection {
   title: string;
   items: NavItem[];
+  /**
+   * A seção começa ABERTA.
+   *
+   * ⚠️ SÓ VALE PARA O PRIMEIRO ACESSO. Depois disso vale o que a pessoa
+   * deixou — a Sidebar guarda no navegador, e a seção da tela em que se está
+   * abre sozinha. Um padrão que se reimpusesse a cada navegação fecharia o
+   * menu na cara de quem acabou de abri-lo.
+   *
+   * Atendimento é a única aberta por decisão: é a tela que fica no ar o dia
+   * inteiro. O resto se consulta de vez em quando, e nove seções abertas
+   * fazem o menu passar da altura da janela — o que esconde as últimas sem
+   * que ninguém tenha escolhido esconder.
+   */
+  defaultOpen?: boolean;
 }
 
 /**
- * O item aparece no menu para este papel?
+ * O item aparece no menu para quem tem estas permissões?
  *
  * ⚠️ FUNÇÃO PURA, E FORA DA SIDEBAR DE PROPÓSITO. A regra tem duas metades que
  * se parecem e não são a mesma coisa — "escondido" (decisão de menu) e "sem
@@ -89,13 +103,9 @@ export interface NavSection {
  * A ordem importa: `hidden` decide primeiro. Um item escondido não chega a ser
  * consultado contra a matriz de permissões.
  */
-export function isNavItemVisible(
-  item: NavItem,
-  role: Role,
-  can: (role: Role, permission: Permission) => boolean,
-): boolean {
+export function isNavItemVisible(item: NavItem, can: (permission: Permission) => boolean): boolean {
   if (item.hidden) return false;
-  return !item.permission || can(role, item.permission);
+  return !item.permission || can(item.permission);
 }
 
 /**
@@ -107,10 +117,12 @@ export function isNavItemVisible(
 export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Geral",
+    defaultOpen: true,
     items: [{ title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, available: true }],
   },
   {
     title: "Atendimento",
+    defaultOpen: true,
     items: [
       {
         title: "Leads do CSP",

@@ -28,6 +28,20 @@ import type { Role } from "@/lib/rbac/rbac.types";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+/**
+ * ⚠️ A MATRIZ DE CARGOS FICA DE FORA DESTE TESTE, de propósito.
+ *
+ * Desde 20260903000100 o RBAC lê os cargos do banco antes de responder. Aqui o
+ * Supabase é um dublê, e ele não sabe responder essa consulta — o que o RBAC
+ * faz nesse caso é cair na matriz do CÓDIGO, que é exatamente o que estes
+ * testes verificam. Silenciar a consulta deixa isso explícito, em vez de
+ * espalhar um erro de leitura pela saída de cada caso.
+ */
+vi.mock("@/lib/services/roles", () => ({
+  ensureRoleMatrix: async () => [],
+  invalidateRoleCache: () => {},
+}));
+
 const cabecalhos = new Headers({ "x-forwarded-for": "203.0.113.7", "user-agent": "vitest" });
 vi.mock("next/headers", () => ({ headers: async () => cabecalhos }));
 
