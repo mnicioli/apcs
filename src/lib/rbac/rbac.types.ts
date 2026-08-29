@@ -3,26 +3,28 @@
  *
  * Os papéis (`Role`) espelham o enum `app_role` da migration do banco. Manter
  * os dois em sincronia: ao adicionar um papel, atualize AQUI e na migration.
+ *
+ * ⚠️ ESTA LISTA É MAIS CURTA QUE O ENUM DO BANCO, E ISSO É PROPOSITAL.
+ *
+ * `ceo`, `pm` e `tech_lead` foram APOSENTADOS em
+ * 20260902000000_retire_roles.sql. Eles continuam existindo no enum `app_role`
+ * porque o Postgres não sabe remover valor de enum — mas um CHECK em
+ * `profiles.role` impede que qualquer conta os tenha, então eles nunca chegam
+ * até aqui. `isRole()` devolve `false` para os três, e quem por algum caminho
+ * estranho os carregasse cairia em `viewer`, que não tem permissão nenhuma:
+ * falha FECHADA, que é a direção certa.
+ *
+ * Não os traga de volta só para "casar com o banco". As duas listas contam a
+ * mesma história — a do banco só carrega o histórico junto.
  */
 
-export const VALID_ROLES = [
-  "admin",
-  "ceo",
-  "pm",
-  "tech_lead",
-  "comercial",
-  "financeiro",
-  "viewer",
-] as const;
+export const VALID_ROLES = ["admin", "comercial", "financeiro", "viewer"] as const;
 
 export type Role = (typeof VALID_ROLES)[number];
 
 /** Rótulos PT-BR de cada papel, para exibir na UI. */
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrador",
-  ceo: "CEO",
-  pm: "Gerente de Projeto",
-  tech_lead: "Tech Lead",
   comercial: "Comercial",
   financeiro: "Financeiro",
   viewer: "Visualização",

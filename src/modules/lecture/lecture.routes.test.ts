@@ -157,11 +157,11 @@ describe("estado do calendário (§2)", () => {
  * recorte que as telas consultam para decidir o que oferecer.
  */
 describe("§60 permissões por perfil", () => {
-  it("Administrador e Gestor leem e escrevem", () => {
-    for (const role of ["admin", "ceo"] as const) {
-      expect(hasPermission(role, "lectures.read"), role).toBe(true);
-      expect(hasPermission(role, "lectures.write"), role).toBe(true);
-    }
+  // O §60 dizia "Administrador e Gestor". O Gestor foi aposentado em
+  // 20260902000000_retire_roles.sql, e escrever ficou só com o Administrador.
+  it("Administrador lê e escreve", () => {
+    expect(hasPermission("admin", "lectures.read")).toBe(true);
+    expect(hasPermission("admin", "lectures.write")).toBe(true);
   });
 
   it("Atendente só VISUALIZA", () => {
@@ -170,7 +170,8 @@ describe("§60 permissões por perfil", () => {
   });
 
   it("os demais papéis não veem o módulo", () => {
-    for (const role of ["pm", "tech_lead", "financeiro", "viewer"] as const) {
+    // `pm` e `tech_lead` saíram: aposentados, não existem mais como papel.
+    for (const role of ["financeiro", "viewer"] as const) {
       expect(hasPermission(role, "lectures.read"), role).toBe(false);
       expect(hasPermission(role, "lectures.write"), role).toBe(false);
     }

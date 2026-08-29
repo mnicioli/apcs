@@ -35,12 +35,14 @@ export const ADMIN_AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
  * aqui: uma descrição desatualizada é pior que nenhuma, porque é acreditada.
  */
 export const ROLE_DESCRIPTIONS: Record<string, string> = {
-  admin: "Faz tudo, inclusive gerenciar usuários e configurações.",
-  ceo: "Decide em todos os módulos: publica, aprova, divulga. Não mexe em usuários.",
+  admin: "Faz tudo: publica, aprova, divulga, e gerencia usuários e configurações.",
   comercial: "Atende no WhatsApp e consulta os cadastros. Não publica nem aprova.",
-  pm: "Projetos e alocação. Sem acesso aos módulos da APCS.",
-  tech_lead: "Infraestrutura e alocação técnica. Sem acesso aos módulos da APCS.",
-  financeiro: "Financeiro e rentabilidade. Sem acesso aos módulos da APCS.",
+  // ⚠️ A frase diz a verdade incômoda: com Clientes, Projetos e Financeiro
+  // fora do ar, este papel hoje não abre tela nenhuma. Escrever "Financeiro e
+  // rentabilidade" faria quem convida achar que está dando um acesso que não
+  // existe — e a pessoa convidada descobriria sozinha, entrando num sistema
+  // vazio.
+  financeiro: "Reservado para quando o módulo Financeiro existir. Hoje não abre nenhuma tela.",
   viewer: "Entra no sistema e não vê quase nada. É como todo usuário novo nasce.",
 };
 

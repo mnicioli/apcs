@@ -87,6 +87,7 @@ export type ActionErrorCode =
   | "broadcastEmptyBody"
   | "broadcastUnknownSegment"
   | "broadcastNotReady"
+  | "retiredRole"
   // Caixa de entrada do WhatsApp. Códigos próprios porque o atendente está com
   // a mensagem escrita na tela e precisa saber se o problema é dele (o texto),
   // do associado (o número) ou do sistema (a integração) — as três reações são
@@ -198,6 +199,7 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   lastActiveAdmin:
     "O sistema precisa de pelo menos um administrador ativo. Ative ou promova outra pessoa antes.",
   emailInUse: "Já existe uma conta com este e-mail.",
+  retiredRole: "Este papel foi aposentado e não pode mais ser atribuído. Recarregue a página.",
   broadcastNoAudience: "Escolha ao menos um público-alvo antes de divulgar.",
   broadcastEmptyBody: "A mensagem ficou vazia. Confira se o registro tem os dados necessários.",
   broadcastUnknownSegment:
@@ -327,6 +329,8 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "cannotDeactivateSelf" };
     case "AD005":
       return { code: "lastActiveAdmin" };
+    case "AD006":
+      return { code: "retiredRole" };
     // Classe `BC` — divulgação genérica. Ver 20260901000100_broadcasts.sql.
     case "BC001":
       return { code: "broadcastNoAudience" };

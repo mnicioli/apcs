@@ -184,7 +184,9 @@ describe("§3 quem não tem papel nenhum não escreve", () => {
   });
 
   it("os outros papéis do CRM também não escrevem enquete", async () => {
-    for (const papel of ["pm", "tech_lead", "financeiro"] as Role[]) {
+    // `pm` e `tech_lead` saíram da lista: foram aposentados em
+    // 20260902000000_retire_roles.sql e não existem mais como papel.
+    for (const papel of ["financeiro", "viewer"] as Role[]) {
       papelAtual = papel;
       rpc.mockClear();
       const resultado = await createSurveyAction(CRIACAO);
@@ -194,8 +196,11 @@ describe("§3 quem não tem papel nenhum não escreve", () => {
   });
 });
 
-describe("§3 ADMINISTRADOR e GESTOR escrevem", () => {
-  it.each(["admin", "ceo"] as Role[])("%s cria enquete", async (papel) => {
+// O §3 dizia "ADMINISTRADOR e GESTOR". O Gestor foi aposentado em
+// 20260902000000_retire_roles.sql, e escrever enquete ficou só com o
+// Administrador — a leitura do Atendente não mudou.
+describe("§3 só o ADMINISTRADOR escreve", () => {
+  it.each(["admin"] as Role[])("%s cria enquete", async (papel) => {
     papelAtual = papel;
     const resultado = await createSurveyAction(CRIACAO);
     expect(resultado.ok).toBe(true);

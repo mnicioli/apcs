@@ -119,8 +119,13 @@ describe("permissão das decisões do CRM", () => {
     });
   }
 
-  it("o Gestor consegue aprovar", async () => {
-    papelAtual = "ceo";
+  // Era "o Gestor consegue aprovar" — o papel foi aposentado em
+  // 20260902000000_retire_roles.sql e aprovar passou a ser só do Administrador.
+  // O teste continua sendo o único caso POSITIVO desta suíte: sem ele, provar
+  // que o Atendente é recusado não provaria nada (recusar todo mundo também
+  // passaria).
+  it("o Administrador consegue aprovar", async () => {
+    papelAtual = "admin";
     rpc.mockResolvedValue({ data: { id: "22222222-2222-4222-8222-222222222222" }, error: null });
 
     const resultado = await approveMembershipApplicationAction({ id: ID, note: "confere" });

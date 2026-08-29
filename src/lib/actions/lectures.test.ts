@@ -184,14 +184,12 @@ describe("permissões de escrita chamando a action direto", () => {
       expect(rpc).not.toHaveBeenCalled();
     });
 
+    // O caso "Gestor consegue" saiu daqui: o papel foi aposentado em
+    // 20260902000000_retire_roles.sql. O Administrador é o único que escreve, e
+    // as três recusas acima (Atendente, Viewer, sem sessão) continuam provando
+    // a fronteira.
     it(`Administrador consegue ${nome}`, async () => {
       papelAtual = "admin";
-      await chamar();
-      expect(rpc).toHaveBeenCalled();
-    });
-
-    it(`Gestor consegue ${nome}`, async () => {
-      papelAtual = "ceo";
       await chamar();
       expect(rpc).toHaveBeenCalled();
     });

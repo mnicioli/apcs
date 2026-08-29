@@ -9,18 +9,28 @@ import type { Permission, Role } from "./rbac.types";
  *
  * Estes são padrões SENSATOS de partida — ajuste conforme as regras reais da
  * empresa. Ao mudar aqui, lembre de refletir nas policies RLS das tabelas.
+ *
+ * ⚠️ SÓ O ADMINISTRADOR PUBLICA, e isso foi uma decisão, não um descuido.
+ * Existia um nível intermediário (`ceo`, o "Gestor") que publicava normativa,
+ * evento, boletim, palestra e enquete, e aprovava associado. Ele foi APOSENTADO
+ * em 20260902000000_retire_roles.sql: quem precisa publicar é Administrador.
+ *
+ * A consequência prática vale ser dita: não há mais como dar "pode publicar"
+ * sem dar junto "pode gerenciar usuários e configurações". Se um dia isso
+ * incomodar, o caminho é um papel NOVO com os `*.write` dos módulos de conteúdo
+ * — e não ressuscitar o antigo, que carrega 122 referências em policies velhas.
  */
 export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   // Atendimento — leads gerados pelos fluxos do chat (ver docs/ROADMAP.md).
   // Deve bater com as policies de `csp_leads` na migration do chat.
-  "leads.read": ["admin", "ceo", "comercial"],
+  "leads.read": ["admin", "comercial"],
   "leads.write": ["admin", "comercial"],
 
   // Central de Atendimento — a fila de conversas que precisam de uma pessoa.
   // Chave própria (e não `leads.*`) porque os dois vão divergir: o operador de
   // atendimento precisa da fila sem necessariamente ver a carteira comercial.
   // Deve bater com as policies de `chat_conversations` na migration do módulo.
-  "attendances.read": ["admin", "ceo", "comercial"],
+  "attendances.read": ["admin", "comercial"],
   "attendances.write": ["admin", "comercial"],
 
   // Caixa de entrada do WhatsApp — as conversas do número da APCS.
@@ -39,16 +49,16 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   //
   // Devem bater com `whatsapp_is_reader()` / `whatsapp_is_writer()` em
   // supabase/migrations/20260822000000_create_whatsapp_inbox.sql.
-  "whatsapp.read": ["admin", "ceo", "comercial"],
-  "whatsapp.write": ["admin", "ceo", "comercial"],
+  "whatsapp.read": ["admin", "comercial"],
+  "whatsapp.write": ["admin", "comercial"],
 
   // Gestão documental — as normativas que o chatbot vai citar.
   // A escrita é mais estreita que a de atendimentos de propósito: quem responde
   // no dia a dia (`comercial`, o "Atendente") precisa CONSULTAR a normativa
   // vigente, mas publicar uma versão nova é decisão de quem responde pela
   // norma. Deve bater com as policies de `documents` / `document_versions`.
-  "documents.read": ["admin", "ceo", "comercial"],
-  "documents.write": ["admin", "ceo"],
+  "documents.read": ["admin", "comercial"],
+  "documents.write": ["admin"],
 
   // Eventos — o que a APCS promove aos associados.
   // Mesmo recorte da gestão documental, e pelo mesmo motivo: quem atende
@@ -56,11 +66,11 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   // publicar um evento é decisão de quem responde pela agenda. Deve bater com
   // as policies de `events` / `event_segment_links` / `event_audit_logs`.
   //
-  // A trilha de auditoria é mais estreita que a leitura: só admin e ceo a leem,
+  // A trilha de auditoria é mais estreita que a leitura: só o administrador a lê,
   // conforme a matriz do escopo. Isso está na RLS de `event_audit_logs` e é
   // checado nas telas por `events.write`.
-  "events.read": ["admin", "ceo", "comercial"],
-  "events.write": ["admin", "ceo"],
+  "events.read": ["admin", "comercial"],
+  "events.write": ["admin"],
 
   // Bolsa — os boletins de preço da APCS.
   // Mesmo recorte da gestão documental, e pelo mesmo motivo: quem atende
@@ -73,31 +83,31 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   // decisões de negócio distintas, e um dia restringir quem publica a Bolsa não
   // pode mexer em quem publica normativa.
   //
-  // A trilha de auditoria é mais estreita que a leitura: só admin e ceo a leem.
+  // A trilha de auditoria é mais estreita que a leitura: só o administrador a lê.
   // Isso está na RLS de `market_bulletin_audit_logs` e é checado nas telas por
   // `market.write`.
-  "market.read": ["admin", "ceo", "comercial"],
-  "market.write": ["admin", "ceo"],
+  "market.read": ["admin", "comercial"],
+  "market.write": ["admin"],
 
   // Palestras — as que pedem pelo chatbot e as que o time marca.
-  // Mesmo recorte de Eventos e da Bolsa, e pelo §39 do escopo: ADMINISTRADOR e
-  // GESTOR planejam, atribuem e decidem status; o ATENDENTE (`comercial`)
-  // VISUALIZA — precisa consultar a agenda para responder, mas aprovar uma
-  // solicitação é decisão de quem responde pela agenda.
+  // Mesmo recorte de Eventos e da Bolsa. O §39 do escopo dizia ADMINISTRADOR e
+  // GESTOR; com o Gestor aposentado, planejar, atribuir e decidir status é só do
+  // ADMINISTRADOR. O ATENDENTE (`comercial`) VISUALIZA — precisa consultar a
+  // agenda para responder, mas aprovar é decisão de quem responde pela agenda.
   //
   // Chave própria (e não `events.*`) mesmo com a mesma lista de papéis: são
   // decisões de negócio distintas, e um dia restringir quem aprova palestra não
   // pode mexer em quem publica evento.
   //
   // Deve bater com as policies de `lectures` / `lecture_status_transitions` /
-  // `lecture_audit_logs`. A trilha é mais estreita que a leitura: só admin e ceo
-  // a leem, o que está na RLS e é checado nas telas por `lectures.write`.
-  "lectures.read": ["admin", "ceo", "comercial"],
-  "lectures.write": ["admin", "ceo"],
+  // `lecture_audit_logs`. A trilha é mais estreita que a leitura: só o
+  // administrador a lê, o que está na RLS e é checado nas telas por `lectures.write`.
+  "lectures.read": ["admin", "comercial"],
+  "lectures.write": ["admin"],
 
   // Enquetes — o que a APCS pergunta à base e o que a base respondeu.
   // O §3 do escopo é explícito e coincide com o recorte dos outros módulos de
-  // conteúdo: ADMINISTRADOR e GESTOR fazem tudo (criar, editar, agendar, ativar,
+  // conteúdo: o ADMINISTRADOR faz tudo (criar, editar, agendar, ativar,
   // encerrar, cancelar, ver resultados); o ATENDENTE (`comercial`) VISUALIZA.
   //
   // Chave própria (e não `events.*`) mesmo com a mesma lista de papéis: são
@@ -112,12 +122,12 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   // Deve bater com as policies de `surveys` / `survey_questions` /
   // `survey_options` / `survey_audience_criteria` / `survey_recipients` /
   // `survey_dispatches` / `survey_audit_logs`. A trilha é mais estreita que a
-  // leitura: só admin e ceo a leem, o que está na RLS.
-  "surveys.read": ["admin", "ceo", "comercial"],
-  "surveys.write": ["admin", "ceo"],
+  // leitura: só o administrador a lê, o que está na RLS.
+  "surveys.read": ["admin", "comercial"],
+  "surveys.write": ["admin"],
 
   // Associados — quem se cadastrou pela landing e quem a APCS reconhece.
-  // Mesmo recorte dos outros módulos: ADMINISTRADOR e GESTOR decidem; o
+  // Mesmo recorte dos outros módulos: o ADMINISTRADOR decide; o
   // ATENDENTE (`comercial`) VISUALIZA. É deliberado que o Atendente NÃO aprove:
   // aprovar cria uma linha no registro de associados, que é a fonte única da
   // verdade da entidade — e a carga do cadastro legado vai desembocar na mesma
@@ -127,36 +137,36 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   //
   // Deve bater com `membership_is_reader()` / `membership_is_writer()` em
   // supabase/migrations/20260821000000_create_membership.sql. A trilha
-  // (`membership_audit_logs`) é mais estreita que a leitura: só admin e ceo.
-  "members.read": ["admin", "ceo", "comercial"],
-  "members.write": ["admin", "ceo"],
+  // (`membership_audit_logs`) é mais estreita que a leitura: só o administrador.
+  "members.read": ["admin", "comercial"],
+  "members.write": ["admin"],
 
   // Módulo 01 — Clientes
-  "clients.read": ["admin", "ceo", "comercial", "pm"],
+  "clients.read": ["admin", "comercial"],
   "clients.write": ["admin", "comercial"],
 
   // Módulo 02 — Projetos
-  "projects.read": ["admin", "ceo", "pm", "tech_lead", "comercial", "financeiro"],
-  "projects.write": ["admin", "pm"],
+  "projects.read": ["admin", "comercial", "financeiro"],
+  "projects.write": ["admin"],
 
   // Módulo 03 — Recursos / colaboradores
-  "resources.read": ["admin", "ceo", "pm", "tech_lead"],
-  "resources.write": ["admin", "pm"],
+  "resources.read": ["admin"],
+  "resources.write": ["admin"],
 
   // Módulo 04 — Alocação
-  "allocation.read": ["admin", "ceo", "pm", "tech_lead"],
-  "allocation.write": ["admin", "pm"],
+  "allocation.read": ["admin"],
+  "allocation.write": ["admin"],
 
   // Módulo 05 / 08 / 11 — Financeiro e rentabilidade
-  "finance.read": ["admin", "ceo", "financeiro"],
+  "finance.read": ["admin", "financeiro"],
   "finance.write": ["admin", "financeiro"],
 
   // Módulo 06 — Infraestrutura & Assets
-  "infrastructure.read": ["admin", "ceo", "tech_lead"],
-  "infrastructure.write": ["admin", "tech_lead"],
+  "infrastructure.read": ["admin"],
+  "infrastructure.write": ["admin"],
 
   // Módulos analíticos (07 Health Score, 09 Capacity, 10 Simulador, 12 IA, 13 Cockpit)
-  "analytics.read": ["admin", "ceo", "pm", "comercial", "financeiro"],
+  "analytics.read": ["admin", "comercial", "financeiro"],
 
   // Administração do sistema
   "users.manage": ["admin"],
