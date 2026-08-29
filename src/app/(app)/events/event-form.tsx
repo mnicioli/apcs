@@ -13,6 +13,7 @@ import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
 import {
   createEventFormSchema,
   editEventFormSchema,
+  TIME_STEP_SECONDS,
   type EventFormData,
 } from "@/modules/event/event.schema";
 import type { EventSegment, EventSummary } from "@/modules/event/event.types";
@@ -262,10 +263,24 @@ export function EventForm({
               />
             </Field>
 
-            <Field id={startId} label="Hora de início" required error={errors.startTime?.message}>
+            {/*
+              ⚠️ `step` EM SEGUNDOS — é assim que o `<input type="time">` mede.
+              300 s é o que faz o seletor do navegador listar 00, 05, 10... 55
+              em vez dos sessenta minutos. Ele muda só a LISTA: o formulário é
+              `noValidate`, então quem digitar 08:07 na caixa é barrado pelo
+              Zod, não pelo navegador. Ver `timeSchema`.
+            */}
+            <Field
+              id={startId}
+              label="Hora de início"
+              required
+              error={errors.startTime?.message}
+              hint="De 5 em 5 minutos."
+            >
               <Input
                 id={startId}
                 type="time"
+                step={TIME_STEP_SECONDS}
                 aria-invalid={!!errors.startTime}
                 aria-describedby={errors.startTime ? `${startId}-erro` : undefined}
                 {...register("startTime")}
@@ -276,11 +291,12 @@ export function EventForm({
               id={endId}
               label="Hora de término"
               error={errors.endTime?.message}
-              hint="Opcional."
+              hint="Opcional. De 5 em 5 minutos."
             >
               <Input
                 id={endId}
                 type="time"
+                step={TIME_STEP_SECONDS}
                 aria-invalid={!!errors.endTime}
                 aria-describedby={errors.endTime ? `${endId}-erro` : undefined}
                 {...register("endTime")}

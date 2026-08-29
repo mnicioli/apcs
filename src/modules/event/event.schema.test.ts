@@ -9,6 +9,8 @@ import {
   imageExtensionOf,
   isSafeHttpUrl,
   MAX_IMAGE_SIZE_BYTES,
+  TIME_STEP_MINUTES,
+  TIME_STEP_SECONDS,
   updateEventSchema,
   validateImageCandidate,
 } from "./event.schema";
@@ -307,5 +309,56 @@ describe("createEventSchema e updateEventSchema", () => {
     const resultado = updateEventSchema.safeParse({ ...formulario(), eventId: EVENTO });
     expect(resultado.success).toBe(true);
     if (resultado.success) expect(resultado.data.storagePath).toBeUndefined();
+  });
+});
+
+describe("eventFormSchema — o passo de 5 minutos", () => {
+  /**
+   * ⚠️ ESTE BLOCO EXISTE PORQUE O `step` DO CAMPO NÃO VALE NADA AQUI.
+   *
+   * O formulário é `noValidate` (as mensagens são do Zod, não do navegador),
+   * então `step={300}` mexe só na LISTA que o seletor de horário oferece. Quem
+   * digitar 08:07 direto na caixa — ou chamar a Server Action por fora — passa
+   * pelo campo sem encostar no `step`. A regra de verdade é a do schema, e é
+   * ela que estes testes seguram.
+   */
+  it("aceita os minutos do relógio de 5 em 5", () => {
+    for (const minuto of ["00", "05", "15", "30", "45", "55"]) {
+      expect(eventFormSchema.safeParse(formulario({ startTime: `14:${minuto}` })).success).toBe(
+        true,
+      );
+    }
+  });
+
+  it("recusa um minuto fora do passo", () => {
+    expect(eventFormSchema.safeParse(formulario({ startTime: "14:07" })).success).toBe(false);
+    expect(eventFormSchema.safeParse(formulario({ startTime: "14:01" })).success).toBe(false);
+    expect(eventFormSchema.safeParse(formulario({ startTime: "14:59" })).success).toBe(false);
+  });
+
+  it("vale também para a hora de término", () => {
+    expect(eventFormSchema.safeParse(formulario({ endTime: "17:23" })).success).toBe(false);
+    expect(eventFormSchema.safeParse(formulario({ endTime: "17:20" })).success).toBe(true);
+  });
+
+  it("não atrapalha a hora de término vazia, que é opcional", () => {
+    expect(eventFormSchema.safeParse(formulario({ endTime: "" })).success).toBe(true);
+  });
+
+  it("aponta o erro no campo do horário, e não no formulário inteiro", () => {
+    // Uma mensagem sem `path` apareceria solta no rodapé, e a pessoa
+    // procuraria qual dos oito campos está errado.
+    const r = eventFormSchema.safeParse(formulario({ startTime: "14:07" }));
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues.some((i) => i.path[0] === "startTime")).toBe(true);
+    }
+  });
+
+  it("o passo em segundos é o dos minutos — as duas constantes não divergem", () => {
+    // O `<input type="time">` mede `step` em SEGUNDOS; o resto do mundo pensa
+    // em minutos. Se alguém trocar a política para 10 minutos num lugar só, o
+    // seletor ofereceria um horário que o schema recusa.
+    expect(TIME_STEP_SECONDS).toBe(TIME_STEP_MINUTES * 60);
   });
 });

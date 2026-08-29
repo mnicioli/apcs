@@ -43,10 +43,39 @@ export const eventDateSchema = z
     return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
   }, "Data do evento inválida.");
 
-/** Hora no formato HH:MM, que é o que o `<input type="time">` produz. */
+/**
+ * O PASSO DO RELÓGIO: de cinco em cinco minutos.
+ *
+ * ⚠️ SÃO DOIS NÚMEROS PARA A MESMA REGRA porque quem os consome fala línguas
+ * diferentes: o `<input type="time">` mede `step` em SEGUNDOS, e o resto do
+ * mundo pensa em minutos. Derivar um do outro é o que impede alguém mudar a
+ * política para 10 minutos no formulário e esquecer da validação — e o sintoma
+ * seria um seletor que oferece 08:10 e uma action que recusa.
+ */
+export const TIME_STEP_MINUTES = 5;
+export const TIME_STEP_SECONDS = TIME_STEP_MINUTES * 60;
+
+/**
+ * Hora no formato HH:MM, que é o que o `<input type="time">` produz.
+ *
+ * ⚠️ O PASSO É VALIDADO AQUI, E NÃO SÓ NO `step` DO CAMPO. O formulário é
+ * `noValidate` (as mensagens são do Zod, não do navegador), então `step` mexe
+ * apenas na LISTA que o seletor oferece — quem digitar 08:07 direto na caixa,
+ * ou chamar a Server Action por fora, passaria batido. Esta é a regra de
+ * verdade; o `step` é a conveniência.
+ *
+ * ⚠️ NÃO HÁ CHECK EQUIVALENTE NO BANCO, e é decisão. Um evento antigo gravado
+ * com 08:07 faria o CHECK recusar QUALQUER update daquela linha — trocar o nome
+ * do evento falharia por causa do horário. Isto é política de apresentação
+ * ("que horários a APCS oferece"), não invariante de integridade ("que horários
+ * existem"), e as duas não merecem a mesma dureza.
+ */
 const timeSchema = z
   .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Informe um horário válido (HH:MM).");
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Informe um horário válido (HH:MM).")
+  .refine((value) => Number(value.slice(3, 5)) % TIME_STEP_MINUTES === 0, {
+    message: `Escolha um horário de ${TIME_STEP_MINUTES} em ${TIME_STEP_MINUTES} minutos (00, 05, 10... 55).`,
+  });
 
 /**
  * O link de inscrição — DADO EXTERNO NÃO CONFIÁVEL.
