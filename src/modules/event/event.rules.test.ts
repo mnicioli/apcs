@@ -23,6 +23,7 @@ function evento(overrides: Partial<EventSummary> = {}): EventSummary {
   return {
     id: "e1",
     name: "Workshop APCS",
+    description: null,
     location: "Auditório APCS",
     registrationUrl: null,
     eventDate: AMANHA,

@@ -84,6 +84,16 @@ export interface EventDispatchOutcome {
   errors: number;
   /** Quem não recebeu por telefone inválido — não é falha de envio. */
   ineligible: number;
+  /**
+   * Mensagens que SAÍRAM e cujo resultado não pôde ser gravado.
+   *
+   * ⚠️ ESTE É O NÚMERO MAIS PERIGOSO DESTE ARQUIVO, e ele não existia. A pessoa
+   * recebeu, a linha continua em `sending`, e dez minutos depois
+   * `release_stale_event_recipients` a devolve para a fila como se nada tivesse
+   * acontecido. A tela então mostra "pendente" para quem já leu a mensagem, e
+   * a próxima corrida manda de novo.
+   */
+  unsettled: number;
   /** `true` quando sobrou fila: a tela oferece "Continuar divulgação". */
   remaining: boolean;
   remainingCount: number;
@@ -101,6 +111,7 @@ interface RecipientRow {
 interface EventRow {
   id: string;
   name: string;
+  description: string | null;
   location: string;
   event_date: string;
   start_time: string;
@@ -130,6 +141,7 @@ export async function drainEventQueue(
     sent: 0,
     errors: 0,
     ineligible: 0,
+    unsettled: 0,
     remaining: false,
     remainingCount: 0,
     skipped: null,
@@ -158,7 +170,9 @@ export async function drainEventQueue(
 
   const { data: evento, error: eventoError } = await admin
     .from("events")
-    .select("id, name, location, event_date, start_time, end_time, registration_url, image_path")
+    .select(
+      "id, name, description, location, event_date, start_time, end_time, registration_url, image_path",
+    )
     .eq("id", eventId)
     .maybeSingle<EventRow>();
 
@@ -177,6 +191,7 @@ export async function drainEventQueue(
   // remontá-la por destinatário seria trabalho por mil.
   const mensagem = eventWhatsAppMessage({
     name: evento.name,
+    description: evento.description,
     location: evento.location,
     eventDate: evento.event_date,
     // O Postgres devolve `time` como "HH:MM:SS"; a mensagem mostra "HH:MM".
@@ -244,6 +259,19 @@ export async function drainEventQueue(
 
   let enviadas = 0;
 
+  /**
+   * ⚠️ POR QUE A CORRIDA PAROU — e por que isto precisa chegar à TELA.
+   *
+   * Quando o disjuntor abre, o worker sai do laço sem gravar nada: as pessoas
+   * que sobraram ficam `pending`, ZERO erros são contados (elas nem chegaram a
+   * ser tentadas) e a tela mostra "Pendentes: 2" sem nenhuma explicação. Quem
+   * olha conclui que o sistema simplesmente não fez o trabalho.
+   *
+   * A diferença entre "ainda não mandei" e "o fornecedor parou de responder" é
+   * a diferença entre esperar e ir olhar o painel da Z-API.
+   */
+  let motivoDaParada: string | null = null;
+
   for (;;) {
     if (Date.now() - inicio > orcamento || enviadas >= RUN_MAX_MESSAGES) {
       base.remaining = true;
@@ -286,6 +314,9 @@ export async function drainEventQueue(
       if (!breaker.allows()) {
         interrompido = true;
         base.remaining = true;
+        motivoDaParada =
+          "O envio parou: o WhatsApp deixou de responder. Quem ficou na fila não recebeu nada — " +
+          "use “Continuar divulgação” em alguns minutos.";
         logEventDispatch("error", "send.breaker_open", {
           eventId,
           dispatchId,
@@ -308,9 +339,12 @@ export async function drainEventQueue(
         espera,
       });
 
-      if (resultado === "sent") {
+      if (resultado === "sent" || resultado === "unsettled") {
+        // ⚠️ AS DUAS CONTAM COMO ENVIADA, e é o certo: a mensagem saiu. A
+        // diferença é que na segunda o BANCO não soube — ver `unsettled`.
         base.sent += 1;
         enviadas += 1;
+        if (resultado === "unsettled") base.unsettled += 1;
         breaker.recordSuccess();
       } else if (resultado === "ineligible") {
         base.ineligible += 1;
@@ -325,7 +359,10 @@ export async function drainEventQueue(
 
       // O ritmo só entre mensagens que REALMENTE saíram. Esperar depois de um
       // telefone inválido seria queimar orçamento sem ter falado com ninguém.
-      if (resultado === "sent" && indice < destinatarios.length - 1) {
+      if (
+        (resultado === "sent" || resultado === "unsettled") &&
+        indice < destinatarios.length - 1
+      ) {
         await sleep(ritmo);
       }
     }
@@ -342,7 +379,19 @@ export async function drainEventQueue(
   base.remainingCount = count ?? 0;
   base.remaining = base.remainingCount > 0;
 
-  await finish(dispatchId, base.remaining ? "running" : "completed", null);
+  /*
+    ⚠️ O AVISO DA FILA PRESA VEM ANTES DO AVISO DO FORNECEDOR, e não é ordem
+    aleatória: mensagem enviada que o banco não registrou é o único caso em que
+    a pessoa PODE RECEBER DUAS VEZES. É o que precisa ser lido primeiro.
+  */
+  const aviso =
+    base.unsettled > 0
+      ? `${base.unsettled} ${base.unsettled === 1 ? "mensagem saiu" : "mensagens saíram"} mas o ` +
+        "sistema não conseguiu registrar o envio. Confira no painel do WhatsApp antes de continuar: " +
+        "continuar agora pode enviar de novo para essas pessoas."
+      : motivoDaParada;
+
+  await finish(dispatchId, base.remaining ? "running" : "completed", aviso);
 
   logEventDispatch("info", "dispatch.finished", {
     eventId,
@@ -356,7 +405,70 @@ export async function drainEventQueue(
   return base;
 }
 
-type SendOutcome = "sent" | "error" | "infra" | "ineligible";
+type SendOutcome = "sent" | "unsettled" | "error" | "infra" | "ineligible";
+
+/**
+ * Grava o resultado de UMA mensagem — e não deixa a gravação falhar em silêncio.
+ *
+ * ----------------------------------------------------------------------------
+ * ⚠️ ESTA FUNÇÃO EXISTE POR CAUSA DE UM `await` SEM CONFERÊNCIA DE ERRO.
+ * ----------------------------------------------------------------------------
+ * As três chamadas a `settle_event_recipient` eram `await admin.rpc(...)` e
+ * pronto: o `error` que o supabase-js devolve era descartado. Uma falha ali é
+ * invisível e tem a pior consequência possível deste módulo:
+ *
+ *   1. a mensagem SAIU — a pessoa está lendo no celular;
+ *   2. a linha continua em `sending`, porque ninguém a liquidou;
+ *   3. dez minutos depois, `release_stale_event_recipients` a devolve para
+ *      `pending`, achando que um worker morreu no meio;
+ *   4. a tela passa a dizer "pendente" sobre quem já recebeu;
+ *   5. quem clicar em "Continuar divulgação" MANDA DE NOVO.
+ *
+ * Nada disso aparece em lugar nenhum. Devolver `false` daqui é o que permite
+ * contar esses casos e avisar na tela.
+ */
+async function settleRecipient({
+  admin,
+  recipientId,
+  providerMessageId,
+  erro,
+  eventId,
+  dispatchId,
+  correlationId,
+}: {
+  admin: ReturnType<typeof createAdminClient>;
+  recipientId: string;
+  providerMessageId: string | null;
+  erro: string | null;
+  eventId: string;
+  dispatchId: string;
+  correlationId: string;
+}): Promise<boolean> {
+  // `as never` como em `mark_survey_recipient`: o gerador de tipos não sabe que
+  // estes parâmetros aceitam null (o Postgres não expõe nulidade de argumento),
+  // então tipa como `string`. Passar null é o correto no SQL.
+  const { error } = await admin.rpc("settle_event_recipient", {
+    p_recipient_id: recipientId,
+    p_provider_message_id: providerMessageId,
+    p_error: erro,
+  } as never);
+
+  if (!error) return true;
+
+  logEventDispatch("error", "send.error", {
+    eventId,
+    dispatchId,
+    recipientId,
+    correlationId,
+    outcome:
+      erro === null
+        ? "A MENSAGEM SAIU E O RESULTADO NÃO FOI GRAVADO — risco de envio duplicado"
+        : "o resultado do envio não pôde ser gravado",
+    reason: error.message,
+  });
+
+  return false;
+}
 
 async function sendToRecipient({
   admin,
@@ -389,14 +501,15 @@ async function sendToRecipient({
   // gasta orçamento e enche a coluna de erro com a mesma frase. `landline`
   // entra aqui — fixo não recebe WhatsApp, e insistir não muda isso.
   if (!telefone.ok) {
-    // `as never` como em `mark_survey_recipient`: o gerador de tipos não sabe
-    // que estes parâmetros aceitam null (o Postgres não expõe nulidade de
-    // argumento), então tipa como `string`. Passar null é o correto no SQL.
-    await admin.rpc("settle_event_recipient", {
-      p_recipient_id: destinatario.id,
-      p_provider_message_id: null,
-      p_error: PHONE_REJECTION_REASONS[telefone.reason],
-    } as never);
+    await settleRecipient({
+      admin,
+      recipientId: destinatario.id,
+      providerMessageId: null,
+      erro: PHONE_REJECTION_REASONS[telefone.reason],
+      eventId,
+      dispatchId,
+      correlationId,
+    });
     logEventDispatch("info", "send.ineligible", {
       eventId,
       dispatchId,
@@ -445,11 +558,15 @@ async function sendToRecipient({
           });
 
     if (resultado.ok) {
-      await admin.rpc("settle_event_recipient", {
-        p_recipient_id: destinatario.id,
-        p_provider_message_id: resultado.providerMessageId,
-        p_error: null,
-      } as never);
+      const gravou = await settleRecipient({
+        admin,
+        recipientId: destinatario.id,
+        providerMessageId: resultado.providerMessageId,
+        erro: null,
+        eventId,
+        dispatchId,
+        correlationId,
+      });
       logEventDispatch("info", "send.ok", {
         eventId,
         dispatchId,
@@ -459,7 +576,7 @@ async function sendToRecipient({
         attempt: tentativa,
         phone: maskPhone(destinatario.member_phone),
       });
-      return "sent";
+      return gravou ? "sent" : "unsettled";
     }
 
     ultimoErro = `${resultado.code}: ${resultado.message}`;
@@ -488,11 +605,15 @@ async function sendToRecipient({
     if (tentativa < maxTentativas) await sleep(espera(tentativa));
   }
 
-  await admin.rpc("settle_event_recipient", {
-    p_recipient_id: destinatario.id,
-    p_provider_message_id: null,
-    p_error: ultimoErro,
-  } as never);
+  await settleRecipient({
+    admin,
+    recipientId: destinatario.id,
+    providerMessageId: null,
+    erro: ultimoErro,
+    eventId,
+    dispatchId,
+    correlationId,
+  });
 
   logEventDispatch("error", "send.error", {
     eventId,

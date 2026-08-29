@@ -361,3 +361,46 @@ describe("eventFormSchema — o passo de 5 minutos", () => {
     expect(TIME_STEP_SECONDS).toBe(TIME_STEP_MINUTES * 60);
   });
 });
+
+/**
+ * A DESCRIÇÃO (pedido de 29/08/2026).
+ *
+ * Campo opcional, e é ele que vai para o WhatsApp abaixo do nome. O teto de 600
+ * está repetido no CHECK `events_description_len`; a mensagem tem uma proteção
+ * própria contra estourar a legenda — ver `eventWhatsAppMessage`.
+ */
+describe("eventFormSchema — descrição", () => {
+  it("é opcional: evento sem descrição continua válido", () => {
+    const r = eventFormSchema.safeParse(formulario({ description: undefined }));
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.description).toBeUndefined();
+  });
+
+  it("aceita texto e preserva as quebras de linha", () => {
+    const texto = "Primeira linha.\nSegunda linha.";
+    const r = eventFormSchema.safeParse(formulario({ description: texto }));
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.description).toBe(texto);
+  });
+
+  /**
+   * ⚠️ VAZIO E AUSENTE PRECISAM SER A MESMA COISA. O banco guarda NULL; se o
+   * formulário mandasse "", teríamos dois jeitos de dizer "não há descrição" —
+   * e a comparação da trilha de auditoria registraria uma alteração onde nada
+   * mudou, toda vez que alguém salvasse o evento.
+   */
+  it("só espaços vira ausente, e não string vazia", () => {
+    const r = eventFormSchema.safeParse(formulario({ description: "   " }));
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.description).toBeUndefined();
+  });
+
+  it("recusa acima de 600 caracteres", () => {
+    expect(eventFormSchema.safeParse(formulario({ description: "D".repeat(600) })).success).toBe(
+      true,
+    );
+    expect(eventFormSchema.safeParse(formulario({ description: "D".repeat(601) })).success).toBe(
+      false,
+    );
+  });
+});

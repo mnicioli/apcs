@@ -161,6 +161,14 @@ export default async function EventDetailPage({
             />
 
             <dl className="grid gap-4 sm:grid-cols-2">
+              {/* `whitespace-pre-line`: a descrição é texto livre, e quem a
+                  escreveu em duas linhas vai vê-la em duas linhas — inclusive
+                  no WhatsApp, que preserva a quebra. */}
+              {event.description && (
+                <Item label="Descrição" className="sm:col-span-2">
+                  <span className="whitespace-pre-line">{event.description}</span>
+                </Item>
+              )}
               <Item label="Local">{event.location}</Item>
               <Item label="Data">{formatCalendarDate(event.eventDate)}</Item>
               <Item label="Hora de início">{formatTime(event.startTime)}</Item>

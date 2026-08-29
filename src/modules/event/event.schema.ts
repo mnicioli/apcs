@@ -114,6 +114,25 @@ export const eventFormSchema = z
       .trim()
       .min(2, "Informe o nome do evento.")
       .max(160, "Nome muito longo (máximo de 160 caracteres)."),
+    /**
+     * A descrição — OPCIONAL, e o texto que sai no WhatsApp abaixo do nome.
+     *
+     * ⚠️ O TETO DE 600 NÃO É ARBITRÁRIO. A divulgação vai como legenda de uma
+     * imagem, e a legenda do WhatsApp corta em 1024 caracteres. Nome, data,
+     * horário, local, link e o aviso "responda SAIR" já ocupam o resto — e é
+     * justamente o aviso de saída, que fica por último, que sumiria primeiro se
+     * a descrição pudesse crescer sem limite. O mesmo número está no CHECK
+     * `events_description_len`.
+     *
+     * String vazia vira `undefined`: o banco guarda NULL, e "sem descrição" e
+     * "descrição vazia" não podem ser dois estados diferentes.
+     */
+    description: z
+      .string()
+      .trim()
+      .max(600, "Descrição muito longa (máximo de 600 caracteres).")
+      .optional()
+      .transform((value) => (value ? value : undefined)),
     location: z
       .string()
       .trim()

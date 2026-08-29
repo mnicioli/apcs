@@ -141,14 +141,8 @@ export class ZApiProvider implements MessagingProvider {
     );
 
     if (!resultado.ok) {
-      // Timeout e falha de rede são SEMPRE retryable — com a consequência
-      // desconfortável de sempre: a mensagem pode ter saído mesmo assim.
-      return {
-        ok: false,
-        retryable: true,
-        code: resultado.timedOut ? "timeout" : "network",
-        message: resultado.error,
-      };
+      // Ver `falhaDeTransporte`: timeout não é "não enviou", é "não sei".
+      return falhaDeTransporte(resultado.timedOut, resultado.error);
     }
 
     const { response } = resultado;
@@ -236,12 +230,8 @@ export class ZApiProvider implements MessagingProvider {
     );
 
     if (!resultado.ok) {
-      return {
-        ok: false,
-        retryable: true,
-        code: resultado.timedOut ? "timeout" : "network",
-        message: resultado.error,
-      };
+      // Ver `falhaDeTransporte`: timeout não é "não enviou", é "não sei".
+      return falhaDeTransporte(resultado.timedOut, resultado.error);
     }
 
     const { response } = resultado;
@@ -310,12 +300,8 @@ export class ZApiProvider implements MessagingProvider {
     );
 
     if (!resultado.ok) {
-      return {
-        ok: false,
-        retryable: true,
-        code: resultado.timedOut ? "timeout" : "network",
-        message: resultado.error,
-      };
+      // Ver `falhaDeTransporte`: timeout não é "não enviou", é "não sei".
+      return falhaDeTransporte(resultado.timedOut, resultado.error);
     }
 
     const { response } = resultado;
@@ -614,6 +600,42 @@ function momentoParaIso(value: unknown): string | null {
   if (n === null || n <= 0) return null;
   const data = new Date(n);
   return Number.isNaN(data.getTime()) ? null : data.toISOString();
+}
+
+/**
+ * A falha que acontece ANTES de haver resposta — e a decisão de insistir ou não.
+ *
+ * ----------------------------------------------------------------------------
+ * ⚠️ TIMEOUT NÃO É "NÃO ENVIOU". É "NÃO SEI".
+ * ----------------------------------------------------------------------------
+ * Antes, timeout e falha de rede eram os dois `retryable: true`, com um
+ * comentário admitindo o desconforto: "a mensagem pode ter saído mesmo assim".
+ * Ela pode — e no envio de IMAGEM ela provavelmente saiu, porque quem baixa o
+ * cartaz é o servidor da Z-API e é justamente essa busca que estoura os 30
+ * segundos. O pedido chegou inteiro; o que faltou foi a resposta.
+ *
+ * Repetir nesse estado manda a mesma divulgação duas ou três vezes para a mesma
+ * pessoa. Para uma associação que fala com a base pelo WhatsApp, isso é pior do
+ * que uma mensagem a menos: é o tipo de coisa que faz gente bloquear o número —
+ * e um número bloqueado por muita gente é um número que o WhatsApp derruba.
+ *
+ * Então: timeout SAI do laço de repetição e vira um erro definitivo cuja
+ * mensagem diz o que de fato se sabe. Quem lê a tela decide se reenvia.
+ *
+ * Falha de REDE continua sendo repetida: aí a conexão não se estabeleceu, e o
+ * fornecedor não recebeu nada que pudesse processar.
+ */
+function falhaDeTransporte(timedOut: boolean, erro: string): SendResult {
+  if (!timedOut) {
+    return { ok: false, retryable: true, code: "network", message: erro };
+  }
+
+  return {
+    ok: false,
+    retryable: false,
+    code: "timeout",
+    message: `${erro} A mensagem PODE ter sido entregue — confira no painel do WhatsApp antes de reenviar.`,
+  };
 }
 
 function extrairErro(corpo: unknown): string | null {

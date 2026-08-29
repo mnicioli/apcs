@@ -42,12 +42,15 @@ export function clampChatbotLimit(limit?: number): number {
  * funcionários da APCS), `status` cru e carimbos administrativos. Nada disso
  * ajuda um associado a decidir se vai ao evento, e tudo isso é dado interno.
  *
- * Não há `description`: a tabela `events` não tem essa coluna, e o escopo é
- * explícito em usar só campos existentes.
+ * A `description` entrou em 20260904000000_event_description.sql. Ela É escrita
+ * PARA o associado — é o mesmo texto que sai na divulgação de WhatsApp —, então
+ * é um dos poucos campos novos que o bot pode e deve mostrar.
  */
 export interface ChatbotEvent {
   id: string;
   name: string;
+  /** O que o evento é. `null` quando ninguém escreveu — nunca um texto inventado. */
+  description: string | null;
   location: string;
   /** AAAA-MM-DD. Formatação para leitura humana é de quem exibe. */
   eventDate: string;
@@ -72,6 +75,7 @@ export function toChatbotEvent(event: EventSummary): ChatbotEvent {
   return {
     id: event.id,
     name: event.name,
+    description: event.description,
     location: event.location,
     eventDate: event.eventDate,
     startTime: event.startTime,

@@ -460,6 +460,36 @@ describe("send", () => {
     });
   });
 
+  /**
+   * ⚠️ TIMEOUT NÃO É "NÃO ENVIOU", É "NÃO SEI" — e por isso saiu da repetição.
+   *
+   * O pedido chegou inteiro à Z-API; o que faltou foi a resposta. No envio de
+   * imagem isso é o caso COMUM, porque quem baixa o cartaz é o servidor dela e
+   * é essa busca que estoura os 30 segundos. Repetir manda a mesma divulgação
+   * duas ou três vezes para a mesma pessoa — e é assim que um número passa a
+   * ser bloqueado por muita gente.
+   */
+  it("timeout NÃO é para tentar de novo, e a mensagem diz por quê", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          (init.signal as AbortSignal).addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+
+    const promessa = new ZApiProvider(CONFIG).send({ to: "1", body: "a", correlationId: "c" });
+    await vi.advanceTimersByTimeAsync(20_000);
+    const r = await promessa;
+
+    expect(r).toMatchObject({ ok: false, retryable: false, code: "timeout" });
+    if (!r.ok) expect(r.message).toMatch(/PODE ter sido entregue/);
+
+    vi.useRealTimers();
+  });
+
   it("queda de rede é sempre retryable", async () => {
     fetchMock.mockRejectedValue(new Error("ECONNRESET"));
 

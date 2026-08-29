@@ -240,6 +240,7 @@ export async function createEventAction(
   const { data, error } = await supabase.rpc("create_event", {
     p_event_id: eventId,
     p_name: parsed.data.name,
+    p_description: parsed.data.description ?? null,
     p_location: parsed.data.location,
     p_registration_url: parsed.data.registrationUrl || null,
     p_event_date: parsed.data.eventDate,
@@ -314,6 +315,7 @@ export async function updateEventAction(
   const { data, error } = await supabase.rpc("update_event", {
     p_event_id: eventId,
     p_name: parsed.data.name,
+    p_description: parsed.data.description ?? null,
     p_location: parsed.data.location,
     p_registration_url: parsed.data.registrationUrl || null,
     p_event_date: parsed.data.eventDate,

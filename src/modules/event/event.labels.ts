@@ -55,6 +55,7 @@ export const EVENT_AUDIT_ACTION_LABELS: Record<EventAuditAction, string> = {
  */
 const AUDIT_FIELD_LABELS: Record<string, string> = {
   name: "Nome",
+  description: "Descrição",
   location: "Local",
   registrationUrl: "Link de inscrição",
   eventDate: "Data do evento",
@@ -83,18 +84,38 @@ export function auditFieldLabel(field: string): string {
  * a prévia que o WhatsApp monta fica embaixo, sem empurrar data e local para
  * fora da primeira tela.
  */
-export function eventWhatsAppMessage(event: {
+export interface EventMessageData {
   name: string;
+  description?: string | null;
   location: string;
   eventDate: string;
   startTime: string;
   endTime: string | null;
   registrationUrl: string | null;
-}): string {
+}
+
+/**
+ * O teto de uma LEGENDA de anexo no WhatsApp.
+ *
+ * ⚠️ ESTOURAR NÃO CORTA — FAZ O FORNECEDOR RECUSAR A MENSAGEM INTEIRA. Uma
+ * divulgação com cartaz é imagem + legenda; passar do limite não entrega um
+ * texto truncado, entrega nada.
+ */
+export const WHATSAPP_CAPTION_LIMIT = 1024;
+
+function comporMensagem(event: EventMessageData, descricao: string | null): string {
   const linhas = [
     "*APCS — Associação Paulista de Criadores de Suínos*",
     "",
     `*${event.name}*`,
+    // ⚠️ A DESCRIÇÃO GRUDA NO NOME, sem linha em branco entre os dois, e a linha
+    // em branco vem DEPOIS dela. É o que faz o começo da mensagem se ler como um
+    // bloco só — "o que é isto" — separado do bloco de "quando e onde". Uma
+    // linha em branco entre nome e descrição faria três blocos soltos.
+    //
+    // Sem descrição, a mensagem fica exatamente como era antes: nome, linha em
+    // branco, dados.
+    ...(descricao ? [descricao] : []),
     "",
     // ⚠️ UM RÓTULO POR LINHA, e não tudo junto numa frase. A mensagem chega
     // numa tela de celular, e "Data" / "Horário" / "Local" alinhados são o que
@@ -115,6 +136,38 @@ export function eventWhatsAppMessage(event: {
   linhas.push("", "Para não receber mais avisos da APCS, responda SAIR.");
 
   return linhas.join("\n");
+}
+
+export function eventWhatsAppMessage(event: EventMessageData): string {
+  const semDescricao = comporMensagem(event, null);
+  const descricao = event.description?.trim();
+
+  if (!descricao) return semDescricao;
+
+  /*
+    ⚠️ A DESCRIÇÃO É A ÚNICA PARTE QUE CEDE ESPAÇO, e isto não é preferência de
+    estilo — é a ordem de importância da mensagem.
+
+    Nome, data, horário, local e link são FATOS: cortar qualquer um deles
+    produz uma mensagem errada, não uma mensagem menor. A linha do "responda
+    SAIR" é o que protege o número da APCS de ser bloqueado. A descrição é o
+    único trecho em que faltar a última frase custa contexto, e não informação.
+
+    O limite existe de verdade: com nome, local e link todos no máximo que o
+    formulário permite, sobram cerca de 240 caracteres para a descrição. Fora
+    desse extremo — um nome e um local normais —, cabem os 600 inteiros e este
+    caminho nunca é usado.
+
+    A reticência final é deliberada: quem lê precisa saber que a frase continua,
+    em vez de achar que alguém escreveu pela metade.
+  */
+  const orcamento = WHATSAPP_CAPTION_LIMIT - semDescricao.length - 1;
+  if (orcamento <= 1) return semDescricao;
+
+  const cabe =
+    descricao.length <= orcamento ? descricao : `${descricao.slice(0, orcamento - 1).trimEnd()}…`;
+
+  return comporMensagem(event, cabe);
 }
 
 /**

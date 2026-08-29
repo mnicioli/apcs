@@ -90,6 +90,14 @@ export const AUDIENCE_SHORTCUT_SLUG = "all-members";
 export interface EventSummary {
   id: string;
   name: string;
+  /**
+   * Texto livre que diz o que o evento É.
+   *
+   * ⚠️ NÃO É SÓ DECORAÇÃO DE TELA: é o que sai na divulgação de WhatsApp,
+   * logo abaixo do nome. Nome, data e local dizem quando e onde; a descrição
+   * é a única parte da mensagem que diz por que vale ir.
+   */
+  description: string | null;
   location: string;
   registrationUrl: string | null;
   /** Data pura AAAA-MM-DD, sem hora e sem fuso. */

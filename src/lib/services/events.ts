@@ -5,7 +5,6 @@ import { todayInSaoPaulo } from "@/lib/utils";
 import { matchesAnySegment } from "@/modules/event/event.audience";
 import { compareEvents, formatTime, matchesEventFilters } from "@/modules/event/event.rules";
 import {
-  AUDIENCE_SHORTCUT_SLUG,
   type EventAuditAction,
   type EventAuditEntry,
   type EventFilters,
@@ -64,7 +63,7 @@ const SEGMENT_SCAN_LIMIT = 200;
  * erro de ambiguidade.
  */
 const EVENT_COLUMNS =
-  "id, name, location, registration_url, event_date, start_time, end_time, status, " +
+  "id, name, description, location, registration_url, event_date, start_time, end_time, status, " +
   "image_path, created_at, updated_at, " +
   "creator:profiles!events_created_by_fkey (id, full_name), " +
   "editor:profiles!events_updated_by_fkey (id, full_name), " +
@@ -85,6 +84,7 @@ interface SegmentRow {
 interface EventRow {
   id: string;
   name: string;
+  description: string | null;
   location: string;
   registration_url: string | null;
   event_date: string;
@@ -118,6 +118,7 @@ function toEvent(row: EventRow, imageUrl: string | null): EventSummary {
   return {
     id: row.id,
     name: row.name,
+    description: row.description,
     location: row.location,
     registrationUrl: row.registration_url,
     eventDate: row.event_date,
@@ -286,11 +287,19 @@ export async function listEventSegments(): Promise<EventSegment[]> {
   return (data ?? []).map(toSegment).sort(compareSegmentsForForm);
 }
 
-/** Atalho primeiro; o resto em ordem alfabética de PT-BR. */
+/**
+ * Ordem alfabética de PT-BR, e só.
+ *
+ * ⚠️ ANTES O ATALHO "Toda a base" VINHA PRIMEIRO. Ele foi desativado em
+ * 20260904000000_event_description.sql — estava confundindo quem cadastra, e
+ * a seleção não voltava como tinha sido feita (o banco expandia o atalho nos
+ * cinco públicos, então reabrir a edição mostrava cinco caixas marcadas). A
+ * consulta acima filtra por `active`, então ele não chega mais até aqui.
+ *
+ * `AUDIENCE_SHORTCUT_SLUG` continua declarado: `expand_event_segments` ainda o
+ * conhece, para o caso de um evento antigo que aponte diretamente para ele.
+ */
 function compareSegmentsForForm(a: EventSegment, b: EventSegment): number {
-  const aShortcut = a.slug === AUDIENCE_SHORTCUT_SLUG;
-  const bShortcut = b.slug === AUDIENCE_SHORTCUT_SLUG;
-  if (aShortcut !== bShortcut) return aShortcut ? -1 : 1;
   return a.name.localeCompare(b.name, "pt-BR");
 }
 
@@ -484,43 +493,75 @@ export interface EventDispatchSummary {
   remaining: number;
 }
 
+/** Conta linhas da fila de um evento com estes status. */
+async function countRecipients(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventId: string,
+  statuses: string[],
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("event_recipients")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", eventId)
+    .in("status", statuses);
+
+  if (error) {
+    console.error(`[events] contagem da fila falhou: ${error.message}`);
+    return 0;
+  }
+  return count ?? 0;
+}
+
 /**
  * A última corrida de divulgação de um evento, se houve alguma.
  *
- * ⚠️ `remaining` VEM DA FILA, NÃO DA CORRIDA. Os totais gravados em
- * `event_dispatches` são a fotografia do momento em que ela terminou; a fila é
- * o estado agora. Sem cron neste projeto, é normal a corrida ter acabado com
- * gente pendente — e é justamente esse número que a tela precisa mostrar para
- * oferecer "Continuar divulgação".
+ * ----------------------------------------------------------------------------
+ * ⚠️ TODOS OS QUATRO NÚMEROS VÊM DA FILA. ANTES, TRÊS VINHAM DA CORRIDA — E ERA
+ * ASSIM QUE A TELA MENTIA.
+ * ----------------------------------------------------------------------------
+ * `event_dispatches.total_sent/errors/blocked` são gravados por
+ * `finish_event_dispatch`, ou seja, SÓ QUANDO A CORRIDA TERMINA. Uma corrida
+ * recém-aberta nasce com os três em zero — e o envio roda depois da resposta,
+ * fora do caminho do navegador.
+ *
+ * Isso produzia exatamente o defeito relatado: a tela mostrando
+ * "Enviadas 0 · Pendentes 2" enquanto as duas pessoas já tinham a mensagem no
+ * celular. Bastava a página ser aberta no meio da corrida. E se a corrida
+ * morresse antes de encerrar — a plataforma matou a função, uma exceção subiu —,
+ * o zero ficava para sempre, porque ninguém mais escreveria aquelas colunas.
+ *
+ * Um número que só é verdade no instante em que a corrida acaba não serve para
+ * uma tela que é aberta justamente ENQUANTO ela acontece. As colunas continuam
+ * no banco como registro histórico da corrida; o que a tela mostra agora é o
+ * estado da fila, que é o que a pergunta "quantos receberam?" quer saber.
+ *
+ * O preço são quatro contagens em vez de uma — todas `head: true`, sem trazer
+ * linha, e em paralelo.
  */
 export async function getLatestEventDispatch(
   eventId: string,
 ): Promise<EventDispatchSummary | null> {
   const supabase = await createClient();
 
-  const [{ data, error }, { count, error: countError }] = await Promise.all([
+  const [{ data, error }, enviadas, erros, bloqueadas, naFila] = await Promise.all([
     supabase
       .from("event_dispatches")
-      .select(
-        "id, status, total_recipients, total_sent, total_errors, total_blocked, started_at, finished_at, last_error",
-      )
+      .select("id, status, total_recipients, started_at, finished_at, last_error")
       .eq("event_id", eventId)
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from("event_recipients")
-      .select("id", { count: "exact", head: true })
-      .eq("event_id", eventId)
-      .in("status", ["pending", "sending"]),
+    // 'delivered' e 'read' são confirmações do webhook: quem chegou lá foi
+    // enviado antes, e some da conta de "enviadas" se não entrar aqui.
+    countRecipients(supabase, eventId, ["sent", "delivered", "read"]),
+    countRecipients(supabase, eventId, ["error"]),
+    countRecipients(supabase, eventId, ["blocked"]),
+    countRecipients(supabase, eventId, ["pending", "sending"]),
   ]);
 
   if (error) {
     console.error(`[events] getLatestEventDispatch falhou: ${error.message}`);
     throw error;
-  }
-  if (countError) {
-    console.error(`[events] fila do evento falhou: ${countError.message}`);
   }
   if (!data) return null;
 
@@ -528,9 +569,6 @@ export async function getLatestEventDispatch(
     id: string;
     status: EventDispatchSummary["status"];
     total_recipients: number;
-    total_sent: number;
-    total_errors: number;
-    total_blocked: number;
     started_at: string;
     finished_at: string | null;
     last_error: string | null;
@@ -540,12 +578,12 @@ export async function getLatestEventDispatch(
     id: row.id,
     status: row.status,
     totalRecipients: row.total_recipients,
-    totalSent: row.total_sent,
-    totalErrors: row.total_errors,
-    totalBlocked: row.total_blocked,
+    totalSent: enviadas,
+    totalErrors: erros,
+    totalBlocked: bloqueadas,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     lastError: row.last_error,
-    remaining: count ?? 0,
+    remaining: naFila,
   };
 }

@@ -149,3 +149,73 @@ describe("eventWhatsAppMessage — os rótulos", () => {
     expect(gigante.length).toBeLessThan(1024);
   });
 });
+
+/**
+ * A DESCRIÇÃO NA MENSAGEM (pedido de 29/08/2026).
+ *
+ * O evento passou a ter um texto livre, e ele sai logo abaixo do nome. O que
+ * estes testes seguram é a FORMA — porque a forma é o que faz a mensagem ser
+ * lida de relance num celular.
+ */
+describe("eventWhatsAppMessage — a descrição", () => {
+  const comDescricao = {
+    ...base,
+    description: "Dois dias de painéis sobre mercado, sanidade e novidades do setor.",
+  };
+
+  it("vem na linha imediatamente abaixo do nome", () => {
+    const linhas = eventWhatsAppMessage(comDescricao).split("\n");
+    const iNome = linhas.indexOf("*Workshop de Sanidade*");
+
+    expect(iNome).toBeGreaterThan(-1);
+    expect(linhas[iNome + 1]).toBe(comDescricao.description);
+  });
+
+  /**
+   * ⚠️ A LINHA EM BRANCO VEM DEPOIS DA DESCRIÇÃO, não entre ela e o nome.
+   * Nome e descrição são um bloco só — "o que é isto" —, separado do bloco de
+   * "quando e onde". Com a linha em branco no meio, viram três pedaços soltos.
+   */
+  it("deixa uma linha em branco entre a descrição e os dados", () => {
+    const linhas = eventWhatsAppMessage(comDescricao).split("\n");
+    const iDescricao = linhas.indexOf(comDescricao.description);
+
+    expect(linhas[iDescricao + 1]).toBe("");
+    expect(linhas[iDescricao + 2]).toContain("*Data:*");
+  });
+
+  it("sem descrição, a mensagem fica exatamente como era antes", () => {
+    expect(eventWhatsAppMessage({ ...base, description: null })).toBe(eventWhatsAppMessage(base));
+    expect(eventWhatsAppMessage({ ...base, description: "   " })).toBe(eventWhatsAppMessage(base));
+  });
+
+  /**
+   * ⚠️ O TESTE QUE JUSTIFICA O ORÇAMENTO DE CARACTERES EXISTIR.
+   *
+   * Estourar a legenda não corta o texto: faz o fornecedor RECUSAR A MENSAGEM
+   * INTEIRA. Com nome, local, link e descrição todos no máximo que o formulário
+   * aceita, a soma passa de 1024 — e a divulgação inteira falharia, para todo
+   * mundo, sem que ninguém tivesse feito nada de errado.
+   */
+  it("cabe na legenda mesmo com TODOS os campos no máximo", () => {
+    const gigante = eventWhatsAppMessage({
+      ...base,
+      name: "N".repeat(160),
+      description: "D".repeat(600),
+      location: "L".repeat(200),
+      registrationUrl: `https://apcs.org.br/${"x".repeat(200)}`,
+    });
+
+    expect(gigante.length).toBeLessThanOrEqual(1024);
+    // A data e a saída sobrevivem ao corte: quem cede espaço é a descrição.
+    expect(gigante).toContain("*Data:*");
+    expect(gigante).toContain("SAIR");
+    expect(gigante).toContain("…");
+  });
+
+  it("descrição que cabe não é cortada", () => {
+    const texto = eventWhatsAppMessage(comDescricao);
+    expect(texto).toContain(comDescricao.description);
+    expect(texto).not.toContain("…");
+  });
+});

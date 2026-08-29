@@ -15,12 +15,13 @@ import {
   editEventFormSchema,
   type EventFormData,
 } from "@/modules/event/event.schema";
-import { TIME_STEP_HINT, TIME_STEP_SECONDS } from "@/lib/time/step";
 import type { EventSegment, EventSummary } from "@/modules/event/event.types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { TimeSelect } from "@/components/ui/time-select";
 import { EventImageField } from "./event-image-field";
 
 /**
@@ -55,6 +56,7 @@ export function EventForm({
   const [isPending, startTransition] = useTransition();
 
   const nameId = useId();
+  const descriptionId = useId();
   const locationId = useId();
   const urlId = useId();
   const dateId = useId();
@@ -66,13 +68,15 @@ export function EventForm({
     register,
     handleSubmit,
     watch,
-    formState: { errors, isDirty },
+    setValue,
+    formState: { errors, isDirty, isSubmitted },
   } = useForm<EventFormData>({
     resolver: zodResolver(
       isEdit ? editEventFormSchema(today, event.eventDate) : createEventFormSchema(today),
     ),
     defaultValues: {
       name: event?.name ?? "",
+      description: event?.description ?? "",
       location: event?.location ?? "",
       registrationUrl: event?.registrationUrl ?? "",
       eventDate: event?.eventDate ?? "",
@@ -219,6 +223,30 @@ export function EventForm({
               />
             </Field>
 
+            {/*
+              A DESCRIÇÃO fica entre o nome e o local porque é assim que a
+              mensagem de WhatsApp sai: nome, descrição, e só então onde e
+              quando. O formulário na ordem da mensagem é o que permite conferir
+              o resultado sem precisar imaginá-lo.
+            */}
+            <Field
+              id={descriptionId}
+              label="Descrição"
+              error={errors.description?.message}
+              hint="Opcional. Sai no WhatsApp logo abaixo do nome do evento."
+              className="sm:col-span-2"
+            >
+              <Textarea
+                id={descriptionId}
+                rows={3}
+                maxLength={600}
+                aria-invalid={!!errors.description}
+                aria-describedby={errors.description ? `${descriptionId}-erro` : undefined}
+                placeholder="Um encontro para discutir mercado, sanidade e novidades do setor."
+                {...register("description")}
+              />
+            </Field>
+
             <Field
               id={locationId}
               label="Local"
@@ -264,26 +292,34 @@ export function EventForm({
             </Field>
 
             {/*
-              ⚠️ `step` EM SEGUNDOS — é assim que o `<input type="time">` mede.
-              300 s é o que faz o seletor do navegador listar 00, 05, 10... 55
-              em vez dos sessenta minutos. Ele muda só a LISTA: o formulário é
-              `noValidate`, então quem digitar 08:07 na caixa é barrado pelo
-              Zod, não pelo navegador. Ver `timeSchema`.
+              ⚠️ DOIS SELETORES, E NÃO O `<input type="time">` COM `step`.
+              O campo nativo estava aqui com `step={300}`, e o seletor do Chrome
+              listava os sessenta minutos assim mesmo — `step` vale para a
+              validação do navegador, não para a lista que ele desenha. A tela
+              oferecia 14:56 e o Zod recusava. Ver `ui/time-select.tsx`.
+
+              A dica "De 5 em 5 minutos" saiu junto: ela existia para explicar
+              uma regra que agora está desenhada na própria lista.
             */}
-            <Field
-              id={startId}
-              label="Hora de início"
-              required
-              error={errors.startTime?.message}
-              hint={TIME_STEP_HINT}
-            >
-              <Input
+            <Field id={startId} label="Hora de início" required error={errors.startTime?.message}>
+              <TimeSelect
                 id={startId}
-                type="time"
-                step={TIME_STEP_SECONDS}
-                aria-invalid={!!errors.startTime}
-                aria-describedby={errors.startTime ? `${startId}-erro` : undefined}
-                {...register("startTime")}
+                label="Hora de início"
+                required
+                value={watch("startTime") ?? ""}
+                disabled={busy}
+                invalid={!!errors.startTime}
+                describedBy={errors.startTime ? `${startId}-erro` : undefined}
+                onChange={(valor) =>
+                  setValue("startTime", valor, {
+                    shouldDirty: true,
+                    // Revalidar só depois da primeira tentativa de envio: marcar
+                    // "informe um horário" enquanto a pessoa ainda escolhe a
+                    // hora é acusá-la de um erro que ela está no meio de não
+                    // cometer. Mesma regra do formulário de Palestras.
+                    shouldValidate: isSubmitted,
+                  })
+                }
               />
             </Field>
 
@@ -291,15 +327,18 @@ export function EventForm({
               id={endId}
               label="Hora de término"
               error={errors.endTime?.message}
-              hint={`Opcional. ${TIME_STEP_HINT}`}
+              hint="Opcional."
             >
-              <Input
+              <TimeSelect
                 id={endId}
-                type="time"
-                step={TIME_STEP_SECONDS}
-                aria-invalid={!!errors.endTime}
-                aria-describedby={errors.endTime ? `${endId}-erro` : undefined}
-                {...register("endTime")}
+                label="Hora de término"
+                value={watch("endTime") ?? ""}
+                disabled={busy}
+                invalid={!!errors.endTime}
+                describedBy={errors.endTime ? `${endId}-erro` : undefined}
+                onChange={(valor) =>
+                  setValue("endTime", valor, { shouldDirty: true, shouldValidate: isSubmitted })
+                }
               />
             </Field>
           </div>

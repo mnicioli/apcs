@@ -19,6 +19,7 @@ function evento(overrides: Partial<EventSummary> = {}): EventSummary {
   return {
     id: "e1",
     name: "Congresso APCS",
+    description: "Dois dias de painéis sobre mercado e sanidade.",
     location: "Auditório APCS",
     registrationUrl: "https://apcs.org.br/inscricao",
     eventDate: "2026-08-20",
@@ -81,6 +82,7 @@ describe("toChatbotEvent — o que sai e o que NÃO sai", () => {
     expect(dto).toEqual({
       id: "e1",
       name: "Congresso APCS",
+      description: "Dois dias de painéis sobre mercado e sanidade.",
       location: "Auditório APCS",
       eventDate: "2026-08-20",
       startTime: "14:00",
