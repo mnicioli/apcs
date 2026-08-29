@@ -427,3 +427,125 @@ export async function getAvailableEvents(options?: {
   // devolver dez eventos seria pagar vinte vezes pelo que se usa.
   return toEvents(eligible.slice(0, limit));
 }
+
+/**
+ * Quantas pessoas este evento alcança — e quantas estão em opt-out.
+ *
+ * ⚠️ SÓ A CONTAGEM, NUNCA A LISTA. A função Postgres é `security definer` e
+ * devolve dois números; quem divulga não precisa (e não deve) enxergar nome e
+ * telefone de toda a base para saber o tamanho do envio. Ver a migration
+ * 20260828212914.
+ *
+ * Devolve zeros em vez de lançar: a página de detalhe não pode cair porque a
+ * prévia da audiência falhou. O botão então mostra o aviso de indisponível, e
+ * a barreira de verdade continua sendo `start_event_dispatch`.
+ */
+export async function countEventAudience(
+  eventId: string,
+): Promise<{ total: number; blocked: number; available: boolean }> {
+  const supabase = await createClient();
+
+  // `as never` como em todo `rpc` com argumento feito pelo cliente do USUÁRIO
+  // neste projeto (survey_results, survey_metrics, set_event_status...). O
+  // cliente do servidor tipa `args` de um jeito que não aceita o objeto
+  // literal; o cliente `service_role` não tem esse problema, e é por isso que
+  // `event-dispatch.ts` chama sem o cast.
+  const { data, error } = await supabase.rpc("count_event_audience", {
+    p_event_id: eventId,
+  } as never);
+
+  if (error) {
+    console.error(`[events] countEventAudience falhou: ${error.message}`);
+    return { total: 0, blocked: 0, available: false };
+  }
+
+  const linha = (Array.isArray(data) ? data[0] : data) as
+    | { total: number; blocked: number }
+    | undefined;
+
+  return {
+    total: linha?.total ?? 0,
+    blocked: linha?.blocked ?? 0,
+    available: true,
+  };
+}
+
+export interface EventDispatchSummary {
+  id: string;
+  status: "running" | "completed" | "failed";
+  totalRecipients: number;
+  totalSent: number;
+  totalErrors: number;
+  totalBlocked: number;
+  startedAt: string;
+  finishedAt: string | null;
+  lastError: string | null;
+  /** Quantos ainda estão na fila. É o que decide "Divulgar" x "Continuar". */
+  remaining: number;
+}
+
+/**
+ * A última corrida de divulgação de um evento, se houve alguma.
+ *
+ * ⚠️ `remaining` VEM DA FILA, NÃO DA CORRIDA. Os totais gravados em
+ * `event_dispatches` são a fotografia do momento em que ela terminou; a fila é
+ * o estado agora. Sem cron neste projeto, é normal a corrida ter acabado com
+ * gente pendente — e é justamente esse número que a tela precisa mostrar para
+ * oferecer "Continuar divulgação".
+ */
+export async function getLatestEventDispatch(
+  eventId: string,
+): Promise<EventDispatchSummary | null> {
+  const supabase = await createClient();
+
+  const [{ data, error }, { count, error: countError }] = await Promise.all([
+    supabase
+      .from("event_dispatches")
+      .select(
+        "id, status, total_recipients, total_sent, total_errors, total_blocked, started_at, finished_at, last_error",
+      )
+      .eq("event_id", eventId)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("event_recipients")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", eventId)
+      .in("status", ["pending", "sending"]),
+  ]);
+
+  if (error) {
+    console.error(`[events] getLatestEventDispatch falhou: ${error.message}`);
+    throw error;
+  }
+  if (countError) {
+    console.error(`[events] fila do evento falhou: ${countError.message}`);
+  }
+  if (!data) return null;
+
+  const row = data as {
+    id: string;
+    status: EventDispatchSummary["status"];
+    total_recipients: number;
+    total_sent: number;
+    total_errors: number;
+    total_blocked: number;
+    started_at: string;
+    finished_at: string | null;
+    last_error: string | null;
+  };
+
+  return {
+    id: row.id,
+    status: row.status,
+    totalRecipients: row.total_recipients,
+    totalSent: row.total_sent,
+    totalErrors: row.total_errors,
+    totalBlocked: row.total_blocked,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    lastError: row.last_error,
+    remaining: count ?? 0,
+  };
+}

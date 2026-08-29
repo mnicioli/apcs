@@ -126,6 +126,8 @@ export const EVENT_AUDIT_ACTIONS = [
   "event_image_uploaded",
   "event_image_replaced",
   "event_segments_updated",
+  "event_dispatch_started",
+  "event_dispatch_completed",
 ] as const;
 export type EventAuditAction = (typeof EVENT_AUDIT_ACTIONS)[number];
 

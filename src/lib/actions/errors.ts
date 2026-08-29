@@ -28,6 +28,10 @@ export type ActionErrorCode =
   | "eventExpired"
   | "eventDateInPast"
   | "invalidSegment"
+  | "eventNotActiveForDispatch"
+  | "eventExpiredForDispatch"
+  | "eventWithoutSegments"
+  | "invalidDispatchBatch"
   // Regras de negócio da Bolsa. Mesmo raciocínio: cada uma tem um texto que diz
   // O QUE FAZER em seguida.
   | "bulletinNeedsActiveVersion"
@@ -103,6 +107,14 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   eventExpired: "Não é possível ativar um evento cuja data já passou.",
   eventDateInPast: "Não é possível cadastrar um evento com data anterior à data atual.",
   invalidSegment: "Selecione um público-alvo válido.",
+  // ⚠️ MENSAGENS PRÓPRIAS, e não reúso de `eventExpired`. Aquela diz "não é
+  // possível ATIVAR um evento cuja data já passou" — mostrá-la a quem clicou
+  // em "Divulgar" mandaria a pessoa procurar um botão de ativar que não é o
+  // problema. O código é diferente porque a frase precisa ser diferente.
+  eventNotActiveForDispatch: "Ative o evento antes de divulgar.",
+  eventExpiredForDispatch: "Este evento já passou e não pode ser divulgado.",
+  eventWithoutSegments: "Defina o público-alvo do evento antes de divulgar.",
+  invalidDispatchBatch: "O lote de divulgação está fora do tamanho permitido.",
   bulletinNeedsActiveVersion:
     "A Bolsa não pode ficar sem uma publicação ativa. Para trocar a publicação oficial, ative a desejada — a atual sai do ar automaticamente.",
   versionNotInBulletin: "Esta publicação não pertence a esta Bolsa.",
@@ -200,6 +212,15 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "invalidSegment" };
     case "EV003":
       return { code: "eventDateInPast" };
+    // EV004..EV007 — a divulgação. Ver 20260828205853_event_dispatch.sql.
+    case "EV004":
+      return { code: "eventNotActiveForDispatch" };
+    case "EV005":
+      return { code: "eventExpiredForDispatch" };
+    case "EV006":
+      return { code: "eventWithoutSegments" };
+    case "EV007":
+      return { code: "invalidDispatchBatch" };
     // Classe `MB` — regras de negócio da Bolsa, pela mesma razão da `EV`: a
     // classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260814000000_create_market_bulletins.sql.

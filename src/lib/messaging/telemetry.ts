@@ -108,6 +108,57 @@ export function logSurveyEvent(
  * por onde passa TODO texto que associados escrevem para a APCS. Nunca o texto,
  * nunca o telefone inteiro, nunca o nome.
  */
+/**
+ * A DIVULGAÇÃO DE EVENTOS.
+ *
+ * Escopo próprio, e não reúso de `survey.messaging`, pela mesma razão que a
+ * caixa de entrada tem o dela: quem procura "por que a divulgação de terça
+ * parou?" filtra por `scope` e quer só isso. Misturar os dois faria a busca
+ * devolver o disparo de enquete do mesmo minuto, e a leitura do log de um
+ * incidente é feita com pressa.
+ */
+export type EventDispatchEvent =
+  | "dispatch.started"
+  | "dispatch.finished"
+  | "dispatch.interrupted"
+  | "dispatch.skipped"
+  | "send.ok"
+  | "send.error"
+  | "send.ineligible"
+  | "send.breaker_open";
+
+export interface EventDispatchLogFields {
+  correlationId?: string;
+  eventId?: string;
+  dispatchId?: string;
+  recipientId?: string;
+  providerMessageId?: string;
+  provider?: string;
+  outcome?: string;
+  reason?: string;
+  attempt?: number;
+  count?: number;
+  durationMs?: number;
+  /** Telefone JÁ MASCARADO. Ver `maskPhone`. */
+  phone?: string;
+}
+
+export function logEventDispatch(
+  level: "info" | "error",
+  event: EventDispatchEvent,
+  fields: EventDispatchLogFields = {},
+): void {
+  const linha = JSON.stringify({
+    ts: new Date().toISOString(),
+    scope: "event.dispatch",
+    event,
+    ...fields,
+  });
+
+  if (level === "error") console.error(linha);
+  else console.info(linha);
+}
+
 export type WhatsAppInboxEvent =
   | "inbox.webhook_received"
   | "inbox.webhook_rejected"

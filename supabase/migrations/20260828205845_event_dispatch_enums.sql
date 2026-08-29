@@ -1,0 +1,45 @@
+-- ============================================================================
+-- DIVULGAÇÃO DE EVENTOS — os valores de enum, e SÓ eles
+-- ============================================================================
+--
+-- ⚠️ ESTE ARQUIVO EXISTE SOZINHO DE PROPÓSITO. NÃO JUNTE COM O SEGUINTE.
+--
+-- `alter type ... add value` grava o valor, mas ele só pode ser USADO depois
+-- que a transação que o criou for confirmada. Numa migration só, o Postgres
+-- recusa com:
+--
+--     unsafe use of new value "event_dispatch_started" of enum type
+--     event_audit_action
+--
+-- Enquetes bateu exatamente nisto e resolveu do mesmo jeito
+-- (20260820000000_survey_messaging_enums.sql). Separar os arquivos é o que
+-- garante o commit entre a criação e o uso — o CLI aplica uma migration por
+-- transação, em ordem.
+--
+-- ----------------------------------------------------------------------------
+-- Por que DOIS eventos de auditoria, e não um
+-- ----------------------------------------------------------------------------
+-- `event_dispatch_started` marca o clique em "Divulgar": quem mandou divulgar,
+-- quando, e para quantos. `event_dispatch_completed` marca o fim, com os
+-- números finais.
+--
+-- Sem o par, "a divulgação de terça terminou?" só teria como resposta o
+-- `finished_at` da tabela — que é MUTÁVEL, e portanto não é auditoria. É a
+-- mesma decisão que Enquetes tomou em `survey_dispatch_completed`.
+--
+-- E os dois importam porque o disparo é INTERROMPÍVEL por desenho: sem cron
+-- neste projeto, uma base grande precisa de mais de uma execução. Um "começou"
+-- sem "terminou" é informação, não defeito — diz que ainda há fila.
+-- ============================================================================
+
+alter type public.event_audit_action add value if not exists 'event_dispatch_started';
+alter type public.event_audit_action add value if not exists 'event_dispatch_completed';
+
+-- ----------------------------------------------------------------------------
+-- Como desfazer
+-- ----------------------------------------------------------------------------
+-- ⚠️ NÃO HÁ COMO. O Postgres não permite remover valor de enum — é o mesmo
+-- motivo pelo qual o catálogo de públicos-alvo é tabela e não enum (ver
+-- docs/EVENTS.md). Um valor a mais, não usado, é inofensivo; um nome errado
+-- seria permanente. Os dois acima foram conferidos antes de entrar.
+-- ----------------------------------------------------------------------------

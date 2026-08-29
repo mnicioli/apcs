@@ -84,7 +84,7 @@ truncate table
   public.survey_questions,
   public.survey_conversation_states,
   public.survey_inbound_events,
-  public.survey_opt_outs,
+  public.notification_opt_outs,
   public.surveys,
 
   -- WhatsApp

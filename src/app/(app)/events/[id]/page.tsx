@@ -4,7 +4,13 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CheckCircle2, ExternalLink, Pencil } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
-import { getEvent, listEventAuditLogs } from "@/lib/services/events";
+import {
+  countEventAudience,
+  getEvent,
+  getLatestEventDispatch,
+  listEventAuditLogs,
+  type EventDispatchSummary,
+} from "@/lib/services/events";
 import { formatCalendarDate, formatDateTime, todayInSaoPaulo } from "@/lib/utils";
 import {
   auditFieldLabel,
@@ -18,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EventStatusActions } from "../event-status-actions";
+import { EventDispatchButton } from "../event-dispatch-button";
 import { SignedImage } from "@/components/ui/signed-image";
 import { STATUS_BADGE_VARIANT } from "../event-badges";
 
@@ -56,6 +63,15 @@ export default async function EventDetailPage({
   const effective = effectiveStatus(event, today);
   const reason = statusReason(event, today);
 
+  // ⚠️ SÓ CALCULA A AUDIÊNCIA QUANDO O BOTÃO PODE APARECER. Um evento vencido
+  // ou inativo não divulga (`start_event_dispatch` recusa), e varrer `members`
+  // para desenhar um botão que não existe seria trabalho por nada em toda
+  // abertura de evento antigo.
+  const podeDivulgar = canWrite && effective === "active";
+  const [audience, lastDispatch] = podeDivulgar
+    ? await Promise.all([countEventAudience(event.id), getLatestEventDispatch(event.id)])
+    : [null, null];
+
   const { created, updated } = await searchParams;
   const successMessage = created
     ? "Evento cadastrado com sucesso."
@@ -93,6 +109,16 @@ export default async function EventDetailPage({
                 today={today}
                 size="default"
               />
+              {podeDivulgar && audience && (
+                <EventDispatchButton
+                  eventId={event.id}
+                  eventName={event.name}
+                  segmentNames={event.segments.map((s) => s.name)}
+                  audience={audience}
+                  remaining={lastDispatch?.remaining ?? 0}
+                  size="default"
+                />
+              )}
             </div>
           )}
         </div>
@@ -203,6 +229,8 @@ export default async function EventDetailPage({
         </div>
       </div>
 
+      {lastDispatch && <DispatchCard dispatch={lastDispatch} />}
+
       {canWrite && <AuditCard entries={audit} />}
     </div>
   );
@@ -222,6 +250,69 @@ function Item({
       <dt className="text-muted-foreground text-xs">{label}</dt>
       <dd className="mt-0.5 text-sm">{children}</dd>
     </div>
+  );
+}
+
+/**
+ * O andamento da divulgação.
+ *
+ * ⚠️ "PENDENTES" É UM NÚMERO DE PRIMEIRA CLASSE AQUI, e não um detalhe. Sem
+ * cron neste projeto, uma divulgação grande TERMINA com gente na fila — é o
+ * funcionamento normal, não uma falha. Esconder esse número faria o time achar
+ * que a base inteira foi avisada quando metade não foi.
+ *
+ * ⚠️ "NÃO RECEBERAM (OPT-OUT)" APARECE SEPARADO DE "ERROS". Somar os dois
+ * mostraria 40 falhas onde há 40 pessoas respeitadas, e alguém tentaria
+ * consertar reenviando — que é exatamente o que não pode acontecer.
+ */
+function DispatchCard({ dispatch }: { dispatch: EventDispatchSummary }) {
+  const emAndamento = dispatch.remaining > 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Divulgação por WhatsApp</CardTitle>
+        <CardDescription>
+          Iniciada em {formatDateTime(dispatch.startedAt)}
+          {dispatch.finishedAt &&
+            !emAndamento &&
+            ` · concluída em ${formatDateTime(dispatch.finishedAt)}`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid gap-4 sm:grid-cols-4">
+          <div>
+            <dt className="text-muted-foreground text-xs tracking-wide uppercase">Enviadas</dt>
+            <dd className="text-lg font-semibold tabular-nums">{dispatch.totalSent}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-xs tracking-wide uppercase">Pendentes</dt>
+            <dd className="text-lg font-semibold tabular-nums">{dispatch.remaining}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-xs tracking-wide uppercase">Erros</dt>
+            <dd className="text-lg font-semibold tabular-nums">{dispatch.totalErrors}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-xs tracking-wide uppercase">Não receberam</dt>
+            <dd className="text-lg font-semibold tabular-nums">{dispatch.totalBlocked}</dd>
+          </div>
+        </dl>
+
+        {emAndamento && (
+          <p className="text-muted-foreground mt-4 text-sm">
+            Ainda há {dispatch.remaining} {dispatch.remaining === 1 ? "pessoa" : "pessoas"} na fila.
+            Use “Continuar divulgação” para retomar de onde parou.
+          </p>
+        )}
+
+        {dispatch.lastError && (
+          <p role="alert" className="text-destructive mt-4 text-sm">
+            {dispatch.lastError}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

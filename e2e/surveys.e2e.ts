@@ -103,7 +103,7 @@ afterAll(async () => {
   }
 
   for (const c of contatos) {
-    await admin.from("survey_opt_outs").delete().eq("contact_id", c.id);
+    await admin.from("notification_opt_outs").delete().eq("contact_id", c.id);
     await admin.from("survey_conversation_states").delete().eq("contact_id", c.id);
     await admin.from("chat_contacts").delete().eq("id", c.id);
   }
@@ -219,7 +219,7 @@ describe("§77. O ciclo completo", () => {
     });
 
     const { count } = await admin
-      .from("survey_opt_outs")
+      .from("notification_opt_outs")
       .select("id", { count: "exact", head: true })
       .eq("contact_id", ultimo.id);
     expect(count).toBe(1);
@@ -404,7 +404,7 @@ describe("§77. O ciclo completo", () => {
     );
 
     const { count } = await admin
-      .from("survey_opt_outs")
+      .from("notification_opt_outs")
       .select("id", { count: "exact", head: true })
       .eq("contact_id", contato.id);
     expect(count).toBe(1);

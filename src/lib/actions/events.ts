@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/errors";
@@ -8,11 +9,13 @@ import { inspectImage } from "@/lib/files/image";
 import { buildImagePath, EVENTS_BUCKET } from "@/lib/events/storage";
 import {
   createEventSchema,
+  dispatchEventSchema,
   eventCommandSchema,
   imageUploadTicketSchema,
   updateEventSchema,
   validateImageCandidate,
   type CreateEventInput,
+  type DispatchEventInput,
   type EventCommandInput,
   type ImageUploadTicketInput,
   type UpdateEventInput,
@@ -370,4 +373,68 @@ export async function setEventStatusAction(
   const changed = data as EventRpcResult;
   revalidateEvents();
   return ok({ id: changed.id, status: changed.status });
+}
+
+/**
+ * DIVULGAR — o botão que faz as mensagens saírem.
+ *
+ * ⚠️ DUAS FASES, E A SEPARAÇÃO É O DESENHO INTEIRO:
+ *
+ *   1. `start_event_dispatch` roda com a SESSÃO DE QUEM CLICOU. É lá que a
+ *      permissão é conferida e a auditoria registra quem mandou divulgar. É
+ *      rápido: monta a fila e devolve os números.
+ *   2. O envio roda DEPOIS da resposta, via `after()`, com `service_role`.
+ *
+ * Sem a fase 2 fora do caminho da resposta, o navegador ficaria pendurado
+ * minutos esperando as mensagens saírem — e a Vercel mataria a requisição no
+ * meio, deixando metade da base avisada e nenhum sinal na tela de que faltou
+ * gente.
+ *
+ * ⚠️ O RESULTADO QUE VOLTA É DA FILA, NÃO DO ENVIO. "247 na fila" é honesto;
+ * "247 enviadas" seria mentira no instante em que é dito. A tela mostra o
+ * andamento real lendo `event_dispatches`.
+ */
+export async function dispatchEventAction(
+  input: DispatchEventInput,
+): Promise<ActionResult<{ dispatchId: string; queued: number; blocked: number; already: number }>> {
+  type Started = { dispatchId: string; queued: number; blocked: number; already: number };
+
+  const parsed = dispatchEventSchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const denied = await assertPermission<Started>("events.write");
+  if (denied) return denied;
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("start_event_dispatch", {
+    p_event_id: parsed.data.eventId,
+  } as never);
+
+  if (error) {
+    console.error(`[events] divulgação falhou: ${error.message}`);
+    return { ok: false, error: mapPostgresError(error) };
+  }
+
+  // A função devolve UMA linha (`returns table`), então o cliente entrega array.
+  const linha = (Array.isArray(data) ? data[0] : data) as
+    | { dispatch_id: string; queued: number; blocked: number; already: number }
+    | undefined;
+
+  if (!linha?.dispatch_id) return fail("unexpected");
+
+  // O envio, fora do caminho da resposta. `after` roda depois que o navegador
+  // já recebeu — é o mesmo mecanismo que o webhook usa para baixar anexo.
+  after(async () => {
+    const { drainEventQueue } = await import("@/lib/services/event-dispatch");
+    await drainEventQueue(parsed.data.eventId, linha.dispatch_id);
+  });
+
+  revalidateEvents();
+  return ok({
+    dispatchId: linha.dispatch_id,
+    queued: linha.queued,
+    blocked: linha.blocked,
+    already: linha.already,
+  });
 }

@@ -211,3 +211,18 @@ export const eventCommandSchema = z.object({
 });
 
 export type EventCommandInput = z.infer<typeof eventCommandSchema>;
+
+/**
+ * Divulgar. Um id, e mais nada.
+ *
+ * ⚠️ NÃO RECEBE A LISTA DE DESTINATÁRIOS, e isso é a decisão de segurança
+ * central deste fluxo. Quem monta a fila é `start_event_dispatch`, no banco, a
+ * partir dos públicos-alvo gravados no evento. Se a tela mandasse a lista, uma
+ * requisição forjada escolheria para quem a APCS manda WhatsApp — e o servidor
+ * não teria como saber que aquela não era a audiência do evento.
+ */
+export const dispatchEventSchema = z.object({
+  eventId: z.string().uuid(),
+});
+
+export type DispatchEventInput = z.infer<typeof dispatchEventSchema>;

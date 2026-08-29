@@ -4,32 +4,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15";
-  };
-  graphql_public: {
-    Tables: {
-      [_ in never]: never;
-    };
-    Views: {
-      [_ in never]: never;
-    };
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json;
-          operationName?: string;
-          query?: string;
-          variables?: Json;
-        };
-        Returns: Json;
-      };
-    };
-    Enums: {
-      [_ in never]: never;
-    };
-    CompositeTypes: {
-      [_ in never]: never;
-    };
+    PostgrestVersion: "14.5";
   };
   public: {
     Tables: {
@@ -480,6 +455,130 @@ export type Database = {
             columns: ["event_id"];
             isOneToOne: false;
             referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_dispatches: {
+        Row: {
+          created_by: string | null;
+          event_id: string;
+          finished_at: string | null;
+          id: string;
+          last_error: string | null;
+          started_at: string;
+          status: Database["public"]["Enums"]["event_dispatch_status"];
+          total_blocked: number;
+          total_errors: number;
+          total_recipients: number;
+          total_sent: number;
+        };
+        Insert: {
+          created_by?: string | null;
+          event_id: string;
+          finished_at?: string | null;
+          id?: string;
+          last_error?: string | null;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["event_dispatch_status"];
+          total_blocked?: number;
+          total_errors?: number;
+          total_recipients?: number;
+          total_sent?: number;
+        };
+        Update: {
+          created_by?: string | null;
+          event_id?: string;
+          finished_at?: string | null;
+          id?: string;
+          last_error?: string | null;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["event_dispatch_status"];
+          total_blocked?: number;
+          total_errors?: number;
+          total_recipients?: number;
+          total_sent?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_dispatches_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_dispatches_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_recipients: {
+        Row: {
+          attempts: number;
+          created_at: string;
+          event_id: string;
+          id: string;
+          last_attempt_at: string | null;
+          last_dispatch_id: string | null;
+          last_error: string | null;
+          member_id: string | null;
+          member_name: string | null;
+          member_phone: string;
+          provider_message_id: string | null;
+          status: Database["public"]["Enums"]["event_recipient_status"];
+        };
+        Insert: {
+          attempts?: number;
+          created_at?: string;
+          event_id: string;
+          id?: string;
+          last_attempt_at?: string | null;
+          last_dispatch_id?: string | null;
+          last_error?: string | null;
+          member_id?: string | null;
+          member_name?: string | null;
+          member_phone: string;
+          provider_message_id?: string | null;
+          status?: Database["public"]["Enums"]["event_recipient_status"];
+        };
+        Update: {
+          attempts?: number;
+          created_at?: string;
+          event_id?: string;
+          id?: string;
+          last_attempt_at?: string | null;
+          last_dispatch_id?: string | null;
+          last_error?: string | null;
+          member_id?: string | null;
+          member_name?: string | null;
+          member_phone?: string;
+          provider_message_id?: string | null;
+          status?: Database["public"]["Enums"]["event_recipient_status"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_recipients_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_recipients_last_dispatch_id_fkey";
+            columns: ["last_dispatch_id"];
+            isOneToOne: false;
+            referencedRelation: "event_dispatches";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_recipients_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "members";
             referencedColumns: ["id"];
           },
         ];
@@ -1344,6 +1443,41 @@ export type Database = {
           },
         ];
       };
+      notification_opt_outs: {
+        Row: {
+          channel: Database["public"]["Enums"]["survey_channel"];
+          contact_id: string;
+          created_at: string;
+          id: string;
+          note: string | null;
+          source: string;
+        };
+        Insert: {
+          channel: Database["public"]["Enums"]["survey_channel"];
+          contact_id: string;
+          created_at?: string;
+          id?: string;
+          note?: string | null;
+          source: string;
+        };
+        Update: {
+          channel?: Database["public"]["Enums"]["survey_channel"];
+          contact_id?: string;
+          created_at?: string;
+          id?: string;
+          note?: string | null;
+          source?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_opt_outs_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "chat_contacts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
@@ -1655,41 +1789,6 @@ export type Database = {
             columns: ["survey_id"];
             isOneToOne: false;
             referencedRelation: "surveys";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      survey_opt_outs: {
-        Row: {
-          channel: Database["public"]["Enums"]["survey_channel"];
-          contact_id: string;
-          created_at: string;
-          id: string;
-          note: string | null;
-          source: string;
-        };
-        Insert: {
-          channel: Database["public"]["Enums"]["survey_channel"];
-          contact_id: string;
-          created_at?: string;
-          id?: string;
-          note?: string | null;
-          source: string;
-        };
-        Update: {
-          channel?: Database["public"]["Enums"]["survey_channel"];
-          contact_id?: string;
-          created_at?: string;
-          id?: string;
-          note?: string | null;
-          source?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "survey_opt_outs_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "chat_contacts";
             referencedColumns: ["id"];
           },
         ];
@@ -2446,6 +2545,29 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      claim_event_recipients: {
+        Args: { p_dispatch_id: string; p_event_id: string; p_limit?: number };
+        Returns: {
+          attempts: number;
+          created_at: string;
+          event_id: string;
+          id: string;
+          last_attempt_at: string | null;
+          last_dispatch_id: string | null;
+          last_error: string | null;
+          member_id: string | null;
+          member_name: string | null;
+          member_phone: string;
+          provider_message_id: string | null;
+          status: Database["public"]["Enums"]["event_recipient_status"];
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "event_recipients";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       claim_survey_recipients: {
         Args: { p_dispatch_id: string; p_limit?: number; p_survey_id: string };
         Returns: {
@@ -2538,6 +2660,13 @@ export type Database = {
           p_survey_id?: string;
         };
         Returns: undefined;
+      };
+      count_event_audience: {
+        Args: { p_event_id: string };
+        Returns: {
+          blocked: number;
+          total: number;
+        }[];
       };
       count_survey_audience: { Args: { p_survey_id: string }; Returns: number };
       count_survey_context_miss: {
@@ -3002,6 +3131,14 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      finish_event_dispatch: {
+        Args: {
+          p_dispatch_id: string;
+          p_last_error?: string;
+          p_status: Database["public"]["Enums"]["event_dispatch_status"];
+        };
+        Returns: undefined;
+      };
       finish_survey_dispatch: {
         Args: { p_dispatch_id: string };
         Returns: {
@@ -3114,6 +3251,7 @@ export type Database = {
       membership_is_writer: { Args: never; Returns: boolean };
       next_lecture_protocol: { Args: never; Returns: string };
       next_membership_protocol: { Args: never; Returns: string };
+      notification_phone_key: { Args: { p_phone: string }; Returns: string };
       open_survey_context: {
         Args: {
           p_channel: Database["public"]["Enums"]["survey_channel"];
@@ -3150,6 +3288,10 @@ export type Database = {
           activated: number;
           closed: number;
         }[];
+      };
+      profile_for_event_segment: {
+        Args: { p_slug: string };
+        Returns: Database["public"]["Enums"]["membership_profile_type"];
       };
       reconcile_survey_counters: {
         Args: { p_survey_id?: string };
@@ -3285,6 +3427,10 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      release_stale_event_recipients: {
+        Args: { p_event_id: string; p_older_than?: string };
+        Returns: number;
       };
       release_survey_recipients: { Args: { p_ids: string[] }; Returns: number };
       reopen_membership_application: {
@@ -3537,6 +3683,23 @@ export type Database = {
       set_survey_audience: {
         Args: { p_criteria: Json; p_survey_id: string };
         Returns: number;
+      };
+      settle_event_recipient: {
+        Args: {
+          p_error: string;
+          p_provider_message_id: string;
+          p_recipient_id: string;
+        };
+        Returns: undefined;
+      };
+      start_event_dispatch: {
+        Args: { p_event_id: string };
+        Returns: {
+          already: number;
+          blocked: number;
+          dispatch_id: string;
+          queued: number;
+        }[];
       };
       start_membership_review: {
         Args: { p_application_id: string };
@@ -4040,7 +4203,18 @@ export type Database = {
         | "event_deactivated"
         | "event_image_uploaded"
         | "event_image_replaced"
-        | "event_segments_updated";
+        | "event_segments_updated"
+        | "event_dispatch_started"
+        | "event_dispatch_completed";
+      event_dispatch_status: "running" | "completed" | "failed";
+      event_recipient_status:
+        | "pending"
+        | "sending"
+        | "sent"
+        | "delivered"
+        | "read"
+        | "error"
+        | "blocked";
       event_status: "active" | "inactive";
       lead_status: "new" | "in_contact" | "qualified" | "discarded";
       lecture_audit_action:
@@ -4272,9 +4446,6 @@ export type CompositeTypes<
     : never;
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       app_role: ["admin", "ceo", "pm", "tech_lead", "comercial", "financeiro", "viewer"],
@@ -4310,6 +4481,18 @@ export const Constants = {
         "event_image_uploaded",
         "event_image_replaced",
         "event_segments_updated",
+        "event_dispatch_started",
+        "event_dispatch_completed",
+      ],
+      event_dispatch_status: ["running", "completed", "failed"],
+      event_recipient_status: [
+        "pending",
+        "sending",
+        "sent",
+        "delivered",
+        "read",
+        "error",
+        "blocked",
       ],
       event_status: ["active", "inactive"],
       lead_status: ["new", "in_contact", "qualified", "discarded"],

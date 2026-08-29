@@ -42,6 +42,8 @@ export const EVENT_AUDIT_ACTION_LABELS: Record<EventAuditAction, string> = {
   event_image_uploaded: "Imagem enviada",
   event_image_replaced: "Imagem substituída",
   event_segments_updated: "Público-alvo alterado",
+  event_dispatch_started: "Divulgação iniciada",
+  event_dispatch_completed: "Divulgação concluída",
 };
 
 /**
@@ -62,6 +64,64 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
 
 export function auditFieldLabel(field: string): string {
   return AUDIT_FIELD_LABELS[field] ?? field;
+}
+
+/**
+ * A MENSAGEM QUE SAI NO WHATSAPP.
+ *
+ * Função pura, aqui e não no worker, pelo mesmo motivo de
+ * `surveyWhatsAppMessage`: é testável sem rede, sem banco e sem fornecedor — e
+ * é o texto que milhares de pessoas vão ler, então errar aqui é caro.
+ *
+ * ⚠️ A ÚLTIMA LINHA NÃO É ENFEITE NEM EXIGÊNCIA LEGAL DECORATIVA. Sem uma saída
+ * escrita na própria mensagem, a única forma de parar de receber é bloquear o
+ * número da APCS — e um número bloqueado por muita gente é um número que o
+ * WhatsApp derruba. A saída explícita protege o canal, não só a pessoa.
+ *
+ * ⚠️ Sem `preview_url`: a Z-API sempre gera prévia de link e não há como
+ * desligar (ver o adaptador). O link de inscrição vai por último de propósito —
+ * a prévia que o WhatsApp monta fica embaixo, sem empurrar data e local para
+ * fora da primeira tela.
+ */
+export function eventWhatsAppMessage(event: {
+  name: string;
+  location: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string | null;
+  registrationUrl: string | null;
+}): string {
+  const data = formatEventDateBr(event.eventDate);
+  const hora = event.endTime ? `${event.startTime} às ${event.endTime}` : event.startTime;
+
+  const linhas = [
+    "*APCS — Associação Paulista de Criadores de Suínos*",
+    "",
+    `📅 *${event.name}*`,
+    `🗓 ${data} — ${hora}`,
+    `📍 ${event.location}`,
+  ];
+
+  if (event.registrationUrl) {
+    linhas.push("", `Inscrições: ${event.registrationUrl}`);
+  }
+
+  linhas.push("", "Para não receber mais avisos da APCS, responda SAIR.");
+
+  return linhas.join("\n");
+}
+
+/**
+ * `2026-09-01` → `01/09/2026`.
+ *
+ * ⚠️ RECORTE DE STRING, e não `new Date()`. `eventDate` é data pura, sem hora e
+ * sem fuso; passá-la por `Date` a interpreta como meia-noite UTC e, no fuso de
+ * São Paulo, devolve o dia ANTERIOR. Um evento anunciado com um dia de
+ * antecedência errado é o tipo de defeito que só aparece depois de enviado.
+ */
+export function formatEventDateBr(isoDate: string): string {
+  const [ano, mes, dia] = isoDate.split("-");
+  return ano && mes && dia ? `${dia}/${mes}/${ano}` : isoDate;
 }
 
 /** Texto das confirmações de ativação e inativação (itens 22 do escopo). */
