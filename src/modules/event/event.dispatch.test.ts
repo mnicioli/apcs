@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventWhatsAppMessage, formatEventDateBr } from "./event.labels";
+import { eventTimeRangeBr, eventWhatsAppMessage, formatEventDateBr } from "./event.labels";
 
 /**
  * A MENSAGEM QUE SAI NO WHATSAPP.
@@ -85,5 +85,67 @@ describe("eventWhatsAppMessage", () => {
   it("põe o link depois dos dados do evento", () => {
     const texto = eventWhatsAppMessage(base);
     expect(texto.indexOf("Sede da APCS")).toBeLessThan(texto.indexOf("Inscrições:"));
+  });
+});
+
+describe("eventTimeRangeBr", () => {
+  it("mostra a faixa quando há término", () => {
+    expect(eventTimeRangeBr("08:00", "17:00")).toBe("08:00 às 17:00");
+  });
+
+  /**
+   * ⚠️ "A PARTIR DAS" não é enfeite. Um "Horário: 19:00" sozinho é lido como
+   * "acaba às 19h" com a mesma facilidade com que é lido como "começa às 19h" —
+   * e quem chega às 18h30 num evento que já acabou não volta.
+   */
+  it("diz 'a partir das' quando o término não foi informado", () => {
+    expect(eventTimeRangeBr("19:00", null)).toBe("a partir das 19:00");
+  });
+});
+
+describe("eventWhatsAppMessage — os rótulos", () => {
+  /**
+   * ⚠️ O QUE ESTE BLOCO PROTEGE é a LEGIBILIDADE, não a presença do dado.
+   *
+   * Os dados sempre estiveram na mensagem; o que não estava era um rótulo em
+   * cada linha. Numa tela de celular, "Data", "Horário" e "Local" alinhados são
+   * o que deixa alguém conferir o dia sem ler o texto inteiro — e foi a falta
+   * disso que fez a mensagem parecer incompleta para quem a recebeu.
+   */
+  it("rotula cada informação em sua própria linha", () => {
+    const linhas = eventWhatsAppMessage(base).split("\n");
+
+    expect(linhas.some((l) => l.includes("*Data:*") && l.includes("01/09/2026"))).toBe(true);
+    expect(linhas.some((l) => l.includes("*Horário:*") && l.includes("08:00 às 17:00"))).toBe(true);
+    expect(linhas.some((l) => l.includes("*Local:*") && l.includes("Sede da APCS, Campinas"))).toBe(
+      true,
+    );
+  });
+
+  it("põe o nome do evento em negrito, sozinho na linha", () => {
+    const linhas = eventWhatsAppMessage(base).split("\n");
+    expect(linhas).toContain("*Workshop de Sanidade*");
+  });
+
+  /**
+   * O link sozinho na última linha: a Z-API sempre gera prévia e não há como
+   * desligar. Um link no meio de uma frase faz o cartão que o WhatsApp monta
+   * empurrar data e local para fora da primeira tela.
+   */
+  it("deixa a URL sozinha na própria linha", () => {
+    const linhas = eventWhatsAppMessage(base).split("\n");
+    expect(linhas).toContain("https://apcs.org.br/inscricao");
+  });
+
+  it("cabe na legenda de uma imagem", () => {
+    // A legenda de anexo tem teto (1024 na Cloud API). Um texto que estoura o
+    // limite faz a Meta recusar a MENSAGEM INTEIRA — não corta.
+    const gigante = eventWhatsAppMessage({
+      ...base,
+      name: "N".repeat(120),
+      location: "L".repeat(200),
+      registrationUrl: `https://apcs.org.br/${"x".repeat(200)}`,
+    });
+    expect(gigante.length).toBeLessThan(1024);
   });
 });

@@ -16,12 +16,34 @@
  * `mark_survey_recipient`.
  */
 
-/** Uma mensagem de texto saindo. É tudo que o MVP precisa mandar. */
+/** Uma mensagem de texto saindo. */
 export interface OutboundTextMessage {
   /** E.164 sem o `+`, como as APIs de WhatsApp esperam: `5519991234567`. */
   to: string;
   body: string;
   /** §51. Viaja no log de ponta a ponta. */
+  correlationId: string;
+}
+
+/**
+ * Uma IMAGEM com legenda.
+ *
+ * ⚠️ É UMA MENSAGEM SÓ, e não uma imagem seguida de um texto. Os dois
+ * fornecedores aceitam legenda no próprio anexo, e usar isso importa: duas
+ * mensagens separadas chegam como dois balões que o WhatsApp pode entregar fora
+ * de ordem, e a pessoa vê um cartaz sem explicação — ou, pior, a explicação
+ * antes do cartaz.
+ *
+ * ⚠️ `imageUrl` PRECISA SER ALCANÇÁVEL PELO FORNECEDOR, não por nós. Quem baixa
+ * o arquivo é o servidor da Z-API/Meta, então uma URL assinada precisa continuar
+ * válida no momento em que ELE for buscar — não no momento em que a montamos.
+ * O bucket `events` é privado; ver como `drainEventQueue` assina.
+ */
+export interface OutboundImageMessage {
+  to: string;
+  imageUrl: string;
+  /** O texto que vai junto do anexo. Vazio manda a imagem sozinha. */
+  caption: string;
   correlationId: string;
 }
 
@@ -122,6 +144,17 @@ export interface MessagingProvider {
   readonly missing: readonly string[];
 
   send(message: OutboundTextMessage): Promise<SendResult>;
+
+  /**
+   * Manda uma imagem com legenda.
+   *
+   * ⚠️ OBRIGATÓRIO NA PORTA, e não opcional. Um `sendImage?` faria cada chamador
+   * decidir sozinho o que fazer quando o método não existe — e a decisão certa
+   * ("manda só o texto") acabaria escrita de um jeito em Eventos e de outro em
+   * qualquer módulo futuro. Sendo obrigatório, quem não sabe mandar imagem diz
+   * isso pelo `SendResult`, no mesmo vocabulário de todo o resto.
+   */
+  sendImage(message: OutboundImageMessage): Promise<SendResult>;
 
   /** §18. A assinatura do webhook. Sem assinatura configurada → inválido. */
   verifySignature(rawBody: string, headers: Headers): SignatureCheck;

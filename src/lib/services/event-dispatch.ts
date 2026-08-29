@@ -11,6 +11,7 @@ import {
 } from "@/lib/messaging/resilience";
 import { logEventDispatch, newCorrelationId } from "@/lib/messaging/telemetry";
 import { eventWhatsAppMessage } from "@/modules/event/event.labels";
+import { EVENTS_BUCKET, IMAGE_SIGNED_URL_TTL_SECONDS } from "@/lib/events/storage";
 import type { MessagingProvider } from "@/lib/messaging/messaging.types";
 
 /**
@@ -105,6 +106,7 @@ interface EventRow {
   start_time: string;
   end_time: string | null;
   registration_url: string | null;
+  image_path: string;
 }
 
 /**
@@ -156,7 +158,7 @@ export async function drainEventQueue(
 
   const { data: evento, error: eventoError } = await admin
     .from("events")
-    .select("id, name, location, event_date, start_time, end_time, registration_url")
+    .select("id, name, location, event_date, start_time, end_time, registration_url, image_path")
     .eq("id", eventId)
     .maybeSingle<EventRow>();
 
@@ -182,6 +184,38 @@ export async function drainEventQueue(
     endTime: evento.end_time ? evento.end_time.slice(0, 5) : null,
     registrationUrl: evento.registration_url,
   });
+
+  /**
+   * ⚠️ A IMAGEM É ASSINADA UMA VEZ POR EXECUÇÃO, e a validade é o detalhe que
+   * decide se ela chega.
+   *
+   * O bucket `events` é PRIVADO, e quem baixa o arquivo não somos nós: é o
+   * servidor da Z-API, quando ele processa cada envio. Uma URL curta demais
+   * expiraria no meio da fila e as últimas pessoas receberiam só o texto — sem
+   * erro nenhum, o que é a pior forma de falhar. `IMAGE_SIGNED_URL_TTL_SECONDS`
+   * é uma hora, e o orçamento de uma execução é de 45 segundos: sobra folga até
+   * para a Z-API demorar a buscar.
+   *
+   * Falha ao assinar NÃO derruba a divulgação — cai para texto e registra. Uma
+   * divulgação sem o cartaz ainda diz quando e onde é o evento; uma divulgação
+   * que não sai não diz nada.
+   */
+  let imagemUrl: string | null = null;
+  const { data: assinada, error: assinaturaError } = await admin.storage
+    .from(EVENTS_BUCKET)
+    .createSignedUrl(evento.image_path, IMAGE_SIGNED_URL_TTL_SECONDS);
+
+  if (assinaturaError || !assinada?.signedUrl) {
+    logEventDispatch("error", "dispatch.started", {
+      eventId,
+      dispatchId,
+      correlationId,
+      outcome: "sem imagem: a divulgação vai só com o texto",
+      reason: assinaturaError?.message ?? "URL assinada vazia",
+    });
+  } else {
+    imagemUrl = assinada.signedUrl;
+  }
 
   // ⚠️ CURA A FILA ANTES DE COMEÇAR. Uma execução anterior pode ter sido morta
   // pela plataforma no meio de um lote, deixando linhas em 'sending' — elas não
@@ -266,6 +300,7 @@ export async function drainEventQueue(
         provider,
         destinatario,
         mensagem,
+        imagemUrl,
         eventId,
         dispatchId,
         correlationId,
@@ -328,6 +363,7 @@ async function sendToRecipient({
   provider,
   destinatario,
   mensagem,
+  imagemUrl,
   eventId,
   dispatchId,
   correlationId,
@@ -338,6 +374,8 @@ async function sendToRecipient({
   provider: MessagingProvider;
   destinatario: RecipientRow;
   mensagem: string;
+  /** Nulo = o cartaz não pôde ser assinado; a divulgação sai só com o texto. */
+  imagemUrl: string | null;
   eventId: string;
   dispatchId: string;
   correlationId: string;
@@ -373,15 +411,38 @@ async function sendToRecipient({
   let ultimoErro = "Falha desconhecida ao enviar.";
   let foiInfra = false;
 
+  /**
+   * ⚠️ O CARTAZ VAI COMO UMA MENSAGEM SÓ, imagem com legenda — não uma imagem
+   * seguida de um texto. Dois balões separados podem chegar fora de ordem, e a
+   * pessoa vê o cartaz sem explicação ou a explicação antes do cartaz.
+   *
+   * ⚠️ E ELE PODE SER ABANDONADO NO MEIO DO CAMINHO. Se o envio da imagem
+   * falhar de forma DEFINITIVA (a Z-API não conseguiu baixar o arquivo, o
+   * formato não agradou, o que for), o laço tenta de novo SEM ela. O motivo é o
+   * desfecho: sem isso, um problema no cartaz faria a pessoa não receber nada
+   * sobre um evento que existe. Falha temporária não entra aqui — essa a
+   * repetição normal resolve, e desistir da imagem na primeira instabilidade de
+   * rede seria trocar o cartaz por pressa.
+   */
+  let mandarImagem = imagemUrl !== null;
+
   for (let tentativa = 1; tentativa <= maxTentativas; tentativa += 1) {
     // `correlationId` amarra o log do adaptador ao desta corrida: sem ele, o
     // "send failed" da Z-API fica órfão e não dá para saber de qual divulgação
     // ele veio quando duas rodam no mesmo minuto.
-    const resultado = await provider.send({
-      to: telefone.e164,
-      body: mensagem,
-      correlationId,
-    });
+    const resultado =
+      mandarImagem && imagemUrl
+        ? await provider.sendImage({
+            to: telefone.e164,
+            imageUrl: imagemUrl,
+            caption: mensagem,
+            correlationId,
+          })
+        : await provider.send({
+            to: telefone.e164,
+            body: mensagem,
+            correlationId,
+          });
 
     if (resultado.ok) {
       await admin.rpc("settle_event_recipient", {
@@ -403,6 +464,22 @@ async function sendToRecipient({
 
     ultimoErro = `${resultado.code}: ${resultado.message}`;
     foiInfra = resultado.retryable;
+
+    // A imagem falhou de vez: repete SEM ela, e esta tentativa não conta como
+    // gasta — o telefone continua bom, só o cartaz é que não foi.
+    if (!resultado.retryable && mandarImagem) {
+      mandarImagem = false;
+      logEventDispatch("error", "send.error", {
+        eventId,
+        dispatchId,
+        recipientId: destinatario.id,
+        correlationId,
+        outcome: "imagem recusada; repetindo só com o texto",
+        reason: ultimoErro,
+      });
+      tentativa -= 1;
+      continue;
+    }
 
     // Erro definitivo (número recusado, credencial errada): insistir não
     // conserta. Sai do laço na primeira.

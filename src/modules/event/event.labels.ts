@@ -91,24 +91,41 @@ export function eventWhatsAppMessage(event: {
   endTime: string | null;
   registrationUrl: string | null;
 }): string {
-  const data = formatEventDateBr(event.eventDate);
-  const hora = event.endTime ? `${event.startTime} às ${event.endTime}` : event.startTime;
-
   const linhas = [
     "*APCS — Associação Paulista de Criadores de Suínos*",
     "",
-    `📅 *${event.name}*`,
-    `🗓 ${data} — ${hora}`,
-    `📍 ${event.location}`,
+    `*${event.name}*`,
+    "",
+    // ⚠️ UM RÓTULO POR LINHA, e não tudo junto numa frase. A mensagem chega
+    // numa tela de celular, e "Data" / "Horário" / "Local" alinhados são o que
+    // permite conferir o dia sem ler o texto inteiro. Era isso que faltava: os
+    // dados estavam lá, grudados numa linha só, e quem batia o olho não achava.
+    `📅 *Data:* ${formatEventDateBr(event.eventDate)}`,
+    `🕒 *Horário:* ${eventTimeRangeBr(event.startTime, event.endTime)}`,
+    `📍 *Local:* ${event.location}`,
   ];
 
   if (event.registrationUrl) {
-    linhas.push("", `Inscrições: ${event.registrationUrl}`);
+    // ⚠️ O LINK VAI SOZINHO NA ÚLTIMA LINHA. A Z-API sempre gera prévia e não
+    // há como desligar; com a URL no meio de uma frase, o cartão que o WhatsApp
+    // monta empurra data e local para fora da primeira tela.
+    linhas.push("", "🔗 *Inscrições:*", event.registrationUrl);
   }
 
   linhas.push("", "Para não receber mais avisos da APCS, responda SAIR.");
 
   return linhas.join("\n");
+}
+
+/**
+ * `"19:00"` + `"22:00"` → `"19:00 às 22:00"`. Sem término → `"a partir das 19:00"`.
+ *
+ * ⚠️ "A PARTIR DAS", e não o horário nu. Um `🕒 Horário: 19:00` sozinho é lido
+ * como "acaba às 19h" com a mesma facilidade com que é lido como "começa às
+ * 19h" — e quem chega às 18h30 num evento que já acabou não volta.
+ */
+export function eventTimeRangeBr(startTime: string, endTime: string | null): string {
+  return endTime ? `${startTime} às ${endTime}` : `a partir das ${startTime}`;
 }
 
 /**

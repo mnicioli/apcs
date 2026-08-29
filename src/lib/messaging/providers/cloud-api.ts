@@ -3,6 +3,7 @@ import { verifyHmacSignature, WHATSAPP_SIGNATURE_HEADER } from "../signature";
 import type {
   InboundEvent,
   MessagingProvider,
+  OutboundImageMessage,
   OutboundTextMessage,
   SendResult,
   SignatureCheck,
@@ -158,6 +159,87 @@ export class CloudApiProvider implements MessagingProvider {
         retryable: true,
         code: "no_message_id",
         message: "O fornecedor aceitou a mensagem mas não devolveu o id dela.",
+      };
+    }
+
+    return { ok: true, providerMessageId: id };
+  }
+
+  /**
+   * Imagem com legenda pelo `type: "image"` da Cloud API.
+   *
+   * ⚠️ ESTE CAMINHO NÃO ESTÁ EM USO HOJE — a APCS usa a Z-API (ver
+   * `registry.ts`), e nada aqui foi exercitado contra a Meta de verdade. Está
+   * escrito assim mesmo porque a porta exige, e escrever "não suportado" seria
+   * uma decisão pior: no dia da troca de fornecedor, a divulgação de eventos
+   * silenciosamente pararia de mandar o cartaz, e ninguém ligaria uma coisa à
+   * outra. O código está correto conforme a documentação; quem trocar de
+   * fornecedor precisa TESTAR, e é isto que este aviso pede.
+   *
+   * ⚠️ A Meta impõe um limite de 1024 caracteres na legenda e recusa a mensagem
+   * inteira quando ele estoura — não corta. O corte abaixo é o que impede uma
+   * legenda comprida de virar "nenhuma mensagem".
+   */
+  async sendImage(message: OutboundImageMessage): Promise<SendResult> {
+    if (!this.config) {
+      return {
+        ok: false,
+        retryable: false,
+        code: "not_configured",
+        message: `Integração de WhatsApp não configurada: falta ${this.missing.join(", ")}.`,
+      };
+    }
+
+    const resultado = await fetchWithTimeout(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${this.config.phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.config.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: message.to,
+          type: "image",
+          image: { link: message.imageUrl, caption: message.caption.slice(0, 1024) },
+        }),
+      },
+    );
+
+    if (!resultado.ok) {
+      return {
+        ok: false,
+        retryable: true,
+        code: resultado.timedOut ? "timeout" : "network",
+        message: resultado.error,
+      };
+    }
+
+    const { response } = resultado;
+    const corpo: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const erro = extrairErro(corpo);
+      return {
+        ok: false,
+        retryable:
+          response.status === 429 ||
+          response.status >= 500 ||
+          (erro.code !== null && !CODIGOS_DEFINITIVOS.has(erro.code)),
+        code: erro.code !== null ? `wa_${erro.code}` : `http_${response.status}`,
+        message: erro.message ?? `O fornecedor respondeu ${response.status}.`,
+      };
+    }
+
+    const id = extrairMessageId(corpo);
+    if (!id) {
+      return {
+        ok: false,
+        retryable: true,
+        code: "no_message_id",
+        message: "O fornecedor aceitou a imagem mas não devolveu o id dela.",
       };
     }
 

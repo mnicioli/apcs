@@ -1,6 +1,7 @@
 import type {
   InboundEvent,
   MessagingProvider,
+  OutboundImageMessage,
   OutboundTextMessage,
   SendResult,
   SignatureCheck,
@@ -34,6 +35,10 @@ export class UnconfiguredProvider implements MessagingProvider {
   }
 
   async send(_message: OutboundTextMessage): Promise<SendResult> {
+    return { ok: false, retryable: false, code: "not_configured", message: this.frase };
+  }
+
+  async sendImage(_message: OutboundImageMessage): Promise<SendResult> {
     return { ok: false, retryable: false, code: "not_configured", message: this.frase };
   }
 

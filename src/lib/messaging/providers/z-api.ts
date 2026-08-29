@@ -6,6 +6,7 @@ import type {
   InboundMedia,
   InboundMediaKind,
   MessagingProvider,
+  OutboundImageMessage,
   OutboundTextMessage,
   SendResult,
   SignatureCheck,
@@ -44,6 +45,9 @@ const BASE_URL = "https://api.z-api.io";
 
 /** §20. Uma resposta de atendimento não pode ficar pendurada. */
 const SEND_TIMEOUT_MS = 15_000;
+
+/** A imagem precisa ser BAIXADA pela Z-API antes de ela responder. */
+const IMAGE_SEND_TIMEOUT_MS = 30_000;
 
 interface ZApiConfig {
   instanceId: string;
@@ -179,6 +183,85 @@ export class ZApiProvider implements MessagingProvider {
         retryable: true,
         code: "no_message_id",
         message: "O fornecedor aceitou a mensagem mas não devolveu o id dela.",
+      };
+    }
+
+    return { ok: true, providerMessageId: id };
+  }
+
+  /**
+   * `send-image` — a imagem com legenda.
+   *
+   * ⚠️ QUEM BAIXA O ARQUIVO É A Z-API, NÃO NÓS. O campo `image` aceita uma URL
+   * (ou base64), e o servidor dela vai buscar. Isso tem uma consequência que
+   * precisa estar dita: uma URL assinada com validade curta pode expirar entre
+   * a nossa chamada e a busca dela. O bucket `events` é privado, então quem
+   * monta a URL precisa dar folga — ver `IMAGE_SIGNED_URL_TTL_SECONDS`.
+   *
+   * ⚠️ `viewOnce: false` explícito. O padrão da Z-API não é documentado como
+   * estável, e uma divulgação que some depois de aberta uma vez é o oposto do
+   * que um cartaz de evento deve fazer: a pessoa volta nele para conferir a
+   * data.
+   */
+  async sendImage(message: OutboundImageMessage): Promise<SendResult> {
+    if (!this.config) {
+      return {
+        ok: false,
+        retryable: false,
+        code: "not_configured",
+        message: `Integração de WhatsApp não configurada: falta ${this.missing.join(", ")}.`,
+      };
+    }
+
+    const resultado = await fetchWithTimeout(
+      this.endpoint("send-image"),
+      {
+        method: "POST",
+        headers: {
+          "Client-Token": this.config.clientToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: message.to,
+          image: message.imageUrl,
+          caption: message.caption,
+          viewOnce: false,
+        }),
+      },
+      // Mais folga que o texto: aqui a Z-API precisa BAIXAR a imagem antes de
+      // responder, e um cartaz de alguns megabytes não cabe em 15 segundos com
+      // a mesma tranquilidade que uma linha de texto.
+      IMAGE_SEND_TIMEOUT_MS,
+    );
+
+    if (!resultado.ok) {
+      return {
+        ok: false,
+        retryable: true,
+        code: resultado.timedOut ? "timeout" : "network",
+        message: resultado.error,
+      };
+    }
+
+    const { response } = resultado;
+    const corpo: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        retryable: response.status === 429 || response.status >= 500,
+        code: `zapi_http_${response.status}`,
+        message: extrairErro(corpo) ?? `O fornecedor respondeu ${response.status}.`,
+      };
+    }
+
+    const id = extrairMessageId(corpo);
+    if (!id) {
+      return {
+        ok: false,
+        retryable: true,
+        code: "no_message_id",
+        message: "O fornecedor aceitou a imagem mas não devolveu o id dela.",
       };
     }
 

@@ -3,6 +3,7 @@ import { parseCloudApiWebhook } from "./cloud-api";
 import type {
   InboundEvent,
   MessagingProvider,
+  OutboundImageMessage,
   OutboundTextMessage,
   SendResult,
   SignatureCheck,
@@ -28,6 +29,7 @@ export class FakeProvider implements MessagingProvider {
   readonly missing: readonly string[] = [];
 
   readonly sent: OutboundTextMessage[] = [];
+  readonly sentImages: OutboundImageMessage[] = [];
 
   /** Números que sempre falham, com o motivo. Erro DEFINITIVO. */
   private readonly failFor = new Map<string, string>();
@@ -73,6 +75,7 @@ export class FakeProvider implements MessagingProvider {
    */
   reset() {
     this.sent.length = 0;
+    this.sentImages.length = 0;
     this.failFor.clear();
     this.failTimes.clear();
     this.downFor = 0;
@@ -105,6 +108,43 @@ export class FakeProvider implements MessagingProvider {
     // `sent.length` estaria contando tentativas, não envios, e passaria mesmo
     // com o worker mandando duas vezes para a mesma pessoa.
     this.sent.push(message);
+    return { ok: true, providerMessageId: `fake.${this.runId}.${this.sequence}` };
+  }
+
+  /**
+   * A imagem passa pelas MESMAS recusas do texto, e isso é o que torna o dublê
+   * útil: um teste que derruba o fornecedor com `goDown` precisa ver a
+   * divulgação com imagem falhar igual — senão ele estaria provando um caminho
+   * que produção não tem.
+   *
+   * O registro vai para `sentImages`, separado de `sent`: um teste que conta
+   * `sent.length` está contando MENSAGENS DE TEXTO, e misturar as duas faria
+   * a bateria de Enquetes passar a contar coisas de Eventos.
+   */
+  async sendImage(message: OutboundImageMessage): Promise<SendResult> {
+    if (this.downFor > 0) {
+      this.downFor -= 1;
+      return {
+        ok: false,
+        retryable: true,
+        code: "http_503",
+        message: "O fornecedor respondeu 503.",
+      };
+    }
+
+    const definitivo = this.failFor.get(message.to);
+    if (definitivo) {
+      return { ok: false, retryable: false, code: "wa_131026", message: definitivo };
+    }
+
+    const restantes = this.failTimes.get(message.to) ?? 0;
+    if (restantes > 0) {
+      this.failTimes.set(message.to, restantes - 1);
+      return { ok: false, retryable: true, code: "timeout", message: "Sem resposta a tempo." };
+    }
+
+    this.sequence += 1;
+    this.sentImages.push(message);
     return { ok: true, providerMessageId: `fake.${this.runId}.${this.sequence}` };
   }
 

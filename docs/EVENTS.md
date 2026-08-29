@@ -258,6 +258,36 @@ A antiga só é descartada **depois** da troca gravada — e só se nenhum event
 ainda apontar para ela (`discardReplacedImage`). Nunca há um instante em que o
 banco aponte para arquivo inexistente.
 
+### A imagem também vai para o WhatsApp
+
+O cartaz é a mensagem, não um enfeite da tela: `drainEventQueue` assina a URL
+**uma vez por execução** e manda a divulgação como **imagem com legenda** —
+uma mensagem só, nunca imagem e texto separados (dois balões podem chegar fora
+de ordem, e a pessoa vê o cartaz sem explicação ou a explicação antes dele).
+
+Quem baixa o arquivo é o servidor da Z-API, não nós, e o bucket é privado. Daí
+a TTL de 1 hora importar: uma URL curta demais expiraria no meio de uma fila
+longa e as últimas pessoas receberiam só o texto — **sem erro nenhum**, que é a
+pior forma de falhar.
+
+Dois desvios existem de propósito, e os dois preferem entregar algo a entregar
+nada:
+
+| Quando                                      | O que acontece                                                       |
+| ------------------------------------------- | -------------------------------------------------------------------- |
+| a URL assinada não sai                      | a execução inteira vai só com o texto, e registra                    |
+| o envio da imagem falha **definitivamente** | aquela pessoa recebe o texto, e a tentativa não é contada como gasta |
+
+Falha **temporária** não dispara o desvio: essa a repetição normal resolve, e
+desistir do cartaz na primeira instabilidade de rede seria trocar a imagem por
+pressa.
+
+A legenda é a mesma função pura de sempre (`eventWhatsAppMessage`), com um
+rótulo por linha — Data, Horário, Local — porque numa tela de celular é o que
+deixa alguém conferir o dia sem ler o texto inteiro. O teto de 1024 caracteres
+da legenda tem teste próprio: na Cloud API, estourá-lo faz a Meta recusar a
+**mensagem inteira**, não cortar o texto.
+
 ---
 
 ## 5. Segurança
