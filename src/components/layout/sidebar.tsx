@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_SECTIONS, type NavBadge } from "@/config/navigation";
-import { APP_SHORT_NAME } from "@/config/app";
+import { ApcsLogo } from "@/components/brand/apcs-logo";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import type { Role } from "@/lib/rbac/rbac.types";
 import { cn } from "@/lib/utils";
@@ -27,9 +27,22 @@ export function Sidebar({
 
   return (
     <aside className="border-border bg-card hidden w-64 shrink-0 flex-col border-r md:flex">
-      <div className="border-border flex h-14 items-center border-b px-6">
-        <Link href="/dashboard" className="font-semibold tracking-tight">
-          {APP_SHORT_NAME}
+      {/*
+        A ASSINATURA DA APCS abre a navegação — desenho, fio e nome por extenso.
+        Antes era a sigla "APCS" em texto, que não dizia a quem serve o sistema.
+
+        `px-4` (era `px-6`) e `height={28}` não são estética: a lateral tem
+        256px, e a assinatura inteira em 36px de altura com 24px de recuo de
+        cada lado empurra "Associação Paulista de" para uma terceira linha, que
+        não cabe na barra de 56px. Medido, não chutado.
+
+        `responsive={false}` porque a lateral só existe a partir de `md` — o
+        corte por largura do componente nunca dispararia aqui, e deixá-lo ligado
+        só esconderia o nome de quem lesse o código.
+      */}
+      <div className="border-border flex h-14 items-center border-b px-4">
+        <Link href="/dashboard" aria-label="Ir para o painel">
+          <ApcsLogo height={28} responsive={false} />
         </Link>
       </div>
 

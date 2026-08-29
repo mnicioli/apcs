@@ -1,49 +1,19 @@
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { APP_LEGAL_NAME, APP_SHORT_NAME } from "@/config/app";
+import { APCS_LOGO_SRC } from "@/components/brand/apcs-logo";
 
 /**
- * A marca da APCS.
+ * A marca da APCS na landing.
  *
- * O layout validado trazia um substituto tipográfico ("APCS" em letra display)
- * para o caso de o logo oficial não existir. Ele existe: `public/logo-apcs.svg`
- * é o logo oficial, em vetor, no vermelho institucional #C4262E — o mesmo que a
- * landing usa como `--primary`. O substituto foi retirado por isso, e não por
- * simplificação: manter um caminho para "sem logo" que nunca roda é manter um
- * caminho que ninguém testa.
+ * ⚠️ O DESENHO ESTÁTICO SAIU DAQUI. Ele agora é `@/components/brand/apcs-logo`,
+ * porque a mesma assinatura passou a identificar o CRM no alto da navegação —
+ * e marca duplicada é marca que desalinha. O que sobrou neste arquivo é o que
+ * só a landing tem: a versão ANIMADA, que depende de `landing.css`.
  */
-export const APCS_LOGO_SRC = "/logo-apcs.svg";
-export const APCS_SHORT_NAME = "APCS";
-export const APCS_FULL_NAME = "Associação Paulista de Criadores de Suínos";
-
-/** Proporção do arquivo (146 × 80), para o Next reservar o espaço certo. */
-const RATIO = 146 / 80;
-
-export function ApcsLogo({ className, height = 36 }: { className?: string; height?: number }) {
-  return (
-    <span
-      className={cn("inline-flex items-center gap-3", className)}
-      aria-label={`${APCS_SHORT_NAME} — ${APCS_FULL_NAME}`}
-    >
-      <Image
-        src={APCS_LOGO_SRC}
-        alt=""
-        width={Math.round(height * RATIO)}
-        height={height}
-        style={{ height, width: "auto" }}
-        priority
-      />
-      <span aria-hidden className="bg-hairline hidden h-7 w-px sm:block" />
-      <span
-        aria-hidden
-        className="text-muted-foreground hidden max-w-[15rem] text-[11px] leading-tight sm:block"
-      >
-        Associação Paulista de
-        <br />
-        Criadores de Suínos
-      </span>
-    </span>
-  );
-}
+export { ApcsLogo } from "@/components/brand/apcs-logo";
+export { APCS_LOGO_SRC } from "@/components/brand/apcs-logo";
+export const APCS_SHORT_NAME = APP_SHORT_NAME;
+export const APCS_FULL_NAME = APP_LEGAL_NAME;
 
 /**
  * A assinatura animada: entrada com halo e um brilho que percorre a marca.
