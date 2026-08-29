@@ -40,6 +40,20 @@ export function applicationHref(id: string): string {
   return `${APPLICATIONS_BASE}/${id}`;
 }
 
+/**
+ * A ficha do associado.
+ *
+ * ⚠️ `/members/[id]` e `/members/applications` são rotas IRMÃS, e a ordem em que
+ * o Next resolve importa: `applications` é um segmento estático e vence o
+ * dinâmico `[id]`, então `/members/applications` continua sendo a caixa de
+ * entrada e não uma ficha de associado com id "applications". Não é sorte — é
+ * regra do App Router (estático antes de dinâmico) —, mas é o tipo de coisa que
+ * ninguém lembra ao renomear uma pasta.
+ */
+export function memberHref(id: string): string {
+  return `${MEMBERS_BASE}/${id}`;
+}
+
 export type RawSearchParams = Record<string, string | string[] | undefined>;
 
 function first(params: RawSearchParams, key: string): string | undefined {

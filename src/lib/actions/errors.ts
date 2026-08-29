@@ -65,6 +65,11 @@ export type ActionErrorCode =
   | "membershipProfileFieldMissing"
   | "membershipRateLimited"
   | "membershipReasonRequired"
+  // Os dois abaixo poderiam ser `uniqueViolation`, e não são de propósito: a
+  // edição do cadastro tem vinte campos, e "já existe um registro com esses
+  // dados" mandaria procurar em todos eles qual foi o que colidiu.
+  | "membershipEmailTaken"
+  | "membershipCodeTaken"
   // Caixa de entrada do WhatsApp. Códigos próprios porque o atendente está com
   // a mensagem escrita na tela e precisa saber se o problema é dele (o texto),
   // do associado (o número) ou do sistema (a integração) — as três reações são
@@ -161,6 +166,9 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   membershipRateLimited:
     "Recebemos vários envios deste acesso nos últimos minutos. Aguarde um pouco e tente novamente.",
   membershipReasonRequired: "Informe o motivo da recusa.",
+  membershipEmailTaken:
+    "Este e-mail já pertence a outro associado. O registro não aceita o mesmo e-mail duas vezes.",
+  membershipCodeTaken: "Esta matrícula já pertence a outro associado.",
   // WhatsApp. A primeira é para quem cuida do sistema; as outras duas, para
   // quem está com a mensagem escrita e o dedo no botão.
   whatsappNotConfigured:
@@ -259,6 +267,11 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "membershipRateLimited" };
     case "MA005":
       return { code: "membershipReasonRequired" };
+    // MA006/MA007 — a edição do cadastro. Ver 20260829140100_update_member.sql.
+    case "MA006":
+      return { code: "membershipEmailTaken" };
+    case "MA007":
+      return { code: "membershipCodeTaken" };
     // Classe `WA` — a caixa de entrada do WhatsApp, pela mesma razão das
     // anteriores: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260822000000_create_whatsapp_inbox.sql.

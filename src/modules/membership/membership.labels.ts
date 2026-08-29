@@ -82,6 +82,45 @@ export const MEMBERSHIP_AUDIT_ACTION_LABELS: Record<MembershipAuditAction, strin
   application_reopened: "Solicitação devolvida para a fila",
   member_created: "Associado criado no registro",
   member_linked: "Vinculada a associado já existente",
+  member_updated: "Cadastro do associado alterado",
+};
+
+/**
+ * Rótulo de cada campo do cadastro NA TRILHA.
+ *
+ * ⚠️ Existe separado de `MEMBERSHIP_FIELD_LABELS` porque a trilha nomeia campos
+ * que o formulário público nunca teve — situação, matrícula, data de associação
+ * e observações só existem no registro. Sem eles, o histórico mostraria
+ * "status" e "joinedAt" crus para quem só fala português.
+ *
+ * A chave é o nome em camelCase que `update_member` grava em
+ * `metadata->'changed'`. Um campo novo no SQL sem entrada aqui aparece com o
+ * nome cru — feio, mas legível, e é por isso que o acesso abaixo tolera a
+ * ausência em vez de quebrar a tela.
+ */
+export const MEMBER_FIELD_LABELS: Record<string, string> = {
+  code: "Matrícula",
+  status: "Situação",
+  profileType: "Perfil",
+  fullName: "Nome",
+  whatsapp: "WhatsApp",
+  email: "E-mail",
+  city: "Cidade",
+  state: "Estado",
+  organization: "Empresa ou entidade",
+  farmName: "Nome da granja",
+  productionCity: "Município da produção",
+  sowCount: "Número de matrizes",
+  cnpj: "CNPJ",
+  stateRegistration: "Inscrição estadual",
+  activityArea: "Área de atuação",
+  jobTitle: "Cargo ou função",
+  legalName: "Razão social",
+  tradeName: "Nome fantasia",
+  interests: "Interesses",
+  otherInterest: "Outro interesse",
+  joinedAt: "Associado desde",
+  notes: "Observações",
 };
 
 /** Rótulos dos campos, compartilhados entre o formulário público e o detalhe. */

@@ -13,9 +13,11 @@ import {
   membershipApplicationSchema,
   onlyDigits,
   rejectApplicationSchema,
+  updateMemberSchema,
   type ApproveApplicationInput,
   type MembershipApplicationInput,
   type RejectApplicationInput,
+  type UpdateMemberInput,
 } from "@/modules/membership/membership.schema";
 import { MEMBERSHIP_CONSENT_VERSION } from "@/modules/membership/membership.labels";
 
@@ -142,6 +144,7 @@ export async function submitMembershipApplicationAction(
  */
 function revalidateMembership(): void {
   revalidatePath("/members", "page");
+  revalidatePath("/members/[id]", "page");
   revalidatePath("/members/applications", "page");
   revalidatePath("/members/applications/[id]", "page");
 }
@@ -226,6 +229,70 @@ export async function rejectMembershipApplicationAction(
     return ok(null);
   } catch (erro) {
     console.error("[membership.reject] erro inesperado:", erro);
+    return fail("unexpected");
+  }
+}
+
+/**
+ * EDITA O CADASTRO DO ASSOCIADO.
+ *
+ * ⚠️ MANDA O REGISTRO INTEIRO, sempre — não só o que mudou. `update_member`
+ * trata nulo como APAGAR (ver a decisão 2 da migration), e é isso que permite
+ * limpar um campo pela tela. A consequência é que esta action NÃO serve para
+ * atualização parcial: quem a chamar com metade dos campos apaga a outra
+ * metade. O formulário mostra todos eles justamente por isso.
+ *
+ * `revalidateMembership()` no fim porque a lista, a ficha e o detalhe da
+ * solicitação mostram os mesmos dados — trocar o nome e ver o antigo na lista
+ * faria qualquer um salvar de novo.
+ */
+export async function updateMemberAction(
+  input: UpdateMemberInput,
+): Promise<ActionResult<{ memberId: string }>> {
+  const parsed = updateMemberSchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const negado = await assertPermission<{ memberId: string }>("members.write");
+  if (negado) return negado;
+
+  const dados = parsed.data;
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("update_member", {
+      p_member_id: dados.memberId,
+      p_full_name: dados.fullName,
+      p_status: dados.status,
+      p_profile_type: dados.profileType,
+      p_code: dados.code,
+      // Dígitos, como na landing: o banco guarda telefone e CNPJ sem máscara, e
+      // a busca por telefone da lista compara dígito com dígito.
+      p_whatsapp: dados.whatsapp ? onlyDigits(dados.whatsapp) : undefined,
+      p_email: dados.email,
+      p_city: dados.city,
+      p_state: dados.state,
+      p_organization: dados.organization,
+      p_farm_name: dados.farmName,
+      p_production_city: dados.productionCity,
+      p_sow_count: dados.sowCount ? Number(dados.sowCount) : undefined,
+      p_cnpj: dados.cnpj ? onlyDigits(dados.cnpj) : undefined,
+      p_state_registration: dados.stateRegistration,
+      p_activity_area: dados.activityArea,
+      p_job_title: dados.jobTitle,
+      p_legal_name: dados.legalName,
+      p_trade_name: dados.tradeName,
+      p_interests: dados.interests,
+      p_other_interest: dados.otherInterest,
+      p_joined_at: dados.joinedAt,
+      p_notes: dados.notes,
+    } as never);
+
+    if (error) return fail(mapPostgresError(error).code);
+
+    revalidateMembership();
+    return ok({ memberId: dados.memberId });
+  } catch (erro) {
+    console.error("[membership.updateMember] erro inesperado:", erro);
     return fail("unexpected");
   }
 }

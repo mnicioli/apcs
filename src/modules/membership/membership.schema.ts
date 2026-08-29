@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { MEMBERSHIP_PROFILE_TYPES, type MembershipProfileType } from "./membership.types";
+import {
+  MEMBERSHIP_PROFILE_TYPES,
+  MEMBER_STATUSES,
+  type MembershipProfileType,
+} from "./membership.types";
 
 /**
  * Validação do formulário público de associação.
@@ -326,3 +330,121 @@ export const applicationIdSchema = z.object({ id: z.string().uuid() });
 
 export type RejectApplicationInput = z.input<typeof rejectApplicationSchema>;
 export type ApproveApplicationInput = z.input<typeof approveApplicationSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Edição do cadastro do associado                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * ⚠️ ESTE SCHEMA É DELIBERADAMENTE MAIS FROUXO QUE O DA LANDING, e a diferença
+ * não é descuido — é a diferença entre as duas tabelas.
+ *
+ * `membershipApplicationSchema` valida um formulário PÚBLICO, onde a hora de
+ * cobrar município da produção, CNPJ e razão social é a hora da entrada.
+ * `members` é o REGISTRO, e a migration original deixou quase toda coluna
+ * anulável de propósito, porque "cadastro legado é incompleto por natureza".
+ *
+ * Repetir aqui as obrigatoriedades por perfil teria um efeito concreto e ruim:
+ * corrigir o telefone de um associado antigo passaria a exigir inventar um CNPJ
+ * que ninguém tem. Então só o nome é obrigatório — o mesmo recorte que
+ * `update_member` impõe no banco, para as duas camadas dizerem a mesma coisa.
+ *
+ * O que continua sendo validado é o FORMATO: telefone que não é telefone e CNPJ
+ * com dígito errado entram como lixo silencioso, e o disparo de WhatsApp é
+ * justamente quem descobre isso — tarde demais, e um associado de cada vez.
+ */
+const textoOpcional = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, { message: `Use no máximo ${max} caracteres.` })
+    .optional()
+    .transform((v) => (v ? v : undefined));
+
+export const updateMemberSchema = z.object({
+  memberId: z.string().uuid(),
+
+  fullName: z
+    .string()
+    .trim()
+    .min(3, { message: "Informe o nome completo." })
+    .max(160, { message: "Use no máximo 160 caracteres." }),
+
+  status: z.enum(MEMBER_STATUSES, {
+    errorMap: () => ({ message: "Selecione a situação do associado." }),
+  }),
+
+  // Vazio é um valor legítimo: um cadastro antigo pode não ter perfil definido,
+  // e forçar um chute aqui inventaria dado — inclusive para o público-alvo de
+  // uma divulgação, que lê exatamente esta coluna.
+  profileType: z
+    .union([z.enum(MEMBERSHIP_PROFILE_TYPES), z.literal("")])
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+
+  code: textoOpcional(40),
+
+  whatsapp: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .refine((v) => !v || isValidWhatsapp(v), {
+      message: "WhatsApp inválido. Use DDD + número, ex.: (54) 99123-4567.",
+    }),
+
+  email: z
+    .string()
+    .trim()
+    .max(255, { message: "E-mail muito longo." })
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .refine((v) => !v || z.string().email().safeParse(v).success, {
+      message: "E-mail inválido. Confira se há @ e domínio.",
+    }),
+
+  city: textoOpcional(120),
+
+  // A UF vai para uma coluna com CHECK `^[A-Z]{2}$`; "" vira nulo antes disso.
+  state: z
+    .union([z.enum(UFS), z.literal("")])
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+
+  organization: textoOpcional(160),
+  farmName: textoOpcional(160),
+  productionCity: textoOpcional(160),
+
+  sowCount: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .refine((v) => !v || /^\d{1,7}$/.test(v), {
+      message: "Informe um número inteiro igual ou maior que zero.",
+    }),
+
+  cnpj: cnpjOpcional,
+  stateRegistration: textoOpcional(160),
+  activityArea: textoOpcional(160),
+  jobTitle: textoOpcional(160),
+  legalName: textoOpcional(160),
+  tradeName: textoOpcional(160),
+
+  interests: z.array(z.string().max(80)).max(10).default([]),
+  otherInterest: textoOpcional(200),
+
+  // `joined_at` é DATE no banco: `2026-08-29`, sem hora e sem fuso. Aceitar
+  // qualquer string deixaria o Postgres interpretar "29/08/2026" à sua maneira.
+  joinedAt: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .refine((v) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), { message: "Data inválida." }),
+
+  notes: textoOpcional(2000),
+});
+
+export type UpdateMemberInput = z.input<typeof updateMemberSchema>;
+export type UpdateMemberData = z.output<typeof updateMemberSchema>;

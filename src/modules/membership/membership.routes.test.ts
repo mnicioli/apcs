@@ -4,6 +4,7 @@ import {
   applicationHref,
   isMembershipId,
   listHref,
+  memberHref,
   parseApplicationParams,
   parseMemberParams,
 } from "./membership.routes";
@@ -105,5 +106,24 @@ describe("listHref", () => {
     expect(listHref(APPLICATIONS_BASE, { status: "all", search: "a&b=c", page: 1 }, {})).toBe(
       "/members/applications?q=a%26b%3Dc",
     );
+  });
+});
+
+describe("memberHref", () => {
+  it("monta o endereço da ficha do associado", () => {
+    expect(memberHref("11111111-1111-4111-8111-111111111111")).toBe(
+      "/members/11111111-1111-4111-8111-111111111111",
+    );
+  });
+
+  /**
+   * ⚠️ O TESTE QUE PARECE BOBO E NÃO É. `/members/[id]` e `/members/applications`
+   * são rotas irmãs: se alguém trocar `APPLICATIONS_BASE` por algo que a rota
+   * dinâmica engula, a caixa de entrada vira "uma ficha de associado com id
+   * inválido" — 404 no lugar da tela que o time usa todo dia.
+   */
+  it("não colide com a caixa de entrada de solicitações", () => {
+    expect(APPLICATIONS_BASE).toBe("/members/applications");
+    expect(isMembershipId("applications")).toBe(false);
   });
 });

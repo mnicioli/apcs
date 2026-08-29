@@ -139,5 +139,33 @@ export interface MemberRow {
   optedOut: boolean;
 }
 
+/**
+ * O cadastro INTEIRO do associado, para a ficha e o formulário de edição.
+ *
+ * ⚠️ `externalId` e `origin` aparecem aqui e NÃO são editáveis — ver a decisão 3
+ * de 20260829140100_update_member.sql. Estão no tipo porque a ficha os mostra:
+ * "veio da carga do cadastro anterior" é justamente o que explica por que um
+ * registro antigo tem tanto campo vazio.
+ */
+export interface MemberDetail extends MemberRow {
+  externalId: string | null;
+  farmName: string | null;
+  productionCity: string | null;
+  sowCount: number | null;
+  cnpj: string | null;
+  stateRegistration: string | null;
+  activityArea: string | null;
+  jobTitle: string | null;
+  legalName: string | null;
+  tradeName: string | null;
+  interests: string[];
+  otherInterest: string | null;
+  notes: string | null;
+  updatedAt: string;
+  /** Protocolo da solicitação que originou o associado, quando houve uma. */
+  applicationProtocol: string | null;
+  applicationId: string | null;
+}
+
 /** Contadores da caixa de entrada, por situação. */
 export type MembershipApplicationCounts = Record<MembershipApplicationStatus, number>;

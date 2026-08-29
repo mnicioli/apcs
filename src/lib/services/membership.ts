@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import {
   MEMBERSHIP_APPLICATION_STATUSES,
+  type MemberDetail,
   type MemberRow,
   type MembershipApplicationCounts,
   type MembershipApplicationDetail,
@@ -43,6 +44,23 @@ const APPLICATION_DETAIL_COLUMNS =
 const MEMBER_COLUMNS =
   "id, code, status, origin, profile_type, full_name, email, whatsapp, city, state, " +
   "organization, joined_at, created_at";
+
+/**
+ * O cadastro inteiro, para a ficha.
+ *
+ * ⚠️ A solicitação vem embutida NOMEANDO A FK, como no detalhe acima. É uma
+ * LISTA e não um objeto: a seta é `applications.member_id → members`, então do
+ * lado do associado ela é "um para muitos" — e é um caso real, porque aprovar
+ * uma segunda solicitação da mesma pessoa VINCULA ao associado que já existe em
+ * vez de criar outro (ver `approve_membership_application`). A ficha mostra a
+ * primeira; um associado com duas solicitações não é erro.
+ */
+const MEMBER_DETAIL_COLUMNS =
+  MEMBER_COLUMNS +
+  ", external_id, farm_name, production_city, sow_count, cnpj, state_registration, " +
+  "activity_area, job_title, legal_name, trade_name, interests, other_interest, " +
+  "notes, updated_at, " +
+  "applications:membership_applications!membership_applications_member_id_fkey (id, protocol)";
 
 /** Tamanho da página da grid. */
 export const APPLICATIONS_PAGE_SIZE = 20;
@@ -422,4 +440,105 @@ export async function listMembers(filters: MemberFilters = {}): Promise<MemberPa
     page,
     pageSize: APPLICATIONS_PAGE_SIZE,
   };
+}
+
+/**
+ * A FICHA de um associado — tudo o que o registro guarda sobre ele.
+ *
+ * Passa pelo cliente autenticado, então a RLS decide: quem não é
+ * `admin`/`ceo`/`comercial` recebe `null` e a tela responde 404. É a resposta
+ * certa — dizer "existe, mas você não pode ver" já conta que a pessoa existe.
+ */
+export async function getMember(id: string): Promise<MemberDetail | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("members")
+    .select(MEMBER_DETAIL_COLUMNS)
+    .eq("id", id)
+    .maybeSingle()
+    .returns<
+      | (MemberRowShape & {
+          external_id: string | null;
+          farm_name: string | null;
+          production_city: string | null;
+          sow_count: number | null;
+          cnpj: string | null;
+          state_registration: string | null;
+          activity_area: string | null;
+          job_title: string | null;
+          legal_name: string | null;
+          trade_name: string | null;
+          interests: string[] | null;
+          other_interest: string | null;
+          notes: string | null;
+          updated_at: string;
+          applications: { id: string; protocol: string }[] | null;
+        })
+      | null
+    >();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  const solicitacao = data.applications?.[0] ?? null;
+
+  return {
+    ...toMemberRow(data, await fetchBlockedPhoneKeys(supabase, [data.whatsapp])),
+    externalId: data.external_id,
+    farmName: data.farm_name,
+    productionCity: data.production_city,
+    sowCount: data.sow_count,
+    cnpj: data.cnpj,
+    stateRegistration: data.state_registration,
+    activityArea: data.activity_area,
+    jobTitle: data.job_title,
+    legalName: data.legal_name,
+    tradeName: data.trade_name,
+    interests: data.interests ?? [],
+    otherInterest: data.other_interest,
+    notes: data.notes,
+    updatedAt: data.updated_at,
+    applicationProtocol: solicitacao?.protocol ?? null,
+    applicationId: solicitacao?.id ?? null,
+  };
+}
+
+/**
+ * A trilha do ASSOCIADO. Irmã de `listMembershipAudit`, que é a da solicitação.
+ *
+ * ⚠️ São duas consultas e não uma com `or`, porque as duas trilhas respondem a
+ * perguntas diferentes: "o que aconteceu com esta solicitação" e "o que
+ * aconteceu com este cadastro". A linha da aprovação aparece nas duas — ela tem
+ * `application_id` E `member_id` —, e é justamente o que liga uma história à
+ * outra na tela.
+ *
+ * Só `admin` e `ceo` leem (a policy da tabela). Para `comercial` a consulta
+ * volta VAZIA, sem erro, e a seção some da ficha.
+ */
+export async function listMemberAudit(memberId: string): Promise<MembershipAuditEntry[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("membership_audit_logs")
+    .select("id, action, actor_name, created_at, metadata")
+    .eq("member_id", memberId)
+    .order("created_at", { ascending: false })
+    .returns<
+      {
+        id: string;
+        action: MembershipAuditAction;
+        actor_name: string | null;
+        created_at: string;
+        metadata: Record<string, unknown> | null;
+      }[]
+    >();
+
+  if (error) throw error;
+
+  return (data ?? []).map((linha) => ({
+    id: linha.id,
+    action: linha.action,
+    actorName: linha.actor_name,
+    createdAt: linha.created_at,
+    metadata: linha.metadata ?? {},
+  }));
 }

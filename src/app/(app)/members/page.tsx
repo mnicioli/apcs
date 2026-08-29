@@ -17,6 +17,7 @@ import {
   APPLICATIONS_BASE,
   MEMBERS_BASE,
   listHref,
+  memberHref,
   parseMemberParams,
   type RawSearchParams,
 } from "@/modules/membership/membership.routes";
@@ -34,19 +35,17 @@ export const metadata: Metadata = { title: MEMBERSHIP_MODULE_TITLE };
 /**
  * O REGISTRO de associados — a fonte única da verdade de quem a APCS reconhece.
  *
- * ⚠️ ESTA TELA É SÓ DE LEITURA, E ISSO É O ESTADO ATUAL, NÃO O DESENHO FINAL.
- * Hoje um associado nasce de uma solicitação aprovada. Faltam duas coisas, e
- * nenhuma delas está escondida:
+ * A LISTA é só de leitura; o CADASTRO se edita na ficha (`/members/[id]`), que
+ * o nome de cada linha abre. Edição em grade seria mais rápida para trocar uma
+ * situação e péssima para todo o resto: são vinte campos por associado, e a
+ * maioria não cabe numa célula.
  *
- *   • A CARGA DOS ASSOCIADOS QUE JÁ EXISTEM. A tabela já está pronta para
- *     recebê-la (`origin = 'import'`, `external_id`, `joined_at`); a importação
- *     em si é trabalho combinado para um segundo momento. Ver o bloco
- *     "SOBRE A CARGA" em supabase/migrations/20260821000000_create_membership.sql.
- *   • Edição de cadastro pelo CRM. Enquanto a carga não define o formato final
- *     do registro, um formulário de edição seria construído contra um alvo que
- *     ainda vai se mexer.
+ * ⚠️ A CARGA DOS ASSOCIADOS QUE JÁ EXISTEM AINDA NÃO FOI FEITA. A tabela está
+ * pronta para recebê-la (`origin = 'import'`, `external_id`, `joined_at`); a
+ * importação em si é trabalho combinado para um segundo momento. Ver o bloco
+ * "SOBRE A CARGA" em supabase/migrations/20260821000000_create_membership.sql.
  *
- * O aviso abaixo diz isso na tela. Uma lista vazia sem explicação faria alguém
+ * O aviso abaixo diz isso na tela. Uma lista curta sem explicação faria alguém
  * concluir que o sistema perdeu os associados.
  */
 export default async function MembersPage({
@@ -162,8 +161,20 @@ export default async function MembersPage({
                       key={membro.id}
                       className="border-border hover:bg-muted/50 border-b last:border-0"
                     >
+                      {/*
+                        O NOME É O LINK, e não uma coluna "Ações" com um botão
+                        "Abrir" no fim da linha: abrir o cadastro é a única
+                        coisa que se faz com uma linha desta tabela, e uma
+                        coluna inteira para uma ação só empurraria a informação
+                        útil para fora da tela em telas estreitas.
+                      */}
                       <td className="px-4 py-3">
-                        <span className="font-medium">{membro.fullName}</span>
+                        <Link
+                          href={memberHref(membro.id)}
+                          className="font-medium hover:underline focus-visible:underline"
+                        >
+                          {membro.fullName}
+                        </Link>
                         {membro.code && (
                           <span className="text-muted-foreground block font-mono text-xs">
                             {membro.code}

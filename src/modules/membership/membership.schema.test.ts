@@ -8,6 +8,7 @@ import {
   membershipApplicationSchema,
   onlyDigits,
   rejectApplicationSchema,
+  updateMemberSchema,
   UFS,
 } from "./membership.schema";
 
@@ -289,5 +290,94 @@ describe("rejectApplicationSchema", () => {
     expect(
       rejectApplicationSchema.safeParse({ id: "abc", reason: "Motivo suficiente." }).success,
     ).toBe(false);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Edição do cadastro do associado                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * ⚠️ O QUE ESTES TESTES PROTEGEM é a diferença entre as duas portas de escrita,
+ * e ela é fácil de apagar sem querer: alguém "unifica" os dois schemas para não
+ * repetir código, e de repente corrigir o telefone de um associado antigo exige
+ * um CNPJ que ele nunca teve. O registro aceita cadastro incompleto DE
+ * PROPÓSITO — ver o cabeçalho de `updateMemberSchema` e a decisão 4 de
+ * 20260829140100_update_member.sql.
+ */
+
+const ID = "11111111-1111-4111-8111-111111111111";
+
+function edicao(extra: Record<string, unknown> = {}) {
+  return {
+    memberId: ID,
+    fullName: "Maria da Silva",
+    status: "active",
+    ...extra,
+  };
+}
+
+describe("updateMemberSchema", () => {
+  it("aceita o cadastro mínimo: id, nome e situação", () => {
+    const r = updateMemberSchema.safeParse(edicao());
+    expect(r.success).toBe(true);
+  });
+
+  it("não exige nenhum campo por perfil — nem para empresa, que a landing exige", () => {
+    // Na landing, `empresa` sem CNPJ e sem razão social é recusado. Aqui não:
+    // é o mesmo perfil, mas num cadastro que pode ter vindo de 2011.
+    const r = updateMemberSchema.safeParse(edicao({ profileType: "empresa" }));
+    expect(r.success).toBe(true);
+  });
+
+  it("exige o nome, e só ele", () => {
+    expect(updateMemberSchema.safeParse(edicao({ fullName: "Ma" })).success).toBe(false);
+    expect(updateMemberSchema.safeParse(edicao({ fullName: "" })).success).toBe(false);
+  });
+
+  it("transforma campo vazio em undefined — é assim que a tela APAGA um dado", () => {
+    const r = updateMemberSchema.parse(
+      edicao({ email: "", whatsapp: "", city: "", state: "", profileType: "", joinedAt: "" }),
+    );
+    expect(r.email).toBeUndefined();
+    expect(r.whatsapp).toBeUndefined();
+    expect(r.city).toBeUndefined();
+    expect(r.state).toBeUndefined();
+    expect(r.profileType).toBeUndefined();
+    expect(r.joinedAt).toBeUndefined();
+  });
+
+  it("valida o formato de quem preencheu", () => {
+    expect(updateMemberSchema.safeParse(edicao({ whatsapp: "1234" })).success).toBe(false);
+    expect(updateMemberSchema.safeParse(edicao({ email: "sem-arroba" })).success).toBe(false);
+    expect(updateMemberSchema.safeParse(edicao({ cnpj: "11.111.111/1111-11" })).success).toBe(
+      false,
+    );
+    expect(updateMemberSchema.safeParse(edicao({ sowCount: "abc" })).success).toBe(false);
+  });
+
+  it("aceita telefone fixo, como o cadastro público", () => {
+    // Fixo entra no cadastro e NÃO recebe WhatsApp — quem barra o disparo é
+    // src/lib/messaging/phone.ts. Recusá-lo aqui apagaria o telefone de quem só
+    // tem fixo.
+    expect(updateMemberSchema.safeParse(edicao({ whatsapp: "(54) 3221-4567" })).success).toBe(true);
+  });
+
+  it("só aceita data no formato do banco", () => {
+    expect(updateMemberSchema.safeParse(edicao({ joinedAt: "2011-03-14" })).success).toBe(true);
+    expect(updateMemberSchema.safeParse(edicao({ joinedAt: "14/03/2011" })).success).toBe(false);
+  });
+
+  it("recusa uma situação que não existe", () => {
+    expect(updateMemberSchema.safeParse(edicao({ status: "cancelado" })).success).toBe(false);
+  });
+
+  it("recusa um id que não é uuid", () => {
+    expect(updateMemberSchema.safeParse(edicao({ memberId: "abc" })).success).toBe(false);
+  });
+
+  it("limita os interesses a dez, como o banco", () => {
+    const onze = Array.from({ length: 11 }, (_, i) => `Interesse ${i}`);
+    expect(updateMemberSchema.safeParse(edicao({ interests: onze })).success).toBe(false);
   });
 });

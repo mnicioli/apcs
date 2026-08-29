@@ -4044,6 +4044,71 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      update_member: {
+        Args: {
+          p_activity_area?: string;
+          p_city?: string;
+          p_cnpj?: string;
+          p_code?: string;
+          p_email?: string;
+          p_farm_name?: string;
+          p_full_name: string;
+          p_interests?: string[];
+          p_job_title?: string;
+          p_joined_at?: string;
+          p_legal_name?: string;
+          p_member_id: string;
+          p_notes?: string;
+          p_organization?: string;
+          p_other_interest?: string;
+          p_production_city?: string;
+          p_profile_type?: Database["public"]["Enums"]["membership_profile_type"];
+          p_sow_count?: number;
+          p_state?: string;
+          p_state_registration?: string;
+          p_status: Database["public"]["Enums"]["member_status"];
+          p_trade_name?: string;
+          p_whatsapp?: string;
+        };
+        Returns: {
+          activity_area: string | null;
+          city: string | null;
+          cnpj: string | null;
+          code: string | null;
+          contact_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          email: string | null;
+          external_id: string | null;
+          farm_name: string | null;
+          full_name: string;
+          id: string;
+          interests: string[];
+          job_title: string | null;
+          joined_at: string | null;
+          legal_name: string | null;
+          notes: string | null;
+          organization: string | null;
+          origin: Database["public"]["Enums"]["member_origin"];
+          other_interest: string | null;
+          production_city: string | null;
+          profile_type: Database["public"]["Enums"]["membership_profile_type"] | null;
+          sow_count: number | null;
+          state: string | null;
+          state_registration: string | null;
+          status: Database["public"]["Enums"]["member_status"];
+          trade_name: string | null;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "members";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       update_survey: {
         Args: {
           p_allows_response_change: boolean;
@@ -4282,7 +4347,8 @@ export type Database = {
         | "application_rejected"
         | "application_reopened"
         | "member_created"
-        | "member_linked";
+        | "member_linked"
+        | "member_updated";
       membership_profile_type: "criador" | "tecnico" | "empresa" | "universidade";
       survey_answer_type:
         | "single_choice"
@@ -4565,6 +4631,7 @@ export const Constants = {
         "application_reopened",
         "member_created",
         "member_linked",
+        "member_updated",
       ],
       membership_profile_type: ["criador", "tecnico", "empresa", "universidade"],
       survey_answer_type: ["single_choice", "multiple_choice", "yes_no", "scale", "text", "rating"],
