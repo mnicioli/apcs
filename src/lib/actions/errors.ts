@@ -70,6 +70,9 @@ export type ActionErrorCode =
   // dados" mandaria procurar em todos eles qual foi o que colidiu.
   | "membershipEmailTaken"
   | "membershipCodeTaken"
+  // Reativar notificações. Código próprio porque a frase precisa dizer que o
+  // que falta não é "um campo": é o registro de quem autorizou.
+  | "membershipConsentRequired"
   // Caixa de entrada do WhatsApp. Códigos próprios porque o atendente está com
   // a mensagem escrita na tela e precisa saber se o problema é dele (o texto),
   // do associado (o número) ou do sistema (a integração) — as três reações são
@@ -169,6 +172,8 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   membershipEmailTaken:
     "Este e-mail já pertence a outro associado. O registro não aceita o mesmo e-mail duas vezes.",
   membershipCodeTaken: "Esta matrícula já pertence a outro associado.",
+  membershipConsentRequired:
+    "Registre quem pediu para voltar a receber e por onde — é esse registro que autoriza a APCS a mandar mensagem de novo.",
   // WhatsApp. A primeira é para quem cuida do sistema; as outras duas, para
   // quem está com a mensagem escrita e o dedo no botão.
   whatsappNotConfigured:
@@ -272,6 +277,9 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "membershipEmailTaken" };
     case "MA007":
       return { code: "membershipCodeTaken" };
+    // MA008 — a reativação. Ver 20260829180100_resume_notifications.sql.
+    case "MA008":
+      return { code: "membershipConsentRequired" };
     // Classe `WA` — a caixa de entrada do WhatsApp, pela mesma razão das
     // anteriores: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260822000000_create_whatsapp_inbox.sql.

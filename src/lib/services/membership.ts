@@ -160,6 +160,13 @@ async function fetchBlockedPhoneKeys(
   const { data, error } = await supabase
     .from("notification_opt_outs")
     .select("phone_key")
+    // ⚠️ `revoked_at is null` NÃO É OPCIONAL. A linha do opt-out NUNCA é
+    // apagada — reativar marca `revoked_at` (ver
+    // 20260829180100_resume_notifications.sql). Sem este filtro, quem voltou a
+    // receber continuaria aparecendo como "Não recebe" na lista e na ficha,
+    // enquanto o disparo mandaria mensagem normalmente: a tela diria uma coisa
+    // e o sistema faria outra.
+    .is("revoked_at", null)
     .in("phone_key", chaves);
 
   if (error) {

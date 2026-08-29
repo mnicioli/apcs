@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MEMBER_BADGE_VARIANT } from "../membership-badges";
 import { MemberForm } from "./member-form";
+import { MemberNotifications } from "./member-notifications";
 
 export const metadata: Metadata = { title: "Cadastro do associado" };
 
@@ -46,8 +47,13 @@ export const metadata: Metadata = { title: "Cadastro do associado" };
  * formulário para essa pessoa só existiria para falhar.
  *
  * O que a ficha mostra e o formulário NÃO edita — origem, matrícula do sistema
- * anterior, datas do sistema, opt-out — está no cartão do topo. São fatos, não
+ * anterior, datas do sistema — está nos cartões da direita. São fatos, não
  * opinião; ver a decisão 3 de 20260829140100_update_member.sql.
+ *
+ * O opt-out também fica fora do formulário, mas por outro motivo: ele não é um
+ * campo do cadastro (é do TELEFONE, e pode ser compartilhado) e desfazê-lo
+ * exige registrar quem pediu. Tem cartão e diálogo próprios — ver
+ * `MemberNotifications` e 20260829180100_resume_notifications.sql.
  */
 export default async function MemberPage({ params }: { params: Promise<{ id: string }> }) {
   const role = await getCurrentUserRole();
@@ -101,31 +107,13 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
             <CardHeader>
               <CardTitle>Notificações</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {/*
-                Os mesmos TRÊS estados da lista, pelo mesmo motivo: "recebe" e
-                "não recebe" não cobrem quem não tem WhatsApp cadastrado — essa
-                pessoa não pediu para sair, mas também não recebe nada.
-              */}
-              {!associado.whatsapp ? (
-                <p className="text-muted-foreground">
-                  Sem WhatsApp cadastrado. Este associado não recebe divulgação de eventos nem
-                  enquetes.
-                </p>
-              ) : associado.optedOut ? (
-                <>
-                  <Badge variant="alert">Não recebe</Badge>
-                  <p className="text-muted-foreground">
-                    Este número pediu para parar de receber mensagens da APCS. O bloqueio é do
-                    TELEFONE, não do cadastro — só sai respondendo no WhatsApp, e por isso não há
-                    botão aqui para desfazê-lo.
-                  </p>
-                </>
-              ) : (
-                <p className="text-muted-foreground">
-                  Recebe divulgação de eventos e enquetes em {formatWhatsapp(associado.whatsapp)}.
-                </p>
-              )}
+            <CardContent>
+              <MemberNotifications
+                memberId={associado.id}
+                whatsapp={associado.whatsapp}
+                optedOut={associado.optedOut}
+                canEdit={podeEditar}
+              />
             </CardContent>
           </Card>
 

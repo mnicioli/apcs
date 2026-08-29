@@ -8,6 +8,7 @@ import {
   membershipApplicationSchema,
   onlyDigits,
   rejectApplicationSchema,
+  resumeNotificationsSchema,
   updateMemberSchema,
   UFS,
 } from "./membership.schema";
@@ -379,5 +380,45 @@ describe("updateMemberSchema", () => {
   it("limita os interesses a dez, como o banco", () => {
     const onze = Array.from({ length: 11 }, (_, i) => `Interesse ${i}`);
     expect(updateMemberSchema.safeParse(edicao({ interests: onze })).success).toBe(false);
+  });
+});
+
+describe("resumeNotificationsSchema", () => {
+  /**
+   * ⚠️ O QUE ESTE BLOCO PROTEGE não é um campo de texto: é a autorização.
+   * Reativar significa a APCS voltar a mandar mensagem para quem tinha mandado
+   * parar, e o que separa isso de um abuso é a pessoa ter pedido de volta.
+   * Tornar a nota opcional "para facilitar" apagaria o registro de quem pediu —
+   * e a pergunta "por que voltaram a me mandar mensagem?" ficaria sem resposta.
+   */
+  it("exige registrar quem pediu", () => {
+    expect(resumeNotificationsSchema.safeParse({ memberId: ID, note: "" }).success).toBe(false);
+    expect(resumeNotificationsSchema.safeParse({ memberId: ID, note: "ok" }).success).toBe(false);
+    expect(resumeNotificationsSchema.safeParse({ memberId: ID }).success).toBe(false);
+  });
+
+  it("aceita uma nota de verdade", () => {
+    const r = resumeNotificationsSchema.safeParse({
+      memberId: ID,
+      note: "A própria Maria pediu por telefone, falou com a Ana.",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("não aceita espaço em branco como nota", () => {
+    expect(resumeNotificationsSchema.safeParse({ memberId: ID, note: "        " }).success).toBe(
+      false,
+    );
+  });
+
+  it("limita a nota ao que a coluna aceita", () => {
+    const longa = "a".repeat(301);
+    expect(resumeNotificationsSchema.safeParse({ memberId: ID, note: longa }).success).toBe(false);
+  });
+
+  it("recusa um id que não é uuid", () => {
+    expect(
+      resumeNotificationsSchema.safeParse({ memberId: "abc", note: "pediu por telefone" }).success,
+    ).toBe(false);
   });
 });

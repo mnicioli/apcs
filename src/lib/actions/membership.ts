@@ -13,10 +13,12 @@ import {
   membershipApplicationSchema,
   onlyDigits,
   rejectApplicationSchema,
+  resumeNotificationsSchema,
   updateMemberSchema,
   type ApproveApplicationInput,
   type MembershipApplicationInput,
   type RejectApplicationInput,
+  type ResumeNotificationsInput,
   type UpdateMemberInput,
 } from "@/modules/membership/membership.schema";
 import { MEMBERSHIP_CONSENT_VERSION } from "@/modules/membership/membership.labels";
@@ -293,6 +295,44 @@ export async function updateMemberAction(
     return ok({ memberId: dados.memberId });
   } catch (erro) {
     console.error("[membership.updateMember] erro inesperado:", erro);
+    return fail("unexpected");
+  }
+}
+
+/**
+ * VOLTAR A RECEBER — desfaz o opt-out a pedido da própria pessoa.
+ *
+ * ⚠️ A NOTA É OBRIGATÓRIA, e não é campo por capricho. Reativar é a APCS voltar
+ * a mandar mensagem para quem tinha mandado parar; o que torna isso legítimo é
+ * a pessoa ter pedido, e o que prova que ela pediu é alguém ter escrito onde e
+ * quando. O banco exige o mesmo (MA008) — esta validação é conveniência, a
+ * regra é lá.
+ *
+ * Devolve quantos bloqueios saíram. Pode ser mais de um: o bloqueio é do
+ * TELEFONE, e dois associados podem dividir um aparelho.
+ */
+export async function resumeMemberNotificationsAction(
+  input: ResumeNotificationsInput,
+): Promise<ActionResult<{ unblocked: number }>> {
+  const parsed = resumeNotificationsSchema.safeParse(input);
+  if (!parsed.success) return fail("membershipConsentRequired");
+
+  const negado = await assertPermission<{ unblocked: number }>("members.write");
+  if (negado) return negado;
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("resume_member_notifications", {
+      p_member_id: parsed.data.memberId,
+      p_note: parsed.data.note,
+    } as never);
+
+    if (error) return fail(mapPostgresError(error).code);
+
+    revalidateMembership();
+    return ok({ unblocked: typeof data === "number" ? data : 0 });
+  } catch (erro) {
+    console.error("[membership.resumeNotifications] erro inesperado:", erro);
     return fail("unexpected");
   }
 }

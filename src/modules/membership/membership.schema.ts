@@ -448,3 +448,23 @@ export const updateMemberSchema = z.object({
 
 export type UpdateMemberInput = z.input<typeof updateMemberSchema>;
 export type UpdateMemberData = z.output<typeof updateMemberSchema>;
+
+/**
+ * Voltar a receber notificações.
+ *
+ * ⚠️ A NOTA NÃO É "OBSERVAÇÃO OPCIONAL". Ela é a autorização: reativar significa
+ * a APCS voltar a mandar mensagem para quem pediu para parar, e o que separa
+ * isso de um abuso é a pessoa ter pedido de volta. O mínimo de 5 caracteres é o
+ * mesmo do motivo de recusa — o suficiente para impedir um "ok" e não tanto a
+ * ponto de virar redação.
+ */
+export const resumeNotificationsSchema = z.object({
+  memberId: z.string().uuid(),
+  note: z
+    .string()
+    .trim()
+    .min(5, { message: "Diga quem pediu para voltar a receber e por onde." })
+    .max(300, { message: "Use no máximo 300 caracteres." }),
+});
+
+export type ResumeNotificationsInput = z.input<typeof resumeNotificationsSchema>;

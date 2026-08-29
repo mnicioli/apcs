@@ -1451,6 +1451,9 @@ export type Database = {
           id: string;
           note: string | null;
           phone_key: string | null;
+          revoked_at: string | null;
+          revoked_by: string | null;
+          revoked_note: string | null;
           source: string;
         };
         Insert: {
@@ -1460,6 +1463,9 @@ export type Database = {
           id?: string;
           note?: string | null;
           phone_key?: string | null;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          revoked_note?: string | null;
           source: string;
         };
         Update: {
@@ -1469,6 +1475,9 @@ export type Database = {
           id?: string;
           note?: string | null;
           phone_key?: string | null;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          revoked_note?: string | null;
           source?: string;
         };
         Relationships: [
@@ -3455,6 +3464,10 @@ export type Database = {
         Returns: number;
       };
       release_survey_recipients: { Args: { p_ids: string[] }; Returns: number };
+      resume_member_notifications: {
+        Args: { p_member_id: string; p_note: string };
+        Returns: number;
+      };
       reopen_membership_application: {
         Args: { p_application_id: string; p_reason?: string };
         Returns: {
@@ -4348,7 +4361,8 @@ export type Database = {
         | "application_reopened"
         | "member_created"
         | "member_linked"
-        | "member_updated";
+        | "member_updated"
+        | "member_notifications_resumed";
       membership_profile_type: "criador" | "tecnico" | "empresa" | "universidade";
       survey_answer_type:
         | "single_choice"
@@ -4632,6 +4646,7 @@ export const Constants = {
         "member_created",
         "member_linked",
         "member_updated",
+        "member_notifications_resumed",
       ],
       membership_profile_type: ["criador", "tecnico", "empresa", "universidade"],
       survey_answer_type: ["single_choice", "multiple_choice", "yes_no", "scale", "text", "rating"],

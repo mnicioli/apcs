@@ -83,6 +83,7 @@ export const MEMBERSHIP_AUDIT_ACTION_LABELS: Record<MembershipAuditAction, strin
   member_created: "Associado criado no registro",
   member_linked: "Vinculada a associado já existente",
   member_updated: "Cadastro do associado alterado",
+  member_notifications_resumed: "Voltou a receber notificações, a pedido",
 };
 
 /**
