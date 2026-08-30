@@ -94,7 +94,11 @@ export async function BroadcastPanel({
               sourceId={sourceId}
               segments={segmentos}
               preview={previa}
-              hasAttachment={alvo?.media !== null}
+              // A tela precisa dizer QUANTAS mensagens vão sair: com imagem são
+              // duas por associado, e quem confere antes de mandar para
+              // quatrocentas pessoas tem que saber disso.
+              hasDocument={alvo?.attachments.document != null}
+              hasImage={alvo?.attachments.image != null}
               resumeId={emAndamento?.id ?? null}
               resumeRemaining={
                 emAndamento

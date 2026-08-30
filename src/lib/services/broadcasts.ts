@@ -4,8 +4,8 @@ import { DOCUMENTS_BUCKET } from "@/lib/documents/storage";
 import { MARKET_BUCKET } from "@/lib/market/storage";
 import type {
   Broadcast,
+  BroadcastAttachments,
   BroadcastAudience,
-  BroadcastMedia,
   BroadcastSource,
   BroadcastSubject,
 } from "@/modules/broadcast/broadcast.types";
@@ -134,7 +134,7 @@ export async function listBroadcastsFor(
 export async function resolveBroadcastSubject(
   source: BroadcastSource,
   sourceId: string,
-): Promise<{ subject: BroadcastSubject; media: BroadcastMedia | null } | null> {
+): Promise<{ subject: BroadcastSubject; attachments: BroadcastAttachments } | null> {
   const supabase = await createClient();
 
   if (source === "normative" || source === "communication") {
@@ -172,11 +172,15 @@ export async function resolveBroadcastSubject(
 
     return {
       subject: { source, title: data.name, effectiveDate: versao.effective_date },
-      media: {
-        bucket: DOCUMENTS_BUCKET,
-        path: versao.storage_path,
-        mime: versao.mime_type,
-        filename: versao.original_filename,
+      attachments: {
+        // Documento não tem imagem: um envio só, o PDF com o texto.
+        image: null,
+        document: {
+          bucket: DOCUMENTS_BUCKET,
+          path: versao.storage_path,
+          mime: versao.mime_type,
+          filename: versao.original_filename,
+        },
       },
     };
   }
@@ -185,7 +189,7 @@ export async function resolveBroadcastSubject(
     const { data, error } = await supabase
       .from("market_bulletins")
       .select(
-        "id, name, market_bulletin_versions(effective_date, version_name, pdf_path, pdf_mime_type, pdf_filename, status)",
+        "id, name, market_bulletin_versions(effective_date, version_name, pdf_path, pdf_mime_type, pdf_filename, image_path, image_mime_type, image_filename, status)",
       )
       .eq("id", sourceId)
       .maybeSingle<{
@@ -197,6 +201,9 @@ export async function resolveBroadcastSubject(
           pdf_path: string;
           pdf_mime_type: string;
           pdf_filename: string;
+          image_path: string;
+          image_mime_type: string;
+          image_filename: string;
           status: string;
         }[];
       }>();
@@ -214,13 +221,25 @@ export async function resolveBroadcastSubject(
         effectiveDate: versao.effective_date,
         versionName: versao.version_name,
       },
-      media: {
-        // ⚠️ O PDF, e NÃO a imagem. O boletim tem os dois: a imagem é a prévia
-        // que a tela mostra; o PDF é o documento que a pessoa guarda e imprime.
-        bucket: MARKET_BUCKET,
-        path: versao.pdf_path,
-        mime: versao.pdf_mime_type,
-        filename: versao.pdf_filename,
+      // ⚠️ OS DOIS, e nesta ordem. O boletim é o único registro do sistema que
+      // guarda imagem E PDF da mesma versão, e cada um faz uma coisa: a imagem
+      // chega ABERTA na conversa e é o que faz alguém parar de rolar; o PDF
+      // chega fechado, mas é o que a pessoa guarda, imprime e reencontra na
+      // busca do WhatsApp. Mandar só o PDF (como era) fazia o boletim da semana
+      // chegar como um anexo que ninguém abriu.
+      attachments: {
+        image: {
+          bucket: MARKET_BUCKET,
+          path: versao.image_path,
+          mime: versao.image_mime_type,
+          filename: versao.image_filename,
+        },
+        document: {
+          bucket: MARKET_BUCKET,
+          path: versao.pdf_path,
+          mime: versao.pdf_mime_type,
+          filename: versao.pdf_filename,
+        },
       },
     };
   }
@@ -255,7 +274,7 @@ export async function resolveBroadcastSubject(
       location: data.location,
     },
     // Palestra não tem arquivo: o aviso é o texto.
-    media: null,
+    attachments: { image: null, document: null },
   };
 }
 

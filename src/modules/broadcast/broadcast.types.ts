@@ -53,6 +53,27 @@ export interface BroadcastMedia {
   filename: string;
 }
 
+/**
+ * O QUE VAI JUNTO DA DIVULGAÇÃO — em ordem de envio.
+ *
+ * ⚠️ SÃO DOIS PAPÉIS DIFERENTES, e não uma lista de anexos quaisquer:
+ *
+ *   • `image` sai PRIMEIRO e SEM TEXTO. É a prévia — no WhatsApp ela aparece
+ *     aberta na conversa, e é o que faz alguém parar de rolar. Um PDF chega
+ *     fechado, como um cartão de arquivo.
+ *   • `document` sai DEPOIS e LEVA A MENSAGEM. É o que a pessoa guarda, imprime
+ *     e reencontra na busca do WhatsApp.
+ *
+ * Hoje só a Bolsa tem os dois (a imagem do boletim e o PDF). Normativa e
+ * Comunicação têm só o documento; Palestra não tem arquivo nenhum — o aviso é o
+ * texto. Nomear os papéis em vez de guardar `media[0]` e `media[1]` é o que
+ * impede alguém de um dia inverter a ordem sem perceber que inverteu o sentido.
+ */
+export interface BroadcastAttachments {
+  image: BroadcastMedia | null;
+  document: BroadcastMedia | null;
+}
+
 /** Uma divulgação, como as telas a leem. */
 export interface Broadcast {
   id: string;

@@ -33,6 +33,17 @@ export class FakeProvider implements MessagingProvider {
   readonly sentImages: OutboundImageMessage[] = [];
   readonly sentDocuments: OutboundDocumentMessage[] = [];
 
+  /**
+   * TUDO O QUE SAIU, NA ORDEM — os três tipos na mesma lista.
+   *
+   * ⚠️ EXISTE PORQUE A ORDEM VIROU REGRA. As três listas acima respondem
+   * "quantas imagens saíram?"; nenhuma delas responde "a imagem saiu ANTES do
+   * PDF?", que é exatamente o que a divulgação da Bolsa promete. Com arrays
+   * separados, um worker que mandasse o PDF primeiro passaria em todos os
+   * testes.
+   */
+  readonly outbox: { kind: "text" | "image" | "document"; to: string; caption: string }[] = [];
+
   /** Números que sempre falham, com o motivo. Erro DEFINITIVO. */
   private readonly failFor = new Map<string, string>();
   /** Números que falham N vezes e depois funcionam. Falha TEMPORÁRIA. */
@@ -79,6 +90,7 @@ export class FakeProvider implements MessagingProvider {
     this.sent.length = 0;
     this.sentImages.length = 0;
     this.sentDocuments.length = 0;
+    this.outbox.length = 0;
     this.failFor.clear();
     this.failTimes.clear();
     this.downFor = 0;
@@ -111,6 +123,7 @@ export class FakeProvider implements MessagingProvider {
     // `sent.length` estaria contando tentativas, não envios, e passaria mesmo
     // com o worker mandando duas vezes para a mesma pessoa.
     this.sent.push(message);
+    this.outbox.push({ kind: "text", to: message.to, caption: message.body });
     return { ok: true, providerMessageId: `fake.${this.runId}.${this.sequence}` };
   }
 
@@ -148,6 +161,7 @@ export class FakeProvider implements MessagingProvider {
 
     this.sequence += 1;
     this.sentImages.push(message);
+    this.outbox.push({ kind: "image", to: message.to, caption: message.caption });
     return { ok: true, providerMessageId: `fake.${this.runId}.${this.sequence}` };
   }
 
@@ -184,6 +198,7 @@ export class FakeProvider implements MessagingProvider {
 
     this.sequence += 1;
     this.sentDocuments.push(message);
+    this.outbox.push({ kind: "document", to: message.to, caption: message.caption });
     return { ok: true, providerMessageId: `fake.${this.runId}.${this.sequence}` };
   }
 

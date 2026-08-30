@@ -113,10 +113,17 @@ export async function startBroadcastAction(
       p_title: alvo.subject.title,
       p_body: mensagem,
       p_segment_ids: segmentIds,
-      p_media_bucket: alvo.media?.bucket ?? null,
-      p_media_path: alvo.media?.path ?? null,
-      p_media_mime: alvo.media?.mime ?? null,
-      p_media_filename: alvo.media?.filename ?? null,
+      // O documento leva a mensagem; a imagem sai antes dele, sem texto. Quem
+      // decide se há um, dois ou nenhum é `resolveBroadcastSubject` — a partir
+      // do registro, não da tela.
+      p_media_bucket: alvo.attachments.document?.bucket ?? null,
+      p_media_path: alvo.attachments.document?.path ?? null,
+      p_media_mime: alvo.attachments.document?.mime ?? null,
+      p_media_filename: alvo.attachments.document?.filename ?? null,
+      p_image_bucket: alvo.attachments.image?.bucket ?? null,
+      p_image_path: alvo.attachments.image?.path ?? null,
+      p_image_mime: alvo.attachments.image?.mime ?? null,
+      p_image_filename: alvo.attachments.image?.filename ?? null,
     } as never);
 
     if (error) return failFromPostgres("broadcast.start", error, { source, sourceId, segmentIds });

@@ -35,7 +35,8 @@ export function BroadcastLauncher({
   sourceId,
   segments,
   preview,
-  hasAttachment,
+  hasDocument,
+  hasImage,
   resumeId,
   resumeRemaining,
 }: {
@@ -43,7 +44,10 @@ export function BroadcastLauncher({
   sourceId: string;
   segments: Segmento[];
   preview: string;
-  hasAttachment: boolean;
+  /** O PDF que leva a mensagem. */
+  hasDocument: boolean;
+  /** A imagem que sai ANTES, sem texto — hoje só a Bolsa tem. */
+  hasImage: boolean;
   /** Divulgação que parou no meio — a tela oferece continuar. */
   resumeId: string | null;
   resumeRemaining: number;
@@ -215,10 +219,25 @@ export function BroadcastLauncher({
           uma coisa para mandar outra é pior que não conferir.
         */}
         <pre className="bg-muted/50 mt-2 rounded-md p-3 text-xs whitespace-pre-wrap">{preview}</pre>
-        {hasAttachment && (
-          <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
-            <Paperclip className="h-3 w-3" aria-hidden="true" />O arquivo vai anexado à mensagem.
+
+        {/* ⚠️ DIZ QUANTAS MENSAGENS SAEM, e não só "tem anexo". Com imagem são
+            DUAS por associado, e isso muda o que a pessoa vê chegando no
+            celular dela — conferir uma coisa e mandar outra é pior que não
+            conferir. */}
+        {hasImage ? (
+          <p className="text-muted-foreground mt-1 flex items-start gap-1.5 text-xs">
+            <Paperclip className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+            <span>
+              Cada associado recebe <strong>duas mensagens</strong>: a imagem primeiro, sem texto, e
+              o arquivo em seguida com o texto acima.
+            </span>
           </p>
+        ) : (
+          hasDocument && (
+            <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
+              <Paperclip className="h-3 w-3" aria-hidden="true" />O arquivo vai anexado à mensagem.
+            </p>
+          )
         )}
       </details>
 

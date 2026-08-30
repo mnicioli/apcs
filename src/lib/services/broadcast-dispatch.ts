@@ -85,6 +85,8 @@ interface BroadcastRow {
   media_bucket: string | null;
   media_path: string | null;
   media_filename: string | null;
+  image_bucket: string | null;
+  image_path: string | null;
 }
 
 interface RecipientRow {
@@ -134,7 +136,7 @@ export async function drainBroadcastQueue(
 
   const { data: campanha, error: campanhaError } = await admin
     .from("broadcasts")
-    .select("id, source, body, media_bucket, media_path, media_filename")
+    .select("id, source, body, media_bucket, media_path, media_filename, image_bucket, image_path")
     .eq("id", broadcastId)
     .maybeSingle<BroadcastRow>();
 
@@ -148,32 +150,42 @@ export async function drainBroadcastQueue(
   }
 
   /*
-    ⚠️ O ANEXO É ASSINADO UMA VEZ POR EXECUÇÃO, fora do laço. Assinar por
+    ⚠️ OS ANEXOS SÃO ASSINADOS UMA VEZ POR EXECUÇÃO, fora do laço. Assinar por
     destinatário seria uma ida ao Storage por pessoa — mil pessoas, mil
     assinaturas do mesmo arquivo.
 
-    Falha ao assinar NÃO derruba a divulgação: cai para texto puro e registra.
-    Uma normativa anunciada sem o PDF ainda avisa que existe uma normativa
-    nova; uma divulgação que não sai não avisa nada.
+    Falha ao assinar NÃO derruba a divulgação: o que não pôde ser assinado fica
+    de fora e a mensagem sai assim mesmo. Uma normativa anunciada sem o PDF
+    ainda avisa que existe uma normativa nova; uma divulgação que não sai não
+    avisa nada.
   */
-  let anexoUrl: string | null = null;
-  if (campanha.media_bucket && campanha.media_path) {
+  const assinar = async (
+    bucket: string | null,
+    caminho: string | null,
+    rotulo: string,
+  ): Promise<string | null> => {
+    if (!bucket || !caminho) return null;
+
     const { data: assinada, error: assinaturaError } = await admin.storage
-      .from(campanha.media_bucket)
-      .createSignedUrl(campanha.media_path, MEDIA_SIGNED_URL_TTL_SECONDS);
+      .from(bucket)
+      .createSignedUrl(caminho, MEDIA_SIGNED_URL_TTL_SECONDS);
 
     if (assinaturaError || !assinada?.signedUrl) {
       logBroadcast("error", "broadcast.started", {
         broadcastId,
         correlationId,
         source: campanha.source,
-        outcome: "sem anexo: a divulgação vai só com o texto",
+        outcome: `sem ${rotulo}: a divulgação segue sem ele`,
         reason: assinaturaError?.message ?? "URL assinada vazia",
       });
-    } else {
-      anexoUrl = assinada.signedUrl;
+      return null;
     }
-  }
+
+    return assinada.signedUrl;
+  };
+
+  const anexoUrl = await assinar(campanha.media_bucket, campanha.media_path, "documento");
+  const imagemUrl = await assinar(campanha.image_bucket, campanha.image_path, "imagem");
 
   // ⚠️ CURA A FILA ANTES DE COMEÇAR. Uma execução anterior pode ter sido morta
   // pela plataforma no meio de um lote, deixando linhas em `sending` — elas não
@@ -252,11 +264,13 @@ export async function drainBroadcastQueue(
         destinatario,
         mensagem: campanha.body,
         anexoUrl,
+        imagemUrl,
         nomeDoArquivo: campanha.media_filename,
         broadcastId,
         correlationId,
         maxTentativas,
         espera,
+        ritmo,
       });
 
       if (resultado === "sent") {
@@ -315,11 +329,13 @@ async function sendToRecipient({
   destinatario,
   mensagem,
   anexoUrl,
+  imagemUrl,
   nomeDoArquivo,
   broadcastId,
   correlationId,
   maxTentativas,
   espera,
+  ritmo,
 }: {
   admin: ReturnType<typeof createAdminClient>;
   provider: MessagingProvider;
@@ -327,11 +343,15 @@ async function sendToRecipient({
   mensagem: string;
   /** Nulo = sem anexo, ou o anexo não pôde ser assinado. Vai só o texto. */
   anexoUrl: string | null;
+  /** A prévia, enviada ANTES e sem legenda. Nulo = módulo sem imagem. */
+  imagemUrl: string | null;
   nomeDoArquivo: string | null;
   broadcastId: string;
   correlationId: string;
   maxTentativas: number;
   espera: (attempt: number) => number;
+  /** Espera entre mensagens — o ritmo vale por MENSAGEM, não por pessoa. */
+  ritmo: number;
 }): Promise<SendOutcome> {
   const telefone = toWhatsAppNumber(destinatario.member_phone);
 
@@ -353,6 +373,62 @@ async function sendToRecipient({
       phone: maskPhone(destinatario.member_phone),
     });
     return "ineligible";
+  }
+
+  /**
+   * ⚠️ A IMAGEM SAI PRIMEIRO, SEM LEGENDA — e o resultado dela NÃO decide o
+   * desfecho do destinatário.
+   *
+   * A ordem é conteúdo: no WhatsApp a imagem chega ABERTA na conversa e é o que
+   * faz alguém parar de rolar; o PDF chega fechado, como um cartão de arquivo.
+   * Mandando só o PDF, o boletim da semana virava um anexo que ninguém abriu.
+   *
+   * A legenda fica vazia porque quem carrega a mensagem é o documento — texto
+   * nos dois faria a pessoa receber a mesma coisa duas vezes seguidas.
+   *
+   * E o veredito é do DOCUMENTO, não da imagem: marcar o destinatário como erro
+   * porque a prévia não subiu deixaria de fora o boletim inteiro por causa do
+   * acessório. Por isso ela tem repetição própria, log próprio, e segue adiante
+   * de qualquer jeito.
+   *
+   * ⚠️ LIMITE CONHECIDO: se o documento falhar e a linha voltar para a fila
+   * (pela cura de `sending` ou por um "tentar de novo"), a imagem sai de novo
+   * junto. É a mesma troca que a fila inteira já faz — repetir é melhor que
+   * sumir —, e a alternativa seria guardar estado por anexo em cada linha.
+   */
+  if (imagemUrl) {
+    for (let tentativa = 1; tentativa <= maxTentativas; tentativa += 1) {
+      const resultado = await provider.sendImage({
+        to: telefone.e164,
+        imageUrl: imagemUrl,
+        caption: "",
+        correlationId,
+      });
+
+      if (resultado.ok) {
+        // Sem esta espera, cada destinatário dispara duas mensagens coladas e o
+        // ritmo combinado com o fornecedor vira o dobro.
+        await sleep(ritmo);
+        break;
+      }
+
+      const motivo = `${resultado.code}: ${resultado.message}`;
+
+      // Recusa definitiva (formato, tamanho, URL que o fornecedor não baixou)
+      // ou fim das tentativas: o documento ainda vai, e é ele que importa.
+      if (!resultado.retryable || tentativa === maxTentativas) {
+        logBroadcast("error", "send.error", {
+          broadcastId,
+          recipientId: destinatario.id,
+          correlationId,
+          outcome: "imagem não saiu; seguindo com o documento",
+          reason: motivo,
+        });
+        break;
+      }
+
+      await sleep(espera(tentativa));
+    }
   }
 
   let ultimoErro = "Falha desconhecida ao enviar.";
