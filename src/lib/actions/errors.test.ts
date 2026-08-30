@@ -97,3 +97,36 @@ describe("failFromPostgres", () => {
     expect(logado).toHaveLength(1);
   });
 });
+
+/**
+ * ⚠️ 42501 SÃO DUAS COISAS, e este par de testes existe porque confundi-las
+ * custou uma investigação inteira: `events.description` nasceu sem grant de
+ * coluna, e um ADMINISTRADOR com 33 de 33 permissões lia "Você não tem permissão
+ * para esta ação" ao salvar um evento. A mensagem mandava procurar no RBAC, que
+ * estava certo o tempo todo.
+ */
+describe("42501: papel recusado x privilégio do banco", () => {
+  it("recusa de PAPEL continua sendo `forbidden`", () => {
+    // Todo `raise` deste projeto é em português — é assim que se distingue.
+    expect(mapPostgresError({ code: "42501", message: "Sem permissao para divulgar." })).toEqual({
+      code: "forbidden",
+    });
+  });
+
+  it("privilégio de COLUNA vira `dbPrivilege`, que não manda ninguém ao RBAC", () => {
+    const erro = {
+      code: "42501",
+      message: "permission denied for column description of relation events",
+    };
+
+    expect(mapPostgresError(erro)).toEqual({ code: "dbPrivilege" });
+    expect(ACTION_ERROR_MESSAGES.dbPrivilege).not.toContain("Você não tem permissão");
+    expect(ACTION_ERROR_MESSAGES.dbPrivilege).toContain("não é o seu perfil");
+  });
+
+  it("privilégio de TABELA também", () => {
+    expect(
+      mapPostgresError({ code: "42501", message: "permission denied for table events" }),
+    ).toEqual({ code: "dbPrivilege" });
+  });
+});

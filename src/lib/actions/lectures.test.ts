@@ -379,7 +379,15 @@ describe("erro do banco", () => {
     ["motivo obrigatório", "PL004", "lectureReasonRequired"],
     ["falta horário", "PL005", "lectureNeedsTime"],
     ["perfil inexistente", "PL006", "lectureProfileNotFound"],
-    ["sem permissão no banco", "42501", "forbidden"],
+    /**
+     * ⚠️ 42501 SÃO DUAS COISAS, e a mensagem crua abaixo é a do PRIVILÉGIO —
+     * "permission denied for table". Desde que `events.description` nasceu sem
+     * grant de coluna e fez um administrador ler "Você não tem permissão para
+     * esta ação", os dois casos têm códigos diferentes: privilégio do banco não
+     * manda ninguém procurar no RBAC. A recusa por PAPEL (um `raise` nosso, em
+     * português) tem caso próprio logo abaixo deste laço.
+     */
+    ["privilégio do banco", "42501", "dbPrivilege"],
     ["não encontrada", "P0002", "notFound"],
   ];
 
@@ -406,6 +414,21 @@ describe("erro do banco", () => {
       }
     });
   }
+
+  it('recusa de PAPEL no banco continua virando "forbidden"', async () => {
+    papelAtual = "admin";
+    rpc.mockResolvedValue({
+      data: null,
+      // O texto de um `raise ... using errcode = '42501'` deste projeto — em
+      // português, e é justamente isso que o separa do privilégio do Postgres.
+      error: { code: "42501", message: "Sem permissão para cadastrar palestras." },
+    });
+
+    const resultado = await setLectureStatusAction({ lectureId: ID, status: "under_review" });
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.error.code).toBe("forbidden");
+  });
 
   it("erro desconhecido não vaza a mensagem crua", async () => {
     papelAtual = "admin";

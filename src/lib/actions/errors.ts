@@ -13,6 +13,7 @@ export type ActionErrorCode =
   | "hasRelated" // 23503 — há registros dependentes (FK)
   | "invalidInput" // validação (Zod ou CHECK do banco)
   | "forbidden" // sem permissão (RBAC ou RLS bloqueou)
+  | "dbPrivilege" // o BANCO recusou por privilégio de tabela/coluna — não é o papel de quem clicou
   | "notFound" // registro não encontrado
   // Upload de arquivo. São códigos próprios porque `invalidInput` não distingue
   // "mande um PDF" de "o arquivo está grande demais" de "tire a senha" — e a
@@ -127,6 +128,9 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   hasRelated: "Não é possível concluir: há registros vinculados.",
   invalidInput: "Dados inválidos. Verifique os campos e tente novamente.",
   forbidden: "Você não tem permissão para esta ação.",
+  dbPrivilege:
+    "O banco recusou esta gravação por configuração interna — não é o seu perfil. " +
+    "Avise quem cuida do sistema: o log do servidor diz qual coluna faltou liberar.",
   notFound: "Registro não encontrado.",
   fileNotPdf: "Apenas arquivos PDF são permitidos.",
   fileTooLarge: "O arquivo não pode ultrapassar o tamanho máximo de 5 MB.",
@@ -312,8 +316,32 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "hasRelated", constraint: e.constraint };
     case "23514":
       return { code: "invalidInput", constraint: e.constraint };
+    /**
+     * ⚠️ 42501 SÃO DUAS COISAS, e confundi-las custou uma investigação inteira.
+     *
+     *   1. "o seu papel não pode" — uma policy de RLS ou um `raise` nosso. É o
+     *      `forbidden`, e a mensagem manda a pessoa falar com quem dá acesso.
+     *   2. "esta COLUNA não é sua" — um `grant update (...)` que não inclui a
+     *      coluna sendo escrita. Não tem nada a ver com o papel de quem clicou:
+     *      é configuração do banco, e nenhum ajuste na Matriz de Acesso
+     *      resolve.
+     *
+     * Aconteceu de verdade: `events.description` nasceu sem grant, e um
+     * ADMINISTRADOR com 33 de 33 permissões via "Você não tem permissão para
+     * esta ação" ao salvar um evento. A mensagem mandava procurar no RBAC, que
+     * estava certo o tempo todo.
+     *
+     * A distinção é pelo texto porque o Postgres não dá códigos diferentes. É
+     * seguro aqui: as mensagens de privilégio são do próprio Postgres, em
+     * inglês (o Supabase roda com `lc_messages` em C), enquanto todo `raise`
+     * deste projeto é em português.
+     */
     case "42501":
-      return { code: "forbidden" };
+      return /permission denied for (table|column|relation|schema|sequence|function)/i.test(
+        e.message ?? "",
+      )
+        ? { code: "dbPrivilege" }
+        : { code: "forbidden" };
     case "PGRST116":
       return { code: "notFound" };
     // `no_data_found`, levantado pelas funções transacionais de documentos e de
