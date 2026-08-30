@@ -35,6 +35,16 @@ export default [
       ],
     },
   },
+  {
+    // Scripts de manutenção rodam no Node, fora do Next — `process` e `console`
+    // existem ali. Declarados explicitamente (em vez de puxar o pacote
+    // `globals`) porque são exatamente dois, e uma dependência a mais para duas
+    // linhas é dependência a mais para sempre.
+    files: ["scripts/**/*.{mjs,js}"],
+    languageOptions: {
+      globals: { process: "readonly", console: "readonly" },
+    },
+  },
   eslintConfigPrettier,
   {
     // `ToDo/` é material de referência recebido do cliente (outro framework,
