@@ -195,6 +195,21 @@ export function actorLabel(actor: LectureActor | null | undefined): string | nul
 }
 
 /**
+ * COMO CHAMAR O PALESTRANTE NA TELA, venha ele do time ou de fora.
+ *
+ * ⚠️ É o ÚNICO lugar da interface que precisa saber que palestrante são dois
+ * campos (`speaker`, do diretório interno; `speakerCatalog`, do catálogo de
+ * nomes). Espalhar esse `??` pelas telas garantiria que uma delas ficasse para
+ * trás e mostrasse "Não definido" numa palestra que tem palestrante — o mesmo
+ * defeito que `actorLabel` existe para não repetir.
+ *
+ * `null` significa NINGUÉM DEFINIDO, como em `actorLabel`.
+ */
+export function speakerLabel(lecture: Pick<Lecture, "speaker" | "speakerCatalog">): string | null {
+  return actorLabel(lecture.speaker) ?? lecture.speakerCatalog?.name.trim() ?? null;
+}
+
+/**
  * O motivo pelo qual a palestra foi encerrada, qualquer que tenha sido a porta
  * de saída. Nulo quando ela ainda está em jogo.
  */

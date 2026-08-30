@@ -60,7 +60,10 @@ describe("§26 a confirmação do arrastar-e-soltar", () => {
     montar({ eventDate: "2026-11-20", startTime: "15:00" });
 
     expect(screen.getByLabelText(/^Data/)).toHaveValue("2026-11-20");
-    expect(screen.getByLabelText("Hora de início")).toHaveValue("15:00");
+    // O horário virou DOIS seletores (ver ui/time-select.tsx): a sugestão do
+    // arrasto tem de chegar nos dois, ou a tela mostraria meio horário.
+    expect(screen.getByLabelText("Hora de início — hora")).toHaveValue("15");
+    expect(screen.getByLabelText("Hora de início — minuto")).toHaveValue("00");
   });
 
   /**
@@ -71,7 +74,8 @@ describe("§26 a confirmação do arrastar-e-soltar", () => {
   it("a duração acompanha o arrasto", () => {
     montar({ eventDate: "2026-11-20", startTime: "15:00" });
 
-    expect(screen.getByLabelText("Hora de término")).toHaveValue("16:00");
+    expect(screen.getByLabelText("Hora de término — hora")).toHaveValue("16");
+    expect(screen.getByLabelText("Hora de término — minuto")).toHaveValue("00");
     expect(screen.getByRole("button", { name: "Confirmar" })).toBeEnabled();
   });
 
@@ -131,8 +135,9 @@ describe("§27 o reagendamento", () => {
   it("horário invertido nem chega ao servidor", async () => {
     montar({ eventDate: "2026-11-20" });
 
-    await userEvent.clear(screen.getByLabelText("Hora de término"));
-    await userEvent.type(screen.getByLabelText("Hora de término"), "08:00");
+    // 08:00 contra um início de 09:00. Com os seletores não dá para "digitar"
+    // um horário: escolhe-se a hora, e o minuto já vem 00.
+    await userEvent.selectOptions(screen.getByLabelText("Hora de término — hora"), "08");
 
     expect(screen.getByRole("alert")).toHaveTextContent(/posterior ao de início/i);
     expect(screen.getByRole("button", { name: "Confirmar" })).toBeDisabled();

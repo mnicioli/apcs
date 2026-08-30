@@ -371,3 +371,42 @@ describe("horários de 5 em 5 minutos", () => {
     expect(lectureCoreSchema.safeParse({ ...NUCLEO, startTime: "" }).success).toBe(true);
   });
 });
+
+/**
+ * O NOME DO PALESTRANTE DE FORA.
+ *
+ * Os limites são os mesmos do CHECK `lecture_speakers_name_len` (160) e existem
+ * pelo motivo mais concreto possível: o catálogo é uma tabela onde NÃO se apaga
+ * (`on delete restrict`). Uma tecla encostada sem querer viraria uma linha
+ * permanente na lista que todo mundo vê ao marcar uma palestra.
+ */
+describe("nome do palestrante (catálogo)", () => {
+  const base = { ...NUCLEO, status: "planned" as const, priority: "normal" as const };
+
+  it("aceita um nome comum", () => {
+    expect(createLectureSchema.safeParse({ ...base, speakerName: "Dr. Marcelo" }).success).toBe(
+      true,
+    );
+  });
+
+  it("vazio continua sendo -- não informado --, não erro", () => {
+    expect(createLectureSchema.safeParse({ ...base, speakerName: "" }).success).toBe(true);
+    expect(createLectureSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("recusa uma letra só e um nome maior que o banco aceita", () => {
+    expect(createLectureSchema.safeParse({ ...base, speakerName: "M" }).success).toBe(false);
+    expect(createLectureSchema.safeParse({ ...base, speakerName: "a".repeat(161) }).success).toBe(
+      false,
+    );
+  });
+
+  it("o mesmo campo existe na atribuição, que é onde se TROCA o palestrante", () => {
+    const atribuicao = {
+      lectureId: "22222222-2222-4222-8222-222222222222",
+      profileId: "",
+      speakerName: "Dra. Helena Costa",
+    };
+    expect(assignLectureSchema.safeParse(atribuicao).success).toBe(true);
+  });
+});

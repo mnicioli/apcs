@@ -428,3 +428,51 @@ describe("erro do banco", () => {
     }
   });
 });
+
+/**
+ * O PALESTRANTE DE FORA (catálogo).
+ *
+ * ⚠️ O teste que importa é o SEGUNDO: `assign_lecture_responsible` não tem o
+ * parâmetro `p_speaker_name`, e mandar para o Postgres um argumento nomeado que
+ * a função não conhece é erro 42883 — não um argumento ignorado. Como as duas
+ * atribuições compartilham o mesmo corpo na action, é fácil alguém "simplificar"
+ * o `if` e quebrar só a de responsável, que é a menos usada das duas.
+ */
+describe("palestrante por nome", () => {
+  beforeEach(() => {
+    papelAtual = "admin";
+  });
+
+  it("manda o nome digitado para o banco resolver", async () => {
+    await assignLectureSpeakerAction({
+      lectureId: ID,
+      profileId: "",
+      speakerName: "Dr. Marcelo Ribeiro",
+    });
+
+    expect(rpc).toHaveBeenCalledWith("assign_lecture_speaker", {
+      p_lecture_id: ID,
+      p_profile_id: null,
+      p_speaker_name: "Dr. Marcelo Ribeiro",
+    });
+  });
+
+  it("NÃO manda o nome para a atribuição de responsável", async () => {
+    await assignLectureResponsibleAction({ lectureId: ID, profileId: "" });
+
+    expect(rpc).toHaveBeenCalledWith("assign_lecture_responsible", {
+      p_lecture_id: ID,
+      p_profile_id: null,
+    });
+  });
+
+  it("o cadastro leva o nome junto do resto", async () => {
+    await createLectureAction({ ...CRIACAO, speakerName: "Dra. Helena Costa" });
+
+    const chamada = rpc.mock.calls.find(([nome]) => nome === "create_lecture");
+    expect(chamada?.[1]).toMatchObject({
+      p_speaker_id: null,
+      p_speaker_name: "Dra. Helena Costa",
+    });
+  });
+});

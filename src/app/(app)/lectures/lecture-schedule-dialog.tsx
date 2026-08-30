@@ -8,11 +8,11 @@ import { rescheduleLectureAction } from "@/lib/actions/lectures";
 import { formatCalendarDate, formatTimeRange } from "@/lib/utils";
 import { shiftedEndTime } from "@/modules/lecture/lecture.calendar";
 import type { Lecture, LectureConflict } from "@/modules/lecture/lecture.types";
-import { TIME_STEP_SECONDS } from "@/lib/time/step";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TimeSelect } from "@/components/ui/time-select";
 import { LectureConflictAlert } from "./lecture-conflict-alert";
 
 /**
@@ -175,29 +175,30 @@ export function LectureScheduleDialog({
               />
             </div>
 
+            {/* Os mesmos dois seletores do cadastro: o `<input type="time">`
+                com `step` continuava listando os sessenta minutos, porque `step`
+                é validação e não desenho da lista. Ver `ui/time-select.tsx`. */}
             <div className="space-y-2">
               <Label htmlFor={startId}>Hora de início</Label>
-              <Input
+              <TimeSelect
                 id={startId}
-                type="time"
-                step={TIME_STEP_SECONDS}
+                label="Hora de início"
                 value={startTime}
                 disabled={isPending}
-                aria-invalid={terminoSemInicio}
-                onChange={(event) => setStartTime(event.target.value)}
+                invalid={terminoSemInicio}
+                onChange={setStartTime}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor={endId}>Hora de término</Label>
-              <Input
+              <TimeSelect
                 id={endId}
-                type="time"
-                step={TIME_STEP_SECONDS}
+                label="Hora de término"
                 value={endTime}
                 disabled={isPending}
-                aria-invalid={horarioInvertido}
-                onChange={(event) => setEndTime(event.target.value)}
+                invalid={horarioInvertido}
+                onChange={setEndTime}
               />
             </div>
           </div>

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowDown, ArrowUp, CalendarDays, Plus } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
-import { listLectures } from "@/lib/services/lectures";
+import { listLectures, listLectureSpeakers } from "@/lib/services/lectures";
 import { searchDirectory } from "@/lib/services/profile";
 import { formatCalendarDate, formatTimeRange, todayInSaoPaulo } from "@/lib/utils";
 import {
@@ -30,7 +30,12 @@ import {
   parseLectureSort,
   type RawSearchParams,
 } from "@/modules/lecture/lecture.routes";
-import { actorLabel, lectureStage, typeDescription } from "@/modules/lecture/lecture.rules";
+import {
+  actorLabel,
+  lectureStage,
+  speakerLabel,
+  typeDescription,
+} from "@/modules/lecture/lecture.rules";
 import type {
   Lecture,
   LectureFilters,
@@ -82,9 +87,10 @@ export default async function LecturesPage({
   // meia-noite, e aí a grid discordaria dela mesma.
   const today = todayInSaoPaulo();
 
-  const [result, directory] = await Promise.all([
+  const [result, directory, speakers] = await Promise.all([
     listLectures(filters, sort, page, pageSize),
     searchDirectory(),
+    listLectureSpeakers(),
   ]);
 
   const canWrite = hasPermission(role, "lectures.write");
@@ -121,7 +127,7 @@ export default async function LecturesPage({
         </div>
       </div>
 
-      <LectureFiltersBar filters={filters} directory={directory} />
+      <LectureFiltersBar filters={filters} directory={directory} speakers={speakers} />
 
       {result.items.length === 0 ? (
         <Card>
@@ -374,7 +380,7 @@ function LectureRow({ lecture, today }: { lecture: Lecture; today: string }) {
       </td>
 
       <td className="text-muted-foreground hidden max-w-40 truncate px-4 py-3 xl:table-cell">
-        {actorLabel(lecture.speaker) ?? "—"}
+        {speakerLabel(lecture) ?? "—"}
       </td>
 
       <td className="px-4 py-3">

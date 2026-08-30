@@ -19,9 +19,11 @@ import {
   LECTURE_STATUSES,
   LECTURE_TYPES,
   type LectureFilters,
+  type LectureSpeaker,
   type LectureStatus,
 } from "@/modules/lecture/lecture.types";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -46,6 +48,7 @@ const PERIODO_INVERTIDO = "A data inicial não pode ser maior que a data final."
 export function LectureFiltersBar({
   filters,
   directory,
+  speakers = [],
   preserve = {},
   showPriority = true,
   showPeriod = true,
@@ -53,6 +56,15 @@ export function LectureFiltersBar({
   filters: LectureFilters;
   /** O time interno, para os seletores de responsável e palestrante. */
   directory: DirectoryEntry[];
+  /**
+   * Os palestrantes DE FORA já cadastrados (§20).
+   *
+   * ⚠️ Sem eles, o filtro de palestrante só oferecia gente com login — e como a
+   * maioria das palestras da APCS é apresentada por quem não tem conta, "filtrar
+   * por palestrante" era uma pergunta que a tela não sabia responder sobre quase
+   * ninguém.
+   */
+  speakers?: LectureSpeaker[];
   /** Parâmetros que não são filtro e precisam sobreviver (`view`, `date`). */
   preserve?: Record<string, string>;
   /** O calendário não filtra por prioridade — o escopo não a lista no §11. */
@@ -150,10 +162,22 @@ export function LectureFiltersBar({
     filters.to !== "";
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-56 flex-1 space-y-2">
-          <Label htmlFor={searchId}>Buscar</Label>
+    <div className="space-y-3">
+      {/* ⚠️ GRADE, E NÃO `flex flex-wrap`. Com onze campos de larguras fixas, o
+          `flex-wrap` quebrava as linhas onde desse — sobrava um buraco no fim de
+          uma, um campo solitário na outra, e os rótulos não se alinhavam entre
+          as linhas. A grade dá colunas de verdade: os campos alinham na
+          vertical, e a linha só muda quando a tela muda. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor={searchId} className="flex items-center gap-1.5">
+            Buscar
+            {/* §71: o protocolo acha a palestra esteja ela em que página
+                estiver, porque a busca é do servidor e não da página carregada.
+                A frase era um parágrafo fixo embaixo do campo — e, como a linha
+                alinhava pela base, ela desalinhava a linha inteira. */}
+            <InfoTip text="A busca ignora acentos e vale sobre todas as palestras, não só as desta página." />
+          </Label>
           <div className="relative">
             <Search
               className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
@@ -168,14 +192,9 @@ export function LectureFiltersBar({
               className="pl-9"
             />
           </div>
-          {/* §71: o protocolo acha a palestra esteja ela em que página estiver,
-              porque a busca é do servidor e não da página carregada. */}
-          <p className="text-muted-foreground text-xs">
-            A busca ignora acentos e vale sobre todas as palestras, não só as desta página.
-          </p>
         </div>
 
-        <div className="w-44 space-y-2">
+        <div className="space-y-2">
           <Label htmlFor={statusId}>Situação</Label>
           <Select
             id={statusId}
@@ -197,7 +216,7 @@ export function LectureFiltersBar({
           </Select>
         </div>
 
-        <div className="w-40 space-y-2">
+        <div className="space-y-2">
           <Label htmlFor={originId}>Origem</Label>
           <Select
             id={originId}
@@ -213,7 +232,7 @@ export function LectureFiltersBar({
           </Select>
         </div>
 
-        <div className="w-40 space-y-2">
+        <div className="space-y-2">
           <Label htmlFor={typeId}>Tipo</Label>
           <Select
             id={typeId}
@@ -229,7 +248,7 @@ export function LectureFiltersBar({
           </Select>
         </div>
 
-        <div className="w-40 space-y-2">
+        <div className="space-y-2">
           <Label htmlFor={formatId}>Formato</Label>
           <Select
             id={formatId}
@@ -245,17 +264,17 @@ export function LectureFiltersBar({
           </Select>
         </div>
 
-        <div className="w-40 space-y-2">
+        <div className="space-y-2">
           <Label htmlFor={cityId}>Cidade</Label>
           <Input
             id={cityId}
             value={city}
             onChange={(event) => setCity(event.target.value)}
-            placeholder="Toledo"
+            placeholder="Espírito Santo do Pinhal"
           />
         </div>
 
-        <div className="w-48 space-y-2">
+        <div className="space-y-2">
           <Label htmlFor={responsibleId}>Responsável</Label>
           <Select
             id={responsibleId}
@@ -280,7 +299,7 @@ export function LectureFiltersBar({
           </Select>
         </div>
 
-        <div className="w-48 space-y-2">
+        <div className="space-y-2">
           <Label htmlFor={speakerId}>Palestrante</Label>
           <Select
             id={speakerId}
@@ -297,16 +316,43 @@ export function LectureFiltersBar({
             }
           >
             <option value="">Todos</option>
-            {directory.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.fullName ?? person.email}
-              </option>
-            ))}
+            {/* ⚠️ A MESMA LISTA do cadastro e do diálogo de atribuição, e nesta
+                ordem. Se o filtro oferecesse só o time, escolher "Dr. Marcelo"
+                numa palestra e depois procurá-lo aqui não daria em nada — a
+                pessoa concluiria que o filtro está quebrado, quando o que
+                faltava era a opção.
+
+                Os dois grupos existem porque um id de perfil e um id de catálogo
+                não são a mesma coisa; para quem filtra, são só nomes. */}
+            {speakers.length > 0 ? (
+              <>
+                <optgroup label="Palestrantes">
+                  {speakers.map((speaker) => (
+                    <option key={speaker.id} value={speaker.id}>
+                      {speaker.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Time interno">
+                  {directory.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.fullName ?? person.email}
+                    </option>
+                  ))}
+                </optgroup>
+              </>
+            ) : (
+              directory.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.fullName ?? person.email}
+                </option>
+              ))
+            )}
           </Select>
         </div>
 
         {showPriority && (
-          <div className="w-40 space-y-2">
+          <div className="space-y-2">
             <Label htmlFor={priorityId}>Prioridade</Label>
             <Select
               id={priorityId}
@@ -325,7 +371,7 @@ export function LectureFiltersBar({
 
         {showPeriod && (
           <>
-            <div className="w-44 space-y-2">
+            <div className="space-y-2">
               {/* §70: o rótulo diz QUAL data está sendo filtrada. "De/até"
                   sozinho deixaria a pessoa sem saber se é a data da palestra ou
                   a do pedido. */}
@@ -340,7 +386,7 @@ export function LectureFiltersBar({
               />
             </div>
 
-            <div className="w-44 space-y-2">
+            <div className="space-y-2">
               <Label htmlFor={toId}>até</Label>
               <Input
                 id={toId}
@@ -352,6 +398,20 @@ export function LectureFiltersBar({
               />
             </div>
           </>
+        )}
+      </div>
+
+      {/* FORA DA GRADE. Dentro dela, o botão ocupava uma célula e ganhava um
+          rótulo invisível em cima para alinhar com os campos — ou ficava
+          flutuando no meio da linha, dependendo de quantos filtros a tela
+          mostrava. Ele não é um filtro; é o que desfaz todos. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {periodoInvalido ? (
+          <p id={`${fromId}-erro`} role="alert" className="text-destructive text-sm">
+            {PERIODO_INVERTIDO}
+          </p>
+        ) : (
+          <span />
         )}
 
         {filtrado && (
@@ -381,12 +441,6 @@ export function LectureFiltersBar({
           </Button>
         )}
       </div>
-
-      {periodoInvalido && (
-        <p id={`${fromId}-erro`} role="alert" className="text-destructive text-sm">
-          {PERIODO_INVERTIDO}
-        </p>
-      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { untyped } from "@/lib/supabase/untyped";
 import { formatTime } from "@/lib/utils";
 import { compareByTime } from "@/modules/lecture/lecture.rules";
 import type {
@@ -14,6 +15,7 @@ import type {
   LecturePriority,
   LectureSort,
   LectureSortField,
+  LectureSpeaker,
   LectureStatus,
   LectureTransition,
   LectureType,
@@ -53,6 +55,7 @@ const LECTURE_COLUMNS =
   "requester_contact_id, requester_name, requester_email, requester_phone, requester_organization, " +
   "created_at, updated_at, " +
   "speaker:profiles!lectures_speaker_id_fkey (id, full_name, email), " +
+  "speakerCatalog:lecture_speakers!lectures_speaker_catalog_id_fkey (id, name), " +
   "responsible:profiles!lectures_responsible_id_fkey (id, full_name, email), " +
   "creator:profiles!lectures_created_by_fkey (id, full_name, email), " +
   "editor:profiles!lectures_updated_by_fkey (id, full_name, email)";
@@ -63,6 +66,7 @@ const CALENDAR_COLUMNS =
   "event_date, start_time, end_time, status, priority, " +
   "requested_at, held_at, created_at, updated_at, " +
   "speaker:profiles!lectures_speaker_id_fkey (id, full_name, email), " +
+  "speakerCatalog:lecture_speakers!lectures_speaker_catalog_id_fkey (id, name), " +
   "responsible:profiles!lectures_responsible_id_fkey (id, full_name, email)";
 
 /**
@@ -75,10 +79,63 @@ const CALENDAR_LIMIT = 1000;
 /** Teto da trilha lida de uma vez. */
 const AUDIT_LIMIT = 200;
 
+/**
+ * ⚠️ REDE DE SEGURANÇA PARA A ORDEM DEPLOY × MIGRATION — a mesma de
+ * `services/admin.ts`, pelo mesmo motivo.
+ *
+ * `lecture_speakers` nasce em 20260905000000_lecture_speakers.sql, e o embed
+ * `speakerCatalog:...` só existe depois que ela roda. Se este código subir antes,
+ * o PostgREST devolve PGRST200 ("could not find a relationship") e o módulo
+ * INTEIRO de Palestras para de abrir — grid, calendário e detalhe —, porque
+ * todos passam por estas colunas.
+ *
+ * Com o fallback, o que acontece no intervalo é bem menor: o palestrante externo
+ * aparece como "não definido" até a migration rodar. Um campo vazio por algumas
+ * horas contra uma tela fora do ar não é uma escolha difícil.
+ *
+ * A flag é de módulo (por processo): depois da primeira falha, as consultas
+ * seguintes já partem da versão sem o embed, em vez de errar e repetir a cada
+ * requisição.
+ *
+ * REMOVER junto com `src/lib/supabase/untyped.ts`, quando a migration estiver
+ * aplicada em produção.
+ */
+const SEM_RELACAO = "PGRST200";
+let catalogoIndisponivel = false;
+
+const CATALOGO_EMBED =
+  "speakerCatalog:lecture_speakers!lectures_speaker_catalog_id_fkey (id, name)";
+
+function semCatalogo(columns: string): string {
+  return columns.replace(`${CATALOGO_EMBED}, `, "").replace(`, ${CATALOGO_EMBED}`, "");
+}
+
+async function consultar<T extends { error: { code?: string } | null }>(
+  executar: (columns: string) => PromiseLike<T>,
+  columns: string,
+): Promise<T> {
+  if (catalogoIndisponivel) return executar(semCatalogo(columns));
+
+  const resultado = await executar(columns);
+  if (resultado.error?.code !== SEM_RELACAO) return resultado;
+
+  console.warn(
+    "[lectures] catálogo de palestrantes ainda não existe no banco — rode a migration 20260905000000_lecture_speakers.sql.",
+  );
+  catalogoIndisponivel = true;
+  return executar(semCatalogo(columns));
+}
+
 interface ProfileRow {
   id: string;
   full_name: string | null;
   email?: string | null;
+}
+
+/** Uma linha do catálogo de palestrantes, no recorte que a tela usa. */
+interface SpeakerRow {
+  id: string;
+  name: string;
 }
 
 interface LectureRow {
@@ -113,6 +170,7 @@ interface LectureRow {
   created_at: string;
   updated_at: string;
   speaker: ProfileRow | null;
+  speakerCatalog?: SpeakerRow | null;
   responsible: ProfileRow | null;
   creator?: ProfileRow | null;
   editor?: ProfileRow | null;
@@ -150,6 +208,7 @@ export function toLecture(row: LectureRow): Lecture {
     attendeesEstimated: row.attendees_estimated ?? null,
     attendeesActual: row.attendees_actual ?? null,
     speaker: toActor(row.speaker),
+    speakerCatalog: row.speakerCatalog ?? null,
     responsible: toActor(row.responsible),
     priority: row.priority,
     status: row.status,
@@ -227,6 +286,7 @@ interface FilterableQuery<T> {
   gte(column: string, value: string): T;
   lte(column: string, value: string): T;
   like(column: string, pattern: string): T;
+  or(filters: string): T;
 }
 
 /**
@@ -244,7 +304,15 @@ function applyFilters<T extends FilterableQuery<T>>(query: T, filters: LectureFi
   if (filters.format) next = next.eq("format", filters.format);
   if (filters.priority) next = next.eq("priority", filters.priority);
   if (filters.responsibleId) next = next.eq("responsible_id", filters.responsibleId);
-  if (filters.speakerId) next = next.eq("speaker_id", filters.speakerId);
+
+  // ⚠️ DUAS COLUNAS, UM FILTRO. O palestrante escolhido pode ser um perfil
+  // interno ou um nome do catálogo, e quem filtra não distingue os dois — nem
+  // deveria. Os dois lados são uuid, então não há risco de um valor casar com a
+  // coluna errada: no máximo uma das comparações é verdadeira.
+  if (filters.speakerId) {
+    const id = filters.speakerId;
+    next = next.or(`speaker_id.eq.${id},speaker_catalog_id.eq.${id}`);
+  }
 
   // Inclusivo nas duas pontas: quem digita 01/08 a 31/08 espera ver o dia 31.
   if (filters.from) next = next.gte("event_date", filters.from);
@@ -278,19 +346,22 @@ export async function listLectures(
 
   const from = (page - 1) * pageSize;
 
-  let query = supabase
-    .from("lectures")
-    .select(LECTURE_COLUMNS, { count: "exact" })
-    .order(SORT_COLUMNS[sort.field], { ascending: sort.ascending })
-    // Desempate ESTÁVEL. Sem ele, duas palestras com a mesma data podem trocar
-    // de lugar entre uma página e outra — e uma delas some da listagem sem
-    // nunca aparecer.
-    .order("id", { ascending: true })
-    .range(from, from + pageSize - 1);
-
-  query = applyFilters(query, filters);
-
-  const { data, error, count } = await query.returns<LectureRow[]>();
+  const { data, error, count } = await consultar(
+    (columns) =>
+      applyFilters(
+        supabase
+          .from("lectures")
+          .select(columns, { count: "exact" })
+          .order(SORT_COLUMNS[sort.field], { ascending: sort.ascending })
+          // Desempate ESTÁVEL. Sem ele, duas palestras com a mesma data podem
+          // trocar de lugar entre uma página e outra — e uma delas some da
+          // listagem sem nunca aparecer.
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1),
+        filters,
+      ).returns<LectureRow[]>(),
+    LECTURE_COLUMNS,
+  );
 
   if (error) {
     // ⚠️ PGRST103 = "pedi a partir da linha 50, mas só existem 12".
@@ -347,12 +418,16 @@ async function countLectures(filters: LectureFilters): Promise<number> {
 export async function getLecture(lectureId: string): Promise<Lecture | null> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("lectures")
-    .select(LECTURE_COLUMNS)
-    .eq("id", lectureId)
-    .returns<LectureRow[]>()
-    .maybeSingle();
+  const { data, error } = await consultar(
+    (columns) =>
+      supabase
+        .from("lectures")
+        .select(columns)
+        .eq("id", lectureId)
+        .returns<LectureRow[]>()
+        .maybeSingle(),
+    LECTURE_COLUMNS,
+  );
 
   if (error) {
     console.error(`[lectures] getLecture falhou: ${error.message}`);
@@ -372,12 +447,16 @@ export async function getLecture(lectureId: string): Promise<Lecture | null> {
 export async function getLectureByProtocol(protocol: string): Promise<Lecture | null> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("lectures")
-    .select(LECTURE_COLUMNS)
-    .eq("protocol", protocol)
-    .returns<LectureRow[]>()
-    .maybeSingle();
+  const { data, error } = await consultar(
+    (columns) =>
+      supabase
+        .from("lectures")
+        .select(columns)
+        .eq("protocol", protocol)
+        .returns<LectureRow[]>()
+        .maybeSingle(),
+    LECTURE_COLUMNS,
+  );
 
   if (error) {
     console.error(`[lectures] getLectureByProtocol falhou: ${error.message}`);
@@ -405,25 +484,23 @@ export async function listLecturesInRange(
 ): Promise<Lecture[]> {
   const supabase = await createClient();
 
-  let query = supabase
-    .from("lectures")
-    .select(CALENDAR_COLUMNS)
-    .gte("event_date", startDate)
-    .lte("event_date", endDate)
-    .order("event_date", { ascending: true })
-    .order("start_time", { ascending: true, nullsFirst: false })
-    .limit(CALENDAR_LIMIT);
-
-  // O recorte de período já está aplicado acima; passar `from`/`to` de novo
-  // criaria duas fontes para a mesma restrição.
-  query = applyFilters(query, {
-    ...EMPTY_LECTURE_FILTERS,
-    ...filters,
-    from: "",
-    to: "",
-  });
-
-  const { data, error } = await query.returns<LectureRow[]>();
+  const { data, error } = await consultar(
+    (columns) =>
+      // O recorte de período já está aplicado abaixo; passar `from`/`to` para
+      // `applyFilters` criaria duas fontes para a mesma restrição.
+      applyFilters(
+        supabase
+          .from("lectures")
+          .select(columns)
+          .gte("event_date", startDate)
+          .lte("event_date", endDate)
+          .order("event_date", { ascending: true })
+          .order("start_time", { ascending: true, nullsFirst: false })
+          .limit(CALENDAR_LIMIT),
+        { ...EMPTY_LECTURE_FILTERS, ...filters, from: "", to: "" },
+      ).returns<LectureRow[]>(),
+    CALENDAR_COLUMNS,
+  );
 
   if (error) {
     console.error(`[lectures] listLecturesInRange falhou: ${error.message}`);
@@ -548,6 +625,44 @@ export async function listLectureCities(): Promise<string[]> {
   return [...new Set((data ?? []).map((row) => row.city))];
 }
 
+/**
+ * O CATÁLOGO DE PALESTRANTES — quem já apresentou e não tem conta no cockpit.
+ *
+ * Alimenta o seletor "Palestrante" do cadastro, do diálogo de atribuição e do
+ * filtro do calendário. É por causa desta lista que digitar um nome em "Outro"
+ * uma vez basta: na palestra seguinte ele já está no dropdown.
+ *
+ * Só os ATIVOS. Uma lista que só cresce vira uma lista que ninguém lê.
+ *
+ * ⚠️ Não lança: um catálogo indisponível deixa o seletor com o time interno e o
+ * "Outro", que continua sendo um formulário utilizável. Derrubar a tela de
+ * cadastro de palestra porque a lista de nomes não veio seria trocar um
+ * inconveniente por uma parada.
+ */
+export async function listLectureSpeakers(): Promise<LectureSpeaker[]> {
+  try {
+    const supabase = await createClient();
+
+    // `untyped`: `lecture_speakers` nasceu em
+    // 20260905000000_lecture_speakers.sql e ainda não está em
+    // src/types/database.ts. Ver src/lib/supabase/untyped.ts.
+    const { data, error } = await untyped(supabase)
+      .from("lecture_speakers")
+      .select("id, name")
+      .eq("active", true)
+      .order("name", { ascending: true })
+      .returns<LectureSpeaker[]>();
+
+    if (error) throw error;
+    return data ?? [];
+  } catch (error) {
+    console.error(
+      `[lectures] catálogo de palestrantes indisponível: ${error instanceof Error ? error.message : error}`,
+    );
+    return [];
+  }
+}
+
 interface AuditRow {
   id: number;
   action: LectureAuditAction;
@@ -638,12 +753,16 @@ export async function findLectureConflicts(
   //
   // A alternativa seria a função devolver os nomes, e aí a semântica de
   // sobreposição passaria a carregar junto uma decisão de apresentação.
-  const { data: full, error: fullError } = await supabase
-    .from("lectures")
-    .select(LECTURE_COLUMNS)
-    .in("id", ids)
-    .order("start_time", { ascending: true, nullsFirst: false })
-    .returns<LectureRow[]>();
+  const { data: full, error: fullError } = await consultar(
+    (columns) =>
+      supabase
+        .from("lectures")
+        .select(columns)
+        .in("id", ids)
+        .order("start_time", { ascending: true, nullsFirst: false })
+        .returns<LectureRow[]>(),
+    LECTURE_COLUMNS,
+  );
 
   if (fullError) {
     console.error(`[lectures] detalhe do conflito falhou: ${fullError.message}`);

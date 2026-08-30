@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  CALENDAR_VIEWS,
+  DEFAULT_CALENDAR_VIEW,
   addDays,
   addMonths,
   calendarLabel,
@@ -244,5 +246,24 @@ describe("§26 a duração acompanha o arrasto", () => {
     // Inventar "23:59" seria escrever um dado que ninguém pediu; em branco é
     // honesto, e a pessoa preenche.
     expect(shiftedEndTime("09:00", "12:00", "22:00")).toBeNull();
+  });
+});
+
+/**
+ * ⚠️ A ORDEM DA LISTA E A VISÃO PADRÃO SÃO COISAS SEPARADAS, e este teste existe
+ * para que continuem sendo. Antes a lista começava pela mensal — que também é a
+ * padrão —, então dava para acreditar que uma coisa dependia da outra. Reordenar
+ * a lista para "Diária, Semanal, Mensal, Anual" tornou a diferença visível: se
+ * alguém um dia tirar `DEFAULT_CALENDAR_VIEW` e passar a usar `CALENDAR_VIEWS[0]`,
+ * o calendário abre na visão DIÁRIA e este teste quebra na hora.
+ */
+describe("as visões do calendário", () => {
+  it("são listadas do período mais curto para o mais longo", () => {
+    expect([...CALENDAR_VIEWS]).toEqual(["day", "week", "month", "year"]);
+  });
+
+  it("a visão que ABRE continua sendo a mensal, não a primeira da lista", () => {
+    expect(DEFAULT_CALENDAR_VIEW).toBe("month");
+    expect(DEFAULT_CALENDAR_VIEW).not.toBe(CALENDAR_VIEWS[0]);
   });
 });

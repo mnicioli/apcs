@@ -6,7 +6,7 @@ import { CircleCheck, Pencil } from "lucide-react";
 import type { DirectoryEntry } from "@/lib/services/profile";
 import { lectureEditHref } from "@/modules/lecture/lecture.routes";
 import { isTerminal } from "@/modules/lecture/lecture.rules";
-import type { Lecture, LectureTransition } from "@/modules/lecture/lecture.types";
+import type { Lecture, LectureSpeaker, LectureTransition } from "@/modules/lecture/lecture.types";
 import { Button } from "@/components/ui/button";
 import { LectureAssignDialog } from "./lecture-assign-dialog";
 import { LectureOutcomeDialog } from "./lecture-outcome-dialog";
@@ -34,10 +34,13 @@ export function LectureActions({
   lecture,
   transitions,
   directory,
+  speakers = [],
 }: {
   lecture: Lecture;
   transitions: LectureTransition[];
   directory: DirectoryEntry[];
+  /** O catálogo de palestrantes de fora — só o diálogo de palestrante usa. */
+  speakers?: LectureSpeaker[];
 }) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [reagendando, setReagendando] = useState(false);
@@ -88,6 +91,7 @@ export function LectureActions({
           lecture={lecture}
           field="speaker"
           directory={directory}
+          speakers={speakers}
           onDone={setFeedback}
         />
 

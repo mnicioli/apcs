@@ -77,6 +77,19 @@ const phoneSchema = z
 
 const emailSchema = z.string().trim().email("Informe um e-mail válido.").max(160);
 
+/**
+ * O NOME DE UM PALESTRANTE DE FORA.
+ *
+ * O limite de 160 é o mesmo CHECK `lecture_speakers_name_len` do banco. O mínimo
+ * de 2 impede que uma tecla encostada sem querer crie uma linha permanente no
+ * catálogo — que é uma tabela onde não existe apagar (`on delete restrict`).
+ */
+const speakerNameSchema = z
+  .string()
+  .trim()
+  .min(2, "Informe o nome do palestrante.")
+  .max(160, "Nome muito longo (máximo de 160 caracteres).");
+
 /** Aceita string vazia como "não informado", em vez de exigir `undefined`. */
 function optional<T extends z.ZodTypeAny>(schema: T) {
   return z.union([schema, z.literal("")]).optional();
@@ -195,6 +208,15 @@ export const createLectureSchema = lectureCoreSchema.and(
     // no banco para quem chamar sem.
     priority: z.enum(LECTURE_PRIORITIES),
     speakerId: optional(z.string().uuid()),
+    /**
+     * O palestrante DE FORA, pelo nome (§20 — o catálogo, não o diretório).
+     *
+     * ⚠️ Convive com `speakerId` em vez de substituí-lo, e quando os dois vêm
+     * preenchidos o BANCO ignora o nome. Recusar a palestra nesse caso seria
+     * transformar um formulário confuso em trabalho perdido: quem mandou os dois
+     * está apontando a mesma pessoa duas vezes, não pedindo dois palestrantes.
+     */
+    speakerName: optional(speakerNameSchema),
     responsibleId: optional(z.string().uuid()),
     requesterName: optional(z.string().trim().min(2).max(160)),
     requesterEmail: optional(emailSchema),
@@ -301,10 +323,17 @@ export const rescheduleLectureSchema = z
 
 export type RescheduleLectureInput = z.infer<typeof rescheduleLectureSchema>;
 
-/** Atribuir responsável ou palestrante. `profileId` vazio DESATRIBUI. */
+/**
+ * Atribuir responsável ou palestrante. `profileId` vazio DESATRIBUI.
+ *
+ * `speakerName` só vale para o palestrante — atribuir RESPONSÁVEL por nome não
+ * existe, porque responsável é quem responde pela palestra dentro da APCS e
+ * precisa de conta. A action manda o campo apenas para a função do palestrante.
+ */
 export const assignLectureSchema = z.object({
   lectureId: z.string().uuid(),
   profileId: z.union([z.string().uuid(), z.literal("")]).optional(),
+  speakerName: optional(speakerNameSchema),
 });
 
 export type AssignLectureInput = z.infer<typeof assignLectureSchema>;

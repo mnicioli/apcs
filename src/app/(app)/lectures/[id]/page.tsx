@@ -4,7 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CircleCheck } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
-import { getLecture, listLectureAudit, listStatusTransitions } from "@/lib/services/lectures";
+import {
+  getLecture,
+  listLectureAudit,
+  listLectureSpeakers,
+  listStatusTransitions,
+} from "@/lib/services/lectures";
 import { searchDirectory } from "@/lib/services/profile";
 import { formatCalendarDate, formatDateTime, formatTimeRange, todayInSaoPaulo } from "@/lib/utils";
 import {
@@ -24,6 +29,7 @@ import {
   actorLabel,
   closingReason,
   lectureStage,
+  speakerLabel,
   typeDescription,
 } from "@/modules/lecture/lecture.rules";
 import type { Lecture } from "@/modules/lecture/lecture.types";
@@ -91,10 +97,11 @@ export default async function LectureDetailPage({
 
   // A trilha é de Administrador e Gestor. A RLS já devolveria vazio para o
   // Atendente; não pedir o dado é mais honesto do que pedir e descartar.
-  const [audit, transitions, directory] = await Promise.all([
+  const [audit, transitions, directory, speakers] = await Promise.all([
     canWrite ? listLectureAudit(lecture.id) : Promise.resolve([]),
     canWrite ? listStatusTransitions() : Promise.resolve([]),
     canWrite ? searchDirectory() : Promise.resolve([]),
+    canWrite ? listLectureSpeakers() : Promise.resolve([]),
   ]);
 
   return (
@@ -158,7 +165,12 @@ export default async function LectureDetailPage({
       )}
 
       {canWrite && (
-        <LectureActions lecture={lecture} transitions={transitions} directory={directory} />
+        <LectureActions
+          lecture={lecture}
+          transitions={transitions}
+          directory={directory}
+          speakers={speakers}
+        />
       )}
 
       <Card>
@@ -188,7 +200,7 @@ export default async function LectureDetailPage({
           </Item>
 
           <Item label="Responsável">{actorLabel(lecture.responsible) ?? "Não definido"}</Item>
-          <Item label="Palestrante">{actorLabel(lecture.speaker) ?? "Não definido"}</Item>
+          <Item label="Palestrante">{speakerLabel(lecture) ?? "Não definido"}</Item>
           <Item label="Data da solicitação">{formatDateTime(lecture.requestedAt)}</Item>
           <Item label="Data de realização">
             {lecture.heldAt ? formatCalendarDate(lecture.heldAt) : "—"}

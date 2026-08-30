@@ -225,6 +225,7 @@ function toPartialLecture(row: ProtocolRow): Lecture {
     attendeesEstimated: null,
     attendeesActual: null,
     speaker: null,
+    speakerCatalog: null,
     responsible: null,
     priority: row.priority,
     status: row.status,

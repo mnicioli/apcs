@@ -98,6 +98,23 @@ export interface LectureActor {
 }
 
 /**
+ * Um palestrante do CATÁLOGO — quem apresenta sem ter conta no cockpit.
+ *
+ * ⚠️ NÃO É UM `LectureActor` mal preenchido. Um ator é uma pessoa do time, com
+ * perfil, papel e e-mail; isto é um NOME que a APCS já usou uma vez e vai usar
+ * de novo. Dar a mesma forma aos dois faria o `id` daqui parecer um id de perfil
+ * — e o dia em que alguém o passasse para `assign_lecture_speaker` como
+ * `profileId`, o banco recusaria com uma mensagem sobre "perfil não encontrado"
+ * que não explicaria nada.
+ *
+ * Ver `lecture_speakers` em supabase/migrations/20260905000000_lecture_speakers.sql.
+ */
+export interface LectureSpeaker {
+  id: string;
+  name: string;
+}
+
+/**
  * Uma palestra, na forma que as telas consomem.
  *
  * `searchText` NÃO está aqui de propósito: é coluna de infraestrutura de busca,
@@ -128,7 +145,14 @@ export interface Lecture {
   attendeesEstimated: number | null;
   attendeesActual: number | null;
 
+  /**
+   * ⚠️ DOIS CAMPOS PARA UM PALESTRANTE, e no máximo um deles preenchido (o banco
+   * impõe com o CHECK `lectures_single_speaker`). Quem é do time é `speaker`;
+   * quem é de fora é `speakerCatalog`. Para EXIBIR, use `speakerLabel` — ele
+   * resolve os dois e é o único lugar que precisa saber que são dois.
+   */
   speaker: LectureActor | null;
+  speakerCatalog: LectureSpeaker | null;
   responsible: LectureActor | null;
 
   priority: LecturePriority;
@@ -245,6 +269,14 @@ export interface LectureFilters {
   priority: LecturePriority | null;
   city: string;
   responsibleId: string | null;
+  /**
+   * O palestrante escolhido — id de PERFIL ou id do CATÁLOGO, indistintamente.
+   *
+   * Um só campo para as duas origens porque, para quem filtra, "palestras da
+   * Ana" é uma pergunta só; se a Ana tem login ou não é detalhe de
+   * implementação. Como os dois lados são uuid, não há como um valor casar com a
+   * coluna errada — o serviço consulta as duas e o banco resolve.
+   */
   speakerId: string | null;
   /** Recorte por data do evento, inclusivo nas duas pontas. */
   from: string;

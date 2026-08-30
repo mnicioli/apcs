@@ -28,14 +28,15 @@ import {
   LECTURE_PRIORITIES,
   LECTURE_TYPES,
   type Lecture,
+  type LectureSpeaker,
 } from "@/modules/lecture/lecture.types";
-import { TIME_STEP_HINT, TIME_STEP_SECONDS } from "@/lib/time/step";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { TimeSelect } from "@/components/ui/time-select";
 
 /**
  * Formulário de palestra — cadastro (§21) e edição (§30).
@@ -60,10 +61,13 @@ import { Textarea } from "@/components/ui/textarea";
  */
 export function LectureForm({
   directory,
+  speakers = [],
   lecture,
   prefill,
 }: {
   directory: DirectoryEntry[];
+  /** O catálogo de palestrantes de fora (§20). */
+  speakers?: LectureSpeaker[];
   /** Ausente = cadastro. Presente = edição. */
   lecture?: Lecture;
   /** Vem do clique num espaço vazio do calendário (§29). */
@@ -72,9 +76,24 @@ export function LectureForm({
   return lecture ? (
     <EditLectureForm lecture={lecture} />
   ) : (
-    <CreateLectureForm directory={directory} prefill={prefill} />
+    <CreateLectureForm directory={directory} speakers={speakers} prefill={prefill} />
   );
 }
+
+/**
+ * OS PREFIXOS DO SELETOR DE PALESTRANTE.
+ *
+ * Um `<select>` só sabe devolver string, e as opções vêm de duas origens que não
+ * podem ser confundidas: um id de PERFIL (uuid de `profiles`) e um NOME do
+ * catálogo. Sem prefixo, os dois seriam texto solto no mesmo campo — e o dia em
+ * que alguém se chamasse como um uuid... não é esse o ponto: o ponto é que o
+ * código teria de ADIVINHAR de onde veio o valor, e adivinhação vira defeito.
+ *
+ * Os dois-pontos não aparecem para ninguém: são valores de `<option>`.
+ */
+const PERFIL = "p:";
+const CATALOGO = "c:";
+const OUTRO = "novo";
 
 // ----------------------------------------------------------------------------
 // Cadastro (§21)
@@ -82,14 +101,27 @@ export function LectureForm({
 
 function CreateLectureForm({
   directory,
+  speakers,
   prefill,
 }: {
   directory: DirectoryEntry[];
+  speakers: LectureSpeaker[];
   prefill?: { date?: string; startTime?: string };
 }) {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  /**
+   * O QUE O SELETOR DE PALESTRANTE ESTÁ MOSTRANDO.
+   *
+   * ⚠️ Um estado só para o seletor, separado dos campos do formulário, porque um
+   * `<select>` guarda UMA string e o palestrante são DUAS coisas diferentes:
+   * `speakerId` (um colega, com perfil) e `speakerName` (um nome). O prefixo do
+   * valor diz qual das duas foi escolhida — e é ele que sobrevive a um render,
+   * mantendo a opção marcada.
+   */
+  const [escolhaPalestrante, setEscolhaPalestrante] = useState("");
 
   const ids = useFieldIds();
   const statusId = useId();
@@ -97,6 +129,7 @@ function CreateLectureForm({
   const startId = useId();
   const endId = useId();
   const speakerId = useId();
+  const speakerNameId = useId();
   const responsibleId = useId();
   const requesterNameId = useId();
   const requesterEmailId = useId();
@@ -131,6 +164,7 @@ function CreateLectureForm({
       status: "planned",
       priority: "normal",
       speakerId: "",
+      speakerName: "",
       responsibleId: "",
       requesterName: "",
       requesterEmail: "",
@@ -152,6 +186,25 @@ function CreateLectureForm({
 
   useUnsavedGuard(isDirty && !isPending);
 
+  /**
+   * A escolha do seletor virando os DOIS campos do formulário.
+   *
+   * ⚠️ Escolher um nome que já está no catálogo manda o NOME, e não o id da
+   * linha. Parece desperdício e é o contrário: o banco resolve nome → linha pela
+   * chave normalizada, então o nome escolhido cai exatamente na linha de onde
+   * veio. Com isso existe UM caminho para gravar palestrante externo (o nome),
+   * em vez de dois que precisariam concordar para sempre.
+   */
+  function escolherPalestrante(valor: string): void {
+    setEscolhaPalestrante(valor);
+
+    const perfil = valor.startsWith(PERFIL) ? valor.slice(PERFIL.length) : "";
+    const nome = valor.startsWith(CATALOGO) ? valor.slice(CATALOGO.length) : "";
+
+    setValue("speakerId", perfil, { shouldDirty: true });
+    setValue("speakerName", nome, { shouldDirty: true, shouldValidate: isSubmitted });
+  }
+
   function onSubmit(values: CreateLectureInput) {
     setFormError(null);
 
@@ -161,6 +214,15 @@ function CreateLectureForm({
     const faltaHorario = scheduledNeedsTime(values);
     if (faltaHorario) {
       setError("startTime", { message: faltaHorario });
+      return;
+    }
+
+    // "Outro" com o nome em branco é o mesmo tipo de checagem: depende do estado
+    // do SELETOR, que não está no schema. Sem isto a palestra nasceria sem
+    // palestrante nenhum e quem escolheu "Outro" só descobriria na tela de
+    // detalhe.
+    if (escolhaPalestrante === OUTRO && !values.speakerName?.trim()) {
+      setError("speakerName", { message: "Informe o nome do palestrante." });
       return;
     }
 
@@ -212,7 +274,7 @@ function CreateLectureForm({
             <Input
               id={ids.city}
               aria-invalid={!!errors.city}
-              placeholder="Toledo"
+              placeholder="Espírito Santo do Pinhal"
               {...register("city")}
             />
           </Field>
@@ -301,37 +363,48 @@ function CreateLectureForm({
             />
           </Field>
 
-          {/* `step` em SEGUNDOS — é assim que o `<input type="time">` mede.
-              300 s faz o seletor listar 00, 05, 10... 55. Ele muda só a LISTA:
-              o formulário é `noValidate`, então quem digitar 08:07 na caixa é
-              barrado pelo Zod. Ver `timeSchema` em lecture.schema.ts. */}
-          <Field
-            id={startId}
-            label="Hora de início"
-            error={errors.startTime?.message}
-            hint={TIME_STEP_HINT}
-          >
-            <Input
+          {/*
+            ⚠️ DOIS SELETORES, E NÃO O `<input type="time">` COM `step`.
+            O campo nativo estava aqui com `step={300}`, e o seletor do Chrome
+            listava os sessenta minutos assim mesmo — `step` vale para a
+            VALIDAÇÃO do navegador, não para a lista que ele desenha. A tela
+            oferecia 14:56 e o Zod recusava logo depois, reclamando de um horário
+            que ela mesma tinha sugerido. Ver `ui/time-select.tsx`.
+
+            A dica "De 5 em 5 minutos" saiu junto: ela existia para explicar uma
+            regra que agora está desenhada na própria lista. É a mesma troca já
+            feita em Eventos.
+          */}
+          <Field id={startId} label="Hora de início" error={errors.startTime?.message}>
+            <TimeSelect
               id={startId}
-              type="time"
-              step={TIME_STEP_SECONDS}
-              aria-invalid={!!errors.startTime}
-              {...register("startTime")}
+              label="Hora de início"
+              value={watch("startTime") ?? ""}
+              invalid={!!errors.startTime}
+              describedBy={errors.startTime ? `${startId}-erro` : undefined}
+              onChange={(valor) =>
+                setValue("startTime", valor, {
+                  shouldDirty: true,
+                  // Revalidar só depois da primeira tentativa de envio: acusar
+                  // "informe um horário" enquanto a pessoa ainda está escolhendo
+                  // a hora é apontar um erro que ela está no meio de não
+                  // cometer.
+                  shouldValidate: isSubmitted,
+                })
+              }
             />
           </Field>
 
-          <Field
-            id={endId}
-            label="Hora de término"
-            error={errors.endTime?.message}
-            hint={TIME_STEP_HINT}
-          >
-            <Input
+          <Field id={endId} label="Hora de término" error={errors.endTime?.message}>
+            <TimeSelect
               id={endId}
-              type="time"
-              step={TIME_STEP_SECONDS}
-              aria-invalid={!!errors.endTime}
-              {...register("endTime")}
+              label="Hora de término"
+              value={watch("endTime") ?? ""}
+              invalid={!!errors.endTime}
+              describedBy={errors.endTime ? `${endId}-erro` : undefined}
+              onChange={(valor) =>
+                setValue("endTime", valor, { shouldDirty: true, shouldValidate: isSubmitted })
+              }
             />
           </Field>
 
@@ -379,16 +452,60 @@ function CreateLectureForm({
             </Select>
           </Field>
 
-          <Field id={speakerId} label="Palestrante" error={errors.speakerId?.message}>
-            <Select id={speakerId} {...register("speakerId")}>
+          <Field
+            id={speakerId}
+            label="Palestrante"
+            error={errors.speakerId?.message}
+            hint="Quem não estiver na lista entra por “Outro” — e fica na lista para as próximas."
+          >
+            <Select
+              id={speakerId}
+              value={escolhaPalestrante}
+              onChange={(event) => escolherPalestrante(event.target.value)}
+            >
               <option value="">Não definido</option>
-              {directory.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.fullName ?? person.email}
-                </option>
-              ))}
+
+              {/* ⚠️ O CATÁLOGO VEM PRIMEIRO, e não o time interno. Quem palestra
+                  para a APCS quase sempre é de fora: veterinário, consultor,
+                  técnico de cooperativa. Deixar os colegas no topo faria a lista
+                  começar pelas opções que quase nunca são a resposta. */}
+              {speakers.length > 0 && (
+                <optgroup label="Palestrantes">
+                  {speakers.map((speaker) => (
+                    <option key={speaker.id} value={`${CATALOGO}${speaker.name}`}>
+                      {speaker.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+
+              <optgroup label="Time interno">
+                {directory.map((person) => (
+                  <option key={person.id} value={`${PERFIL}${person.id}`}>
+                    {person.fullName ?? person.email}
+                  </option>
+                ))}
+              </optgroup>
+
+              <option value={OUTRO}>Outro (digitar o nome)…</option>
             </Select>
           </Field>
+
+          {escolhaPalestrante === OUTRO && (
+            <Field
+              id={speakerNameId}
+              label="Nome do palestrante"
+              required
+              error={errors.speakerName?.message}
+            >
+              <Input
+                id={speakerNameId}
+                aria-invalid={!!errors.speakerName}
+                placeholder="Dr. Marcelo Ribeiro"
+                {...register("speakerName")}
+              />
+            </Field>
+          )}
 
           <Field id={ids.priority} label="Prioridade" error={errors.priority?.message}>
             <Select id={ids.priority} {...register("priority")}>
@@ -536,7 +653,12 @@ function EditLectureForm({ lecture }: { lecture: Lecture }) {
           </Field>
 
           <Field id={ids.city} label="Cidade" required error={erros.city?.message}>
-            <Input id={ids.city} aria-invalid={!!erros.city} {...register("city")} />
+            <Input
+              id={ids.city}
+              aria-invalid={!!erros.city}
+              placeholder="Espírito Santo do Pinhal"
+              {...register("city")}
+            />
           </Field>
 
           <Field

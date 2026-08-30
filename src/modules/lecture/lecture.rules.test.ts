@@ -14,6 +14,7 @@ import {
   nextStatuses,
   occupiesAgenda,
   overlaps,
+  speakerLabel,
   typeDescription,
 } from "./lecture.rules";
 import { LECTURE_TYPE_LABELS } from "./lecture.labels";
@@ -62,6 +63,7 @@ function palestra(overrides: Partial<Lecture> = {}): Lecture {
     attendeesEstimated: null,
     attendeesActual: null,
     speaker: null,
+    speakerCatalog: null,
     responsible: null,
     priority: "normal",
     status: "planned",
@@ -360,5 +362,39 @@ describe("actorLabel", () => {
   it("NINGUÉM atribuído continua sendo nulo — quem chama decide como dizer", () => {
     expect(actorLabel(null)).toBeNull();
     expect(actorLabel(undefined)).toBeNull();
+  });
+});
+
+/**
+ * O palestrante mora em DOIS campos (um perfil do time, ou um nome do
+ * catálogo), e a tela não pode saber disso. Estes testes existem porque a
+ * alternativa — um `??` repetido em cada tela — garante que uma delas fique
+ * para trás e volte a mostrar "Não definido" para uma palestra que TEM
+ * palestrante. É o mesmo defeito que originou `actorLabel`.
+ */
+describe("speakerLabel", () => {
+  it("usa o nome do perfil quando o palestrante é do time", () => {
+    const l = palestra({ speaker: { id: "1", fullName: "Ana Prado", email: "ana@apcs.com.br" } });
+    expect(speakerLabel(l)).toBe("Ana Prado");
+  });
+
+  it("usa o nome do catálogo quando o palestrante é de fora", () => {
+    const l = palestra({ speakerCatalog: { id: "c1", name: "Dr. Marcelo Ribeiro" } });
+    expect(speakerLabel(l)).toBe("Dr. Marcelo Ribeiro");
+  });
+
+  it("o perfil ganha do catálogo se os dois vierem — como no banco", () => {
+    // O CHECK `lectures_single_speaker` impede essa linha de existir. Se ela
+    // aparecer mesmo assim, a tela mostra a MESMA coisa que `create_lecture`
+    // gravaria: o perfil.
+    const l = palestra({
+      speaker: { id: "1", fullName: "Ana Prado", email: null },
+      speakerCatalog: { id: "c1", name: "Dr. Marcelo" },
+    });
+    expect(speakerLabel(l)).toBe("Ana Prado");
+  });
+
+  it("sem palestrante nenhum continua sendo nulo", () => {
+    expect(speakerLabel(palestra())).toBeNull();
   });
 });

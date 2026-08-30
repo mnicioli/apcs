@@ -50,6 +50,7 @@ function palestra(overrides: Partial<Lecture>): Lecture {
     attendeesEstimated: null,
     attendeesActual: null,
     speaker: null,
+    speakerCatalog: null,
     responsible: null,
     priority: "normal",
     status: "planned",

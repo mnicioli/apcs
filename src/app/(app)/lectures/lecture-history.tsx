@@ -89,13 +89,38 @@ function EntryDetail({ entry }: { entry: LectureAuditEntry }) {
     );
   }
 
-  // Atribuições: a trilha guarda os IDs dos perfis, que não dizem nada a quem
-  // lê. O nome exigiria resolver perfis que podem nem existir mais — então a
-  // linha se limita ao fato, que é o que importa no histórico.
+  // Atribuições.
+  //
+  // ⚠️ `to` SOZINHO NÃO DECIDE MAIS "definido ou removido". Ele guarda o id do
+  // PERFIL, e um palestrante de fora não tem perfil: a linha diria "Removido"
+  // exatamente quando alguém acabou de ser definido. Desde
+  // 20260905000000_lecture_speakers.sql a trilha grava `to_name`, que é quem
+  // sabe a resposta — e é também o que essa linha passa a mostrar, em vez de
+  // mandar a pessoa olhar o topo da página.
+  //
+  // Entradas gravadas ANTES daquela migration não têm `to_name`; para elas o
+  // texto antigo continua valendo, palavra por palavra.
   if (
     entry.action === "lecture_responsible_assigned" ||
     entry.action === "lecture_speaker_assigned"
   ) {
+    const nomeNovo = typeof metadata.to_name === "string" ? metadata.to_name : null;
+    const temNome = "to_name" in metadata;
+
+    if (temNome) {
+      return (
+        <p className="text-muted-foreground text-sm">
+          {nomeNovo ? (
+            <>
+              Definido: <span className="text-foreground">{nomeNovo}</span>
+            </>
+          ) : (
+            "Removido."
+          )}
+        </p>
+      );
+    }
+
     return (
       <p className="text-muted-foreground text-sm">
         {to ? "Definido." : "Removido."} Veja o valor atual no topo desta página.

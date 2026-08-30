@@ -475,18 +475,44 @@ título separado, se a resposta for essa.
 **O que decidir:** o chatbot deve perguntar também um título para a palestra, ou
 o nome de quem pede basta para identificá-la na grid?
 
-### G2 — Palestrante externo não tem onde ser cadastrado 🔴
+### G2 — Palestrante externo não tem onde ser cadastrado ✅ RESOLVIDO
 
-O §20 pede `palestrante_id`. As únicas tabelas de pessoas do projeto são
-`profiles` (usuários do CRM) e `chat_contacts` (quem falou com o bot).
-Implementado como `profiles`, seguindo o §72 ("reutilizar entidades existentes").
+**Era:** o §20 pede `palestrante_id`, e as únicas tabelas de pessoas do projeto
+eram `profiles` (usuários do CRM) e `chat_contacts` (quem falou com o bot).
+Implementado como `profiles`, seguindo o §72 ("reutilizar entidades
+existentes") — o que deixava de fora o especialista convidado sem conta.
 
-**O que isso impede:** registrar um especialista convidado que não tem conta no
-CRM.
+Era um gap com consequência prática: quem palestra para a APCS quase sempre é
+veterinário, consultor ou técnico de cooperativa, gente que não tem login. O
+campo ficava vazio na maioria das palestras e o nome de quem apresentou virava
+observação em texto livre, invisível para o filtro e para o alerta de conflito.
 
-**O que decidir:** a APCS convida palestrantes de fora? Se sim, é preciso um
-catálogo `lecture_speakers` (nos moldes de `event_segments`) — uma migration e um
-CRUD simples.
+**Resolvido em** `20260905000000_lecture_speakers.sql`, com o catálogo
+`lecture_speakers` que esta seção previa.
+
+**A decisão de desenho:** o catálogo **convive** com `speaker_id`, não o
+substitui. Quem é do time continua sendo uma linha de `profiles` — é o que faz
+"as palestras da Ana" continuar certo quando ela troca de sobrenome, e é o que a
+trilha já gravava. Duas colunas (`speaker_id` e `speaker_catalog_id`), um CHECK
+(`lectures_single_speaker`) garantindo que só uma esteja preenchida, e a regra
+que as duas juntas expressam: **uma palestra tem UM palestrante**.
+
+A alternativa — migrar todos para o catálogo, criando linhas espelho para os
+usuários internos — deixaria duas representações da mesma pessoa e a pergunta "a
+Ana do catálogo e a Ana do perfil são a mesma?" sem resposta.
+
+**Sem CRUD, de propósito.** Não há tela de cadastro de palestrante: o nome entra
+pelo "Outro" do próprio formulário de palestra e, a partir daí, aparece no
+seletor das próximas. Uma tela a mais para preencher antes de marcar uma palestra
+seria trabalho inventado. A deduplicação é do banco, por nome sem acento e em
+minúsculas (`speaker_name_key`), então "João Silva" e "joao silva" são a mesma
+linha.
+
+**O que ficou de fora:** renomear e apagar. O nome está congelado em palestras já
+comunicadas ao solicitante, e `on delete restrict` impede que apagar uma linha do
+catálogo apague o nome de quem apresentou. Corrigir uma digitação errada é
+decisão consciente, por migration. A coluna `active` existe para tirar da lista
+quem não palestra mais sem apagar nada — ainda sem tela.
 
 ### G3 — Não existe volta no fluxo 🟡
 

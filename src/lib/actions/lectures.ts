@@ -20,7 +20,7 @@ import {
   type RescheduleLectureInput,
   type UpdateLectureInput,
 } from "@/modules/lecture/lecture.schema";
-import { actorLabel } from "@/modules/lecture/lecture.rules";
+import { actorLabel, speakerLabel } from "@/modules/lecture/lecture.rules";
 import type { Lecture, LectureConflict, LectureStatus } from "@/modules/lecture/lecture.types";
 
 /**
@@ -66,7 +66,10 @@ function toConflicts(lectures: Lecture[]): LectureConflict[] {
     // do alerta, e o §25 pede justamente que dê para saber QUEM cuida da
     // palestra que está sendo atropelada.
     responsibleName: actorLabel(lecture.responsible),
-    speakerName: actorLabel(lecture.speaker),
+    // `speakerLabel` e não `actorLabel`: um palestrante do catálogo sumiria do
+    // alerta, e o §25 pede exatamente que dê para saber quem já está ocupado
+    // naquele horário.
+    speakerName: speakerLabel(lecture),
   }));
 }
 
@@ -176,6 +179,7 @@ export async function createLectureAction(
     p_end_time: nullIfEmpty(data.endTime),
     p_attendees_estimated: numberOrNull(data.attendeesEstimated),
     p_speaker_id: nullIfEmpty(data.speakerId),
+    p_speaker_name: nullIfEmpty(data.speakerName),
     p_responsible_id: nullIfEmpty(data.responsibleId),
     p_priority: data.priority,
     p_status: data.status,
@@ -331,7 +335,14 @@ export async function assignLectureResponsibleAction(
   return assign("assign_lecture_responsible", input, "responsável");
 }
 
-/** Define o palestrante (§46). `profileId` vazio DESATRIBUI. */
+/**
+ * Define o palestrante (§46).
+ *
+ * Aceita um perfil do time (`profileId`) OU um nome de fora (`speakerName`), e
+ * os dois vazios DESATRIBUEM. Quem resolve o nome em uma linha do catálogo é o
+ * banco — assim o nome digitado aqui é o mesmo que o formulário de cadastro
+ * grava, e a deduplicação acontece num lugar só.
+ */
 export async function assignLectureSpeakerAction(
   input: AssignLectureInput,
 ): Promise<ActionResult<{ id: string }>> {
@@ -356,10 +367,22 @@ async function assign(
 
   const supabase = await createClient();
 
-  const { data, error } = await supabase.rpc(rpc, {
-    p_lecture_id: parsed.data.lectureId,
-    p_profile_id: nullIfEmpty(parsed.data.profileId),
-  } as never);
+  // ⚠️ O nome vai SÓ para o palestrante. `assign_lecture_responsible` não tem
+  // esse parâmetro, e mandar um argumento nomeado que a função não conhece é
+  // erro 42883 do Postgres — não um argumento ignorado.
+  const args =
+    rpc === "assign_lecture_speaker"
+      ? {
+          p_lecture_id: parsed.data.lectureId,
+          p_profile_id: nullIfEmpty(parsed.data.profileId),
+          p_speaker_name: nullIfEmpty(parsed.data.speakerName),
+        }
+      : {
+          p_lecture_id: parsed.data.lectureId,
+          p_profile_id: nullIfEmpty(parsed.data.profileId),
+        };
+
+  const { data, error } = await supabase.rpc(rpc, args as never);
 
   if (error || !data) {
     console.error(`[lectures] atribuição de ${papel} falhou: ${error?.message ?? "sem dados"}`);

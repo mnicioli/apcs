@@ -14,7 +14,22 @@
  * DOM) e como o Brasil lê um calendário de trabalho.
  */
 
-export const CALENDAR_VIEWS = ["month", "week", "day", "year"] as const;
+/**
+ * As visões, NA ORDEM EM QUE APARECEM NO SELETOR — do período mais curto para o
+ * mais longo.
+ *
+ * ⚠️ A ordem é conteúdo, não estética. A lista antiga começava pela mensal (a
+ * padrão) e as outras vinham atrás sem critério: Mensal, Semanal, Diária, Anual.
+ * Lida da esquerda para a direita, ela ia do meio para o começo e depois pulava
+ * para o fim — e quem quer "abrir mais" ou "fechar mais" o zoom não tinha para
+ * onde olhar. Do dia ao ano, cada passo é um degrau na mesma direção.
+ *
+ * ⚠️ ORDEM DE EXIBIÇÃO ≠ PADRÃO. A visão que abre continua sendo a MENSAL, e é
+ * `DEFAULT_CALENDAR_VIEW` quem diz isso — nunca a primeira posição do array.
+ * Foi por isso que este comentário existe: a próxima pessoa que reordenar a
+ * lista não pode mudar o que a tela abre sem perceber.
+ */
+export const CALENDAR_VIEWS = ["day", "week", "month", "year"] as const;
 export type CalendarView = (typeof CALENDAR_VIEWS)[number];
 
 /** O escopo pede que a visão padrão seja a mensal. */
