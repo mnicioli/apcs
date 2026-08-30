@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/errors";
+import { fail, failFromPostgres, ok, type ActionResult } from "@/lib/actions/errors";
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -119,10 +119,21 @@ export async function startBroadcastAction(
       p_media_filename: alvo.media?.filename ?? null,
     } as never);
 
-    if (error) return fail(mapPostgresError(error).code);
+    if (error) return failFromPostgres("broadcast.start", error, { source, sourceId, segmentIds });
 
     const linha = (data as { broadcast_id: string; queued: number; blocked: number }[] | null)?.[0];
-    if (!linha?.broadcast_id) return fail("unexpected");
+    if (!linha?.broadcast_id) {
+      // ⚠️ Não deveria acontecer — `start_broadcast` sempre devolve uma linha ou
+      // levanta exceção. Mas "não deveria acontecer" sem log é como uma falha
+      // some sem deixar rastro: se um dia a assinatura da função mudar e ela
+      // passar a devolver outra forma, é esta linha que vai dizer isso.
+      console.error("[broadcast.start] a função não devolveu a divulgação criada:", {
+        source,
+        sourceId,
+        recebido: data,
+      });
+      return fail("unexpected");
+    }
 
     let enviadas = 0;
     if (linha.queued > 0) {
@@ -166,12 +177,21 @@ export async function resumeBroadcastAction(
 
     // A leitura passa pela RLS de `broadcasts`, e a permissão conferida é a do
     // módulo de origem — a mesma que autorizou o disparo.
-    const { data: campanha } = await supabase
+    const { data: campanha, error: leituraError } = await supabase
       .from("broadcasts")
       .select("source, source_id")
       .eq("id", parsed.data.broadcastId)
       .maybeSingle<{ source: BroadcastSource; source_id: string }>();
 
+    // ⚠️ FALHA DE LEITURA NÃO É "NÃO ENCONTRADO". O erro estava sendo
+    // descartado, então uma consulta que quebrasse (RLS, coluna renomeada)
+    // aparecia na tela como "registro não encontrado" — mandando a pessoa
+    // procurar uma divulgação que está lá.
+    if (leituraError) {
+      return failFromPostgres("broadcast.resume", leituraError, {
+        broadcastId: parsed.data.broadcastId,
+      });
+    }
     if (!campanha) return fail("notFound");
 
     const negado = await assertPermission<{ sent: number; remaining: number }>(

@@ -244,8 +244,58 @@ type PostgresLikeError = {
   code?: string;
   message?: string;
   details?: string | null;
+  hint?: string | null;
   constraint?: string;
 };
+
+/**
+ * TRADUZ O ERRO DO BANCO **E O REGISTRA** — nesta ordem, e sempre juntos.
+ *
+ * ⚠️ NASCEU DE UM DEFEITO REAL, e vale contar qual: uma divulgação por WhatsApp
+ * falhava com "Ocorreu um erro inesperado. Tente novamente." e **não deixava uma
+ * única linha no log do servidor**. O caller fazia
+ * `return fail(mapPostgresError(error).code)`, e `mapPostgresError` transforma
+ * qualquer código que ele não conhece em `unexpected` — a mensagem certa para a
+ * tela e a pior possível para quem vai investigar. A falha chegava ao usuário e
+ * desaparecia do servidor ao mesmo tempo, então não havia por onde começar.
+ *
+ * O comentário de `mapPostgresError` já dizia "o caller DEVE logar". Depender de
+ * cada caller lembrar disso é como um deles esquece — e o esquecimento só
+ * aparece no dia em que alguém precisa do log e ele não existe. Aqui as duas
+ * coisas acontecem numa chamada só.
+ *
+ * ⚠️ REGISTRA TODA FALHA DE ESCRITA, e não só as desconhecidas. Um `forbidden`
+ * ou um `BC003` também são perguntas legítimas ("por que ele disse que não
+ * posso?"), e uma linha por operação que falhou não é volume: estas são ações de
+ * backoffice, não um endpoint de tráfego.
+ *
+ * ⚠️ O QUE NUNCA SAI DAQUI PARA A TELA: `message`, `details` e `hint` do
+ * Postgres. Eles vão SÓ para o log do servidor — o retorno continua sendo o
+ * código traduzido. Ver o teste que garante que caminho de arquivo e credencial
+ * não vazam numa mensagem de erro.
+ */
+export function failFromPostgres(
+  /** Prefixo greppável do log, no padrão do projeto: `broadcast.start`. */
+  escopo: string,
+  err: unknown,
+  /** O que estava sendo feito — ids, origem. NUNCA dados pessoais. */
+  contexto: Record<string, unknown> = {},
+): ActionResult<never> {
+  const mapeado = mapPostgresError(err);
+  const e = (err ?? {}) as PostgresLikeError;
+
+  console.error(`[${escopo}] o banco recusou a operação:`, {
+    ...contexto,
+    traduzido: mapeado.code,
+    code: e.code,
+    message: e.message,
+    details: e.details,
+    hint: e.hint,
+    constraint: e.constraint,
+  });
+
+  return fail(mapeado.code, mapeado.constraint);
+}
 
 /**
  * Traduz um erro do Supabase/Postgres para um `ActionErrorBody`. Se não for
