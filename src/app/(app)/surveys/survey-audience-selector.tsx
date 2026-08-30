@@ -12,7 +12,6 @@ import {
 } from "react";
 import { Info, Loader2, Search, Users, X } from "lucide-react";
 import { estimateAudienceAction, searchContactsAction } from "@/lib/actions/surveys";
-import { CONTACT_PROFILE_LABELS } from "@/modules/chat/chat.labels";
 import {
   SURVEY_AUDIENCE_DIMENSION_LABELS,
   SURVEY_AUDIENCE_UNAVAILABLE,
@@ -31,16 +30,33 @@ export interface ChosenContact {
   fullName: string | null;
 }
 
+/** Um público-alvo do catálogo — os mesmos de Eventos e Divulgação. */
+export interface AudienceSegment {
+  id: string;
+  name: string;
+  description: string | null;
+}
+
 /**
  * O SELETOR DE PÚBLICO (§22 a §31).
  *
- * ⚠️ AS DIMENSÕES SEM CADASTRO APARECEM, DESABILITADAS E EXPLICADAS.
+ * ⚠️ O PÚBLICO DE UMA ENQUETE É O ASSOCIADO, e isto aqui é a tela dessa
+ * decisão. Até 09/09 o seletor perguntava por Perfil (Produtor · Associado ·
+ * Fornecedor) — a triagem do bot do site — e o banco resolvia sobre
+ * `chat_contacts`. Resultado: "Público estimado: nenhum contato" com a base de
+ * associados cheia. Ver 20260909000000_survey_audience_members.sql.
  *
- * Segmento, Categoria e Carteira estão no §22 e o banco as recusa (GAP 1). Havia
- * três saídas: omiti-las, mostrá-las funcionando (e falhar no salvar), ou
- * mostrá-las desabilitadas com o motivo. A terceira é a única honesta — quem
- * abrir a tela procurando "Categoria" vai encontrá-la e vai descobrir POR QUE
- * não dá, em vez de achar que o sistema está incompleto ou que ela sumiu.
+ * Agora as dimensões são as mesmas de Eventos, Bolsa e Normativas: Público-alvo
+ * (Criadores · Empresas · Técnicos · Universidades), Região e associados
+ * específicos. Um número só, uma base só.
+ *
+ * ⚠️ AS DIMENSÕES INDISPONÍVEIS APARECEM, DESABILITADAS E EXPLICADAS.
+ *
+ * Perfil, Categoria e Carteira estão no §22. Havia três saídas: omiti-las,
+ * mostrá-las funcionando (e falhar no salvar), ou mostrá-las desabilitadas com o
+ * motivo. A terceira é a única honesta — quem abrir a tela procurando "Perfil"
+ * vai encontrá-lo e vai descobrir que ele virou o Público-alvo, em vez de achar
+ * que sumiu.
  *
  * ⚠️ A ESTIMATIVA VEM DO BANCO (§30, §66). A mesma função que o agendamento usa
  * para fotografar o público (`resolve_audience_criteria`) é a que responde aqui.
@@ -50,6 +66,7 @@ export interface ChosenContact {
 export function SurveyAudienceSelector({
   criteria,
   onChange,
+  segments,
   regions,
   contactNames,
   disabled = false,
@@ -65,6 +82,8 @@ export function SurveyAudienceSelector({
    * seleção sumia. Com o setter, cada clique calcula a partir do estado real.
    */
   onChange: Dispatch<SetStateAction<SurveyAudienceCriterion[]>>;
+  /** O catálogo de públicos-alvo ATIVOS. Só o que o banco aceitaria. */
+  segments: AudienceSegment[];
   /** As UFs que existem de fato na base — não uma lista fixa de 27. */
   regions: string[];
   /** Nome de cada contato já escolhido, para o chip não mostrar um uuid. */
@@ -110,7 +129,7 @@ export function SurveyAudienceSelector({
     );
   }
 
-  function alternarValor(dimension: "region" | "profile", value: string) {
+  function alternarValor(dimension: "region", value: string) {
     onChange((atual) => {
       const jaTem = atual.some((c) => c.dimension === dimension && c.value === value);
       const semAtalho = atual.filter((c) => c.dimension !== "all");
@@ -118,6 +137,30 @@ export function SurveyAudienceSelector({
       return jaTem
         ? semAtalho.filter((c) => !(c.dimension === dimension && c.value === value))
         : [...semAtalho, { dimension, segmentId: null, contactId: null, value }];
+    });
+  }
+
+  /**
+   * ⚠️ GUARDA O NOME JUNTO DO ID, e não é redundância.
+   *
+   * O diálogo de agendamento mostra o público antes de confirmar o envio, e ele
+   * lê os mesmos critérios que estão aqui. Numa enquete NOVA eles nunca
+   * passaram pelo banco — sem o nome, a última tela antes do disparo diria
+   * "Público-alvo: a0000000-0000-4000-8000-000000000001".
+   *
+   * `toInput` descarta o nome antes de salvar: quem manda no banco é o id.
+   */
+  function alternarPublico(segmentId: string, segmentName: string) {
+    onChange((atual) => {
+      const jaTem = atual.some((c) => c.dimension === "segment" && c.segmentId === segmentId);
+      const semAtalho = atual.filter((c) => c.dimension !== "all");
+
+      return jaTem
+        ? semAtalho.filter((c) => !(c.dimension === "segment" && c.segmentId === segmentId))
+        : [
+            ...semAtalho,
+            { dimension: "segment", segmentId, segmentName, contactId: null, value: null },
+          ];
     });
   }
 
@@ -158,7 +201,7 @@ export function SurveyAudienceSelector({
               {SURVEY_AUDIENCE_DIMENSION_LABELS.all}
             </span>
             <span className="text-muted-foreground block text-sm">
-              Todos os contatos com telefone cadastrado. Dispensa os demais critérios.
+              Todos os associados ativos com WhatsApp cadastrado. Dispensa os demais critérios.
             </span>
           </span>
         </label>
@@ -166,13 +209,46 @@ export function SurveyAudienceSelector({
 
       {!todaABase && (
         <>
+          {/* ---------------- §25: público-alvo ---------------- */}
+          <fieldset className="space-y-2">
+            <legend className="text-sm leading-none font-medium">
+              {SURVEY_AUDIENCE_DIMENSION_LABELS.segment}
+            </legend>
+            {segments.length === 0 ? (
+              <p className="text-muted-foreground text-sm">Nenhum público-alvo ativo cadastrado.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {segments.map((publico) => {
+                  const marcado = criteria.some(
+                    (c) => c.dimension === "segment" && c.segmentId === publico.id,
+                  );
+                  return (
+                    <Toggle
+                      key={publico.id}
+                      label={publico.name}
+                      title={publico.description}
+                      checked={marcado}
+                      disabled={bloqueado}
+                      onToggle={() => alternarPublico(publico.id, publico.name)}
+                    />
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-muted-foreground text-xs">
+              O mesmo público-alvo de Eventos e Divulgação — vale sobre o cadastro de associados.
+            </p>
+          </fieldset>
+
           {/* ---------------- §26: região ---------------- */}
           <fieldset className="space-y-2">
             <legend className="text-sm leading-none font-medium">
               {SURVEY_AUDIENCE_DIMENSION_LABELS.region}
             </legend>
             {regions.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Nenhum contato com estado cadastrado.</p>
+              <p className="text-muted-foreground text-sm">
+                Nenhum associado com estado cadastrado.
+              </p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {regions.map((uf) => {
@@ -191,29 +267,6 @@ export function SurveyAudienceSelector({
             )}
           </fieldset>
 
-          {/* ---------------- §27: perfil ---------------- */}
-          <fieldset className="space-y-2">
-            <legend className="text-sm leading-none font-medium">
-              {SURVEY_AUDIENCE_DIMENSION_LABELS.profile}
-            </legend>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(CONTACT_PROFILE_LABELS).map(([valor, rotulo]) => {
-                const marcado = criteria.some(
-                  (c) => c.dimension === "profile" && c.value === valor,
-                );
-                return (
-                  <Toggle
-                    key={valor}
-                    label={rotulo}
-                    checked={marcado}
-                    disabled={bloqueado}
-                    onToggle={() => alternarValor("profile", valor)}
-                  />
-                );
-              })}
-            </div>
-          </fieldset>
-
           {/* ---------------- §29: grupo específico ---------------- */}
           <ContactPicker
             chosen={contatosEscolhidos}
@@ -223,18 +276,19 @@ export function SurveyAudienceSelector({
             onRemove={removerContato}
           />
 
-          {/* ---------------- as três sem cadastro ---------------- */}
+          {/* ---------------- as três indisponíveis ---------------- */}
           <div className="border-border space-y-2 rounded-md border border-dashed p-3">
             <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>
-                <strong className="font-medium">Segmento, Categoria e Carteira</strong> dependem do
-                cadastro de associados, que ainda não existe neste sistema. Use Região, Perfil ou
-                contatos específicos.
+                <strong className="font-medium">Perfil</strong> virou o Público-alvo acima —
+                Criadores, Empresas, Técnicos e Universidades são hoje os perfis do associado.{" "}
+                <strong className="font-medium">Categoria e Carteira</strong> dependem de cadastros
+                que ainda não existem neste sistema.
               </span>
             </p>
             <div className="flex flex-wrap gap-2">
-              {(["segment", "category", "portfolio"] as const).map((dimension) => (
+              {(["profile", "category", "portfolio"] as const).map((dimension) => (
                 <span
                   key={dimension}
                   title={SURVEY_AUDIENCE_UNAVAILABLE[dimension]}
@@ -298,11 +352,14 @@ export function SurveyAudienceSelector({
  */
 function Toggle({
   label,
+  title,
   checked,
   disabled,
   onToggle,
 }: {
   label: string;
+  /** A descrição do público-alvo, quando existe. Complemento, nunca a única via. */
+  title?: string | null;
   checked: boolean;
   disabled: boolean;
   onToggle: () => void;
@@ -313,6 +370,7 @@ function Toggle({
       aria-pressed={checked}
       disabled={disabled}
       onClick={onToggle}
+      title={title ?? undefined}
       className={
         checked
           ? "bg-primary text-primary-foreground focus-visible:ring-ring inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-50"
@@ -325,11 +383,11 @@ function Toggle({
 }
 
 /**
- * §29/§64. A busca de contatos específicos.
+ * §29/§64. A busca de associados específicos.
  *
  * ⚠️ NÃO CARREGA A BASE. Exige dois caracteres, busca no servidor com debounce e
  * mostra no máximo o que a action devolve. O §29 é explícito, e a razão é
- * concreta: um seletor que baixa todos os contatos é um endpoint de exportação
+ * concreta: um seletor que baixa todos os associados é um endpoint de exportação
  * de telefones disfarçado de autocomplete.
  */
 function ContactPicker({
@@ -391,7 +449,7 @@ function ContactPicker({
           type="search"
           value={term}
           disabled={disabled}
-          placeholder="Buscar contato pelo nome"
+          placeholder="Buscar associado pelo nome"
           className="pl-9"
           role="combobox"
           aria-expanded={results.length > 0}
@@ -402,7 +460,7 @@ function ContactPicker({
       </div>
 
       <p id={`${fieldId}-ajuda`} className="text-muted-foreground text-xs">
-        Digite ao menos dois caracteres. Só aparecem contatos com telefone cadastrado.
+        Digite ao menos dois caracteres. Só aparecem associados ativos com WhatsApp cadastrado.
       </p>
 
       {isSearching && (
@@ -427,7 +485,7 @@ function ContactPicker({
                   }}
                   className="hover:bg-muted flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors disabled:opacity-50"
                 >
-                  <span className="truncate">{contato.fullName ?? "Contato sem nome"}</span>
+                  <span className="truncate">{contato.fullName ?? "Associado sem nome"}</span>
                   {jaEscolhido && (
                     <span className="text-muted-foreground text-xs">já selecionado</span>
                   )}
@@ -439,15 +497,15 @@ function ContactPicker({
       )}
 
       {chosen.length > 0 && (
-        <ul className="flex flex-wrap gap-2" aria-label="Contatos selecionados">
+        <ul className="flex flex-wrap gap-2" aria-label="Associados selecionados">
           {chosen.map((contactId) => (
             <li key={contactId}>
               <Badge variant="attention" className="gap-1 pr-1">
-                {conhecidos.current.get(contactId) ?? "Contato selecionado"}
+                {conhecidos.current.get(contactId) ?? "Associado selecionado"}
                 <button
                   type="button"
                   disabled={disabled}
-                  aria-label={`Remover ${conhecidos.current.get(contactId) ?? "contato"}`}
+                  aria-label={`Remover ${conhecidos.current.get(contactId) ?? "associado"}`}
                   onClick={() => onRemove(contactId)}
                   className="hover:bg-primary/10 rounded-full p-0.5 transition-colors disabled:opacity-50"
                 >

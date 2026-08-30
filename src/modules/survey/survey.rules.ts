@@ -188,16 +188,26 @@ export function canSchedule(status: SurveyStatus): boolean {
 }
 
 /**
- * §23 + GAP 1. A dimensão de segmentação está utilizável?
+ * §23. A dimensão de segmentação está utilizável?
  *
- * Três das seis do escopo dependem de um cadastro de associados que este banco
- * não tem. `assert_survey_audience` as recusa; esta função existe para a tela
- * poder desabilitá-las ANTES, em vez de deixar a pessoa preencher e levar erro.
+ * ⚠️ `profile` SAIU E `segment` ENTROU — a lista virou de ponta-cabeça em
+ * 20260909000000_survey_audience_members.sql, e vale registrar por quê:
+ *
+ *   • `segment` (Público-alvo) era recusada porque o cadastro de associados não
+ *     existia. Existe desde 21/08, e é dele que Bolsa, Normativas e Eventos já
+ *     tiram o público.
+ *   • `profile` era o perfil da TRIAGEM do bot (Produtor · Associado ·
+ *     Fornecedor), que a unificação de 28/08 aposentou. Depois dela, o perfil de
+ *     um associado e o público-alvo são a MESMA coisa; oferecer as duas
+ *     reabriria a ambiguidade que aquela migration fechou.
+ *
+ * `assert_survey_audience` recusa o que não está aqui; esta função existe para a
+ * tela desabilitar ANTES, em vez de deixar a pessoa preencher e levar erro.
  */
 const DIMENSOES_DISPONIVEIS: readonly SurveyAudienceDimension[] = [
   "all",
+  "segment",
   "region",
-  "profile",
   "contact",
 ];
 
@@ -224,11 +234,13 @@ export function groupAudience(
     return [{ dimension: "all", values: [] }];
   }
 
+  // O público-alvo vem primeiro: é a dimensão principal desde que Enquetes
+  // passou a falar com o cadastro de associados.
   const ordem: SurveyAudienceDimension[] = [
-    "region",
-    "profile",
-    "contact",
     "segment",
+    "region",
+    "contact",
+    "profile",
     "category",
     "portfolio",
   ];
@@ -242,7 +254,10 @@ export function groupAudience(
     grupos.push({
       dimension,
       values: doGrupo
-        .map((c) => c.value ?? c.contactId ?? c.segmentId ?? "")
+        // ⚠️ `segmentName` ANTES de `segmentId`: um público-alvo tem nome
+        // ("Criadores"), e mostrar o uuid quando o nome está ali do lado é
+        // trocar a informação pelo endereço dela.
+        .map((c) => c.value ?? c.segmentName ?? c.contactId ?? c.segmentId ?? "")
         .filter((v) => v !== ""),
     });
   }

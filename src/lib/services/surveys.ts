@@ -55,7 +55,11 @@ const SURVEY_COLUMNS =
   "editor:profiles!surveys_updated_by_fkey (id, full_name, email), " +
   "survey_questions (id, position, text, answer_type, required, " +
   "survey_options (id, position, text, active)), " +
-  "survey_audience_criteria (dimension, segment_id, contact_id, value)";
+  // O NOME do público-alvo vem junto do critério, e não por uma consulta à
+  // parte: quem renderiza o resumo ("Público-alvo: Criadores ou Técnicos") é um
+  // componente sem acesso ao banco, e sem o nome aqui ele mostraria um uuid.
+  "survey_audience_criteria (dimension, segment_id, contact_id, value, " +
+  "segment:event_segments (name))";
 
 /**
  * As linhas que as funções de resultado devolvem.
@@ -106,13 +110,6 @@ interface ParticipantPageRow extends ParticipantRow {
   total_count: number | string;
 }
 
-/** O contato cru de `chat_contacts`, para o autocomplete do §30. */
-interface AudienceContactRow {
-  id: string;
-  full_name: string | null;
-  phone: string | null;
-}
-
 /** Teto da trilha lida de uma vez. */
 const AUDIT_LIMIT = 200;
 
@@ -154,6 +151,7 @@ interface CriterionRow {
   segment_id: string | null;
   contact_id: string | null;
   value: string | null;
+  segment?: { name: string } | null;
 }
 
 interface SurveyRow {
@@ -235,6 +233,7 @@ export function toSurvey(row: SurveyRow): SurveyWithQuestion {
     audience: (row.survey_audience_criteria ?? []).map((c) => ({
       dimension: c.dimension,
       segmentId: c.segment_id,
+      segmentName: c.segment?.name ?? null,
       contactId: c.contact_id,
       value: c.value,
     })),
@@ -728,11 +727,44 @@ export async function listSurveyAudit(surveyId: string): Promise<SurveyAuditEntr
 }
 
 /**
- * §4/§26. As UFs que existem DE FATO na base de contatos.
+ * O catálogo de públicos-alvo do formulário — os mesmos de Eventos e Divulgação.
+ *
+ * ⚠️ SÓ OS ATIVOS, pelo mesmo motivo de `listBroadcastSegments`: não se oferece
+ * o que o banco recusaria. "Associados" foi aposentado na unificação de 28/08 e
+ * "Toda a base" em 04/09; os dois continuam existindo para eventos antigos, e
+ * nenhum dos dois pode voltar a ser escolhido.
+ */
+export async function listAudienceSegments(): Promise<
+  { id: string; name: string; description: string | null }[]
+> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("event_segments")
+    .select("id, name, description")
+    .eq("active", true)
+    .order("name", { ascending: true })
+    .returns<{ id: string; name: string; description: string | null }[]>();
+
+  if (error) {
+    console.error(`[surveys] listAudienceSegments falhou: ${error.message}`);
+    throw error;
+  }
+
+  return data ?? [];
+}
+
+/**
+ * §4/§26. As UFs que existem DE FATO na base de associados.
  *
  * ⚠️ Não é uma lista fixa das 27 unidades da federação, e a diferença importa:
  * um seletor com 27 opções em que 24 devolvem zero resultados é um seletor que
  * mente sobre o alcance da APCS. Aqui só aparece o que dá para escolher.
+ *
+ * ⚠️ LÊ `members`, E NÃO `chat_contacts`. Enquanto lia a agenda do bot, esta
+ * consulta respondia "Nenhum contato com estado cadastrado" numa base em que
+ * todo associado tem UF — porque quem tinha UF não era quem ela olhava. Mesma
+ * causa do público estimado que dava zero
+ * (20260909000000_survey_audience_members.sql).
  *
  * Serve ao FILTRO da grid e ao SELETOR de público do formulário — os dois
  * precisam da mesma lista, e duas consultas parecidas divergiriam.
@@ -740,10 +772,11 @@ export async function listSurveyAudit(surveyId: string): Promise<SurveyAuditEntr
 export async function listAudienceRegions(): Promise<string[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("chat_contacts")
+    .from("members")
     .select("state")
+    .eq("status", "active")
     .not("state", "is", null)
-    .not("phone", "is", null);
+    .not("whatsapp", "is", null);
 
   if (error) {
     console.error(`[surveys] listAudienceRegions falhou: ${error.message}`);
@@ -760,21 +793,40 @@ export async function listAudienceRegions(): Promise<string[]> {
 }
 
 /**
- * Os NOMES de contatos já escolhidos como público específico (§29).
+ * Os NOMES de associados já escolhidos como público específico (§29).
  *
- * Sem isto, um chip de contato selecionado mostraria um uuid — a pessoa
- * escolheu "João Silva" e ao reabrir a enquete veria
+ * Sem isto, um chip selecionado mostraria um uuid — a pessoa escolheu
+ * "João Silva" e ao reabrir a enquete veria
  * `a0000000-0000-4000-8000-000000000001`.
+ *
+ * ⚠️ OS IDS SÃO DE `chat_contacts` (é o que `survey_audience_criteria.contact_id`
+ * referencia), mas o NOME sai de `members`: o cadastro de associados é curado, e
+ * a agenda pode ter a mesma pessoa com um apelido que ela digitou no bot.
+ * Quando não há associado ligado àquele id — um contato escolhido antes desta
+ * mudança — cai na agenda, que é melhor que um chip sem nome.
  */
 export async function getContactNames(ids: readonly string[]): Promise<Map<string, string | null>> {
   const mapa = new Map<string, string | null>();
   if (ids.length === 0) return mapa;
 
   const supabase = await createClient();
+
+  const { data: associados } = await supabase
+    .from("members")
+    .select("contact_id, full_name")
+    .in("contact_id", [...ids]);
+
+  for (const linha of (associados ?? []) as { contact_id: string | null; full_name: string }[]) {
+    if (linha.contact_id) mapa.set(linha.contact_id, linha.full_name);
+  }
+
+  const faltando = ids.filter((id) => !mapa.has(id));
+  if (faltando.length === 0) return mapa;
+
   const { data, error } = await supabase
     .from("chat_contacts")
     .select("id, full_name")
-    .in("id", [...ids]);
+    .in("id", faltando);
 
   if (error) {
     // Nome é conforto, não correção: sem ele o chip mostra um rótulo genérico e
@@ -791,11 +843,18 @@ export async function getContactNames(ids: readonly string[]): Promise<Map<strin
 }
 
 /**
- * O catálogo de contatos para o autocomplete do §30.
+ * O catálogo de ASSOCIADOS para o autocomplete do §30.
  *
  * ⚠️ Exige um termo de busca e tem teto: o §30 é explícito ("não carregar toda a
  * base quando houver grande volume"), e um endpoint que devolve a lista inteira
  * de telefones é um endpoint de exportação disfarçado de autocomplete.
+ *
+ * ⚠️ DEVOLVE `contact_id`, E NÃO `members.id`. É `chat_contacts` que
+ * `survey_audience_criteria.contact_id` referencia, e é por esse id que
+ * destinatário, resposta e pedido de saída se identificam no módulo inteiro —
+ * ver o cabeçalho de 20260909000000_survey_audience_members.sql. Quem ainda não
+ * tem essa ligação (associado sem WhatsApp) não aparece: ele não teria como
+ * receber.
  */
 export async function searchContacts(term: string, limit = 20): Promise<SurveyAudienceMember[]> {
   const limpo = term.trim();
@@ -803,9 +862,10 @@ export async function searchContacts(term: string, limit = 20): Promise<SurveyAu
 
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("chat_contacts")
-    .select("id, full_name, phone")
-    .not("phone", "is", null)
+    .from("members")
+    .select("contact_id, full_name, whatsapp")
+    .eq("status", "active")
+    .not("contact_id", "is", null)
     .ilike("full_name", `%${limpo}%`)
     .order("full_name", { ascending: true })
     .limit(Math.min(limit, 50));
@@ -815,11 +875,19 @@ export async function searchContacts(term: string, limit = 20): Promise<SurveyAu
     throw error;
   }
 
-  return ((data ?? []) as AudienceContactRow[]).map((row) => ({
-    contactId: row.id,
-    fullName: row.full_name,
-    phone: row.phone,
-  }));
+  const linhas = (data ?? []) as {
+    contact_id: string | null;
+    full_name: string;
+    whatsapp: string | null;
+  }[];
+
+  return linhas
+    .filter((row): row is typeof row & { contact_id: string } => row.contact_id !== null)
+    .map((row) => ({
+      contactId: row.contact_id,
+      fullName: row.full_name,
+      phone: row.whatsapp,
+    }));
 }
 
 /** Reexportado para as telas montarem os critérios de `region` sem consultar o banco. */

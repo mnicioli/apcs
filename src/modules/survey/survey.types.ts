@@ -90,6 +90,14 @@ export interface SurveyQuestion {
 export interface SurveyAudienceCriterion {
   dimension: SurveyAudienceDimension;
   segmentId: string | null;
+  /**
+   * O nome do público-alvo, quando o critério veio do banco.
+   *
+   * Opcional porque o SELETOR monta critérios sem ele — ali o nome já está na
+   * tela, no botão que a pessoa acabou de clicar. Quem precisa dele é o RESUMO,
+   * que só recebe os critérios e mostraria um uuid sem esta linha.
+   */
+  segmentName?: string | null;
   contactId: string | null;
   value: string | null;
 }

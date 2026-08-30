@@ -89,12 +89,15 @@ export const SURVEY_ANSWER_TYPE_LABELS: Record<SurveyAnswerType, string> = {
  */
 export const SURVEY_AUDIENCE_DIMENSION_LABELS: Record<SurveyAudienceDimension, string> = {
   all: "Toda a base",
-  segment: "Segmento",
+  // "Público-alvo", e não "Segmento": é o mesmo nome que Eventos, Bolsa e
+  // Normativas usam para a mesma escolha. Dois nomes para o mesmo controle
+  // fariam parecer que são coisas diferentes.
+  segment: "Público-alvo",
   category: "Categoria",
   region: "Região",
   profile: "Perfil",
   portfolio: "Carteira",
-  contact: "Contatos específicos",
+  contact: "Associados específicos",
 };
 
 /**
@@ -104,9 +107,12 @@ export const SURVEY_AUDIENCE_DIMENSION_LABELS: Record<SurveyAudienceDimension, s
  * para o banco recusar depois é fazê-la perder o trabalho de preencher.
  */
 export const SURVEY_AUDIENCE_UNAVAILABLE: Partial<Record<SurveyAudienceDimension, string>> = {
-  segment: "Depende do cadastro de associados, que ainda não existe no sistema.",
-  category: "Depende do cadastro de associados, que ainda não existe no sistema.",
-  portfolio: "Depende do cadastro de associados, que ainda não existe no sistema.",
+  // ⚠️ Perfil não é uma pendência — é uma aposentadoria. O perfil do associado
+  // virou o Público-alvo na unificação de 28/08; quem procurar por ele aqui
+  // precisa ser mandado para o lugar certo, não informado de que "falta".
+  profile: "O perfil do associado virou o Público-alvo, logo acima.",
+  category: "Depende de um cadastro de categorias, que ainda não existe no sistema.",
+  portfolio: "Depende de um cadastro de carteiras, que ainda não existe no sistema.",
 };
 
 /** §39. O estado de cada pessoa no disparo, dito sem jargão. */
@@ -275,9 +281,9 @@ export function numberEmoji(position: number): string {
 /** O aviso de que a segmentação não alcança ninguém (§32). */
 export function audienceSummary(total: number): string {
   if (total <= 0) {
-    return "Nenhum contato com telefone cadastrado corresponde a esta segmentação.";
+    return "Nenhum associado ativo com WhatsApp corresponde a esta segmentação.";
   }
   return total === 1
-    ? "1 contato receberá esta enquete."
-    : `${total} contatos receberão esta enquete.`;
+    ? "1 associado receberá esta enquete."
+    : `${total} associados receberão esta enquete.`;
 }

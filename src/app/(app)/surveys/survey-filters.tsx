@@ -29,12 +29,12 @@ const PERIODO_INVERTIDO = "A data inicial não pode ser maior que a data final."
  * O estado mora na URL: as listas são renderizadas no servidor, então é a URL
  * que precisa mudar para vir gente nova do banco.
  *
- * ⚠️ O §4 lista OITO filtros e aqui existem CINCO. Os três que faltam —
- * Segmento, Categoria e Carteira — dependem do cadastro de associados, que este
- * sistema não tem (GAP 1, docs/ENQUETES.md). Nenhuma enquete pode ter esses
- * critérios, porque o banco os recusa na escrita; um filtro para eles só saberia
- * devolver zero resultados, e mandaria a pessoa procurar defeito nas enquetes em
- * vez de no cadastro que falta. Em vez do controle morto, a nota explicativa.
+ * ⚠️ O §4 lista OITO filtros e aqui existem CINCO. Os três que faltam — Perfil,
+ * Categoria e Carteira — o banco recusa na escrita (seção 4 de
+ * docs/ENQUETES.md): Perfil virou o Público-alvo na unificação de 28/08, e as
+ * outras duas não têm cadastro de apoio. Um filtro para eles só saberia devolver
+ * zero resultados, e mandaria a pessoa procurar defeito nas enquetes em vez de
+ * na dimensão que não existe. Em vez do controle morto, a nota explicativa.
  */
 export function SurveyFiltersBar({
   filters,
@@ -229,8 +229,8 @@ export function SurveyFiltersBar({
         <p id={gapId} className="text-muted-foreground flex items-start gap-1.5 text-xs">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
-            Segmento, Categoria e Carteira dependem do cadastro de associados, que ainda não existe
-            no sistema — por isso não aparecem aqui.
+            Perfil virou o Público-alvo; Categoria e Carteira dependem de cadastros que ainda não
+            existem no sistema — por isso os três não aparecem aqui.
           </span>
         </p>
 

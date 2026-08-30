@@ -213,6 +213,54 @@ describe("SurveyAudienceSummary (§31)", () => {
     expect(grupos.map((g) => g.dimension)).toEqual(["region", "profile"]);
     expect(grupos[0]?.values).toEqual(["SP", "PR"]);
   });
+
+  /**
+   * ⚠️ O NOME DO PÚBLICO-ALVO, NUNCA O UUID.
+   *
+   * `segmentName` viaja junto do critério porque quem monta este resumo é um
+   * componente sem acesso ao banco. Sem ele a grid mostraria
+   * "Público-alvo: a0000000-0000-4000-8000-000000000001" — tecnicamente
+   * correto e completamente inútil para quem lê.
+   */
+  it("o público-alvo aparece pelo nome e vem primeiro", () => {
+    const publico = (id: string, nome: string): SurveyAudienceCriterion => ({
+      dimension: "segment",
+      segmentId: id,
+      segmentName: nome,
+      contactId: null,
+      value: null,
+    });
+
+    const { container } = render(
+      <SurveyAudienceSummary
+        criteria={[
+          crit("region", "SP"),
+          publico("a0000000-0000-4000-8000-000000000001", "Criadores"),
+          publico("a0000000-0000-4000-8000-000000000002", "Técnicos"),
+        ]}
+      />,
+    );
+
+    const texto = container.textContent ?? "";
+    expect(texto).toContain("Criadores ou Técnicos");
+    expect(texto).not.toContain("a0000000");
+    // Público-alvo é a dimensão principal desde que Enquetes passou a falar com
+    // o cadastro de associados — ela abre o resumo.
+    expect(texto.indexOf("Público-alvo")).toBeLessThan(texto.indexOf("Região"));
+  });
+
+  it("sem o nome, o uuid do público-alvo é o último recurso — nunca um vazio", () => {
+    const grupos = groupAudience([
+      {
+        dimension: "segment",
+        segmentId: "a0000000-0000-4000-8000-000000000001",
+        contactId: null,
+        value: null,
+      },
+    ]);
+
+    expect(grupos[0]?.values).toEqual(["a0000000-0000-4000-8000-000000000001"]);
+  });
 });
 
 describe("SurveyPreview (§19, §70)", () => {

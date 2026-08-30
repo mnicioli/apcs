@@ -63,6 +63,12 @@ export function SurveyAudienceSummary({
  * `contact` mostra a CONTAGEM em vez dos ids: uma enquete para 30 contatos
  * específicos viraria uma parede de uuids na célula da grid, e nenhum deles diz
  * nada a quem lê.
+ *
+ * ⚠️ `profile` continua traduzido mesmo tendo sido aposentado
+ * (20260909000000_survey_audience_members.sql). Enquetes agendadas ANTES da
+ * mudança guardam critérios de Perfil como registro do que foi decidido, e o
+ * resumo delas precisa continuar legível — apagar a tradução transformaria o
+ * histórico em `producer`.
  */
 function rotulo(dimension: SurveyAudienceDimension, valor: string): string {
   if (dimension === "profile") {

@@ -240,9 +240,12 @@ describe("a validação acontece ANTES da autorização e da ida ao banco", () =
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("GAP 1 — segmentação sem cadastro de apoio é barrada antes do banco", async () => {
+  // ⚠️ `profile` no lugar de `segment`: em 09/09 as duas trocaram de lado.
+  // Público-alvo passou a ser a dimensão principal e Perfil, a aposentada —
+  // 20260909000000_survey_audience_members.sql.
+  it("segmentação aposentada é barrada antes do banco", async () => {
     const resultado = await setSurveyAudienceAction(ID, [
-      { dimension: "segment", segmentId: "a0000000-0000-4000-8000-000000000001" },
+      { dimension: "profile", value: "producer" },
     ]);
     expect(resultado.ok).toBe(false);
     expect(rpc).not.toHaveBeenCalled();

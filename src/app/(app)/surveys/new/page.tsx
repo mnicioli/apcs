@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
-import { listAudienceRegions } from "@/lib/services/surveys";
+import { listAudienceRegions, listAudienceSegments } from "@/lib/services/surveys";
 import { SurveyForm } from "../survey-form";
 
 export const metadata: Metadata = { title: "Nova enquete" };
@@ -18,7 +18,7 @@ export default async function NewSurveyPage() {
   const role = await getCurrentUserRole();
   if (!hasPermission(role, "surveys.write")) redirect("/surveys");
 
-  const regions = await listAudienceRegions();
+  const [segments, regions] = await Promise.all([listAudienceSegments(), listAudienceRegions()]);
 
   return (
     <div className="space-y-6">
@@ -29,7 +29,7 @@ export default async function NewSurveyPage() {
         </p>
       </div>
 
-      <SurveyForm regions={regions} contactNames={new Map()} />
+      <SurveyForm segments={segments} regions={regions} contactNames={new Map()} />
     </div>
   );
 }

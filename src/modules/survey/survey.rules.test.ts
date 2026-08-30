@@ -276,16 +276,31 @@ describe("as permissões por situação", () => {
   });
 });
 
-describe("isAudienceDimensionAvailable (GAP 1)", () => {
-  it("as quatro que resolvem contra dados reais estão liberadas", () => {
+/**
+ * ⚠️ ESTE BLOCO TROCOU DE LADO, e é a troca que importa.
+ *
+ * Enquanto Enquetes resolvia o público sobre `chat_contacts`, `profile` estava
+ * liberada e `segment` bloqueada ("depende do cadastro de associados, que ainda
+ * não existe"). Em 09/09 o cadastro passou a ser a base do módulo
+ * (20260909000000_survey_audience_members.sql) e as duas trocaram de posição —
+ * Perfil foi absorvido pelo Público-alvo na unificação de 28/08.
+ *
+ * O sintoma que trouxe a mudança: "Público estimado: nenhum contato" com a base
+ * de associados cheia.
+ */
+describe("isAudienceDimensionAvailable", () => {
+  it("as quatro que resolvem contra o cadastro de associados estão liberadas", () => {
     expect(isAudienceDimensionAvailable("all")).toBe(true);
+    expect(isAudienceDimensionAvailable("segment")).toBe(true);
     expect(isAudienceDimensionAvailable("region")).toBe(true);
-    expect(isAudienceDimensionAvailable("profile")).toBe(true);
     expect(isAudienceDimensionAvailable("contact")).toBe(true);
   });
 
-  it("as três que dependem do cadastro de associados estão bloqueadas", () => {
-    expect(isAudienceDimensionAvailable("segment")).toBe(false);
+  it("perfil está bloqueada — virou o público-alvo", () => {
+    expect(isAudienceDimensionAvailable("profile")).toBe(false);
+  });
+
+  it("categoria e carteira seguem sem cadastro de apoio", () => {
     expect(isAudienceDimensionAvailable("category")).toBe(false);
     expect(isAudienceDimensionAvailable("portfolio")).toBe(false);
   });

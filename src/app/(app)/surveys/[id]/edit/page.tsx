@@ -7,6 +7,7 @@ import {
   getSurvey,
   getSurveyMetrics,
   listAudienceRegions,
+  listAudienceSegments,
 } from "@/lib/services/surveys";
 import { isSurveyId } from "@/modules/survey/survey.routes";
 import { SurveyForm } from "../../survey-form";
@@ -36,7 +37,8 @@ export default async function EditSurveyPage({ params }: { params: Promise<{ id:
     .filter((c) => c.dimension === "contact" && c.contactId)
     .map((c) => c.contactId as string);
 
-  const [regions, contactNames, metrics] = await Promise.all([
+  const [segments, regions, contactNames, metrics] = await Promise.all([
+    listAudienceSegments(),
     listAudienceRegions(),
     getContactNames(contatos),
     getSurveyMetrics(id),
@@ -51,6 +53,7 @@ export default async function EditSurveyPage({ params }: { params: Promise<{ id:
 
       <SurveyForm
         survey={survey}
+        segments={segments}
         regions={regions}
         contactNames={contactNames}
         hasResponses={metrics.totalResponses > 0}

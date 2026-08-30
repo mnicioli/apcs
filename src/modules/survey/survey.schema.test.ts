@@ -158,9 +158,11 @@ describe("surveyAudienceSchema (§23 a §31, GAP 1)", () => {
     ).toBe(false);
   });
 
-  it("aceita perfil e contato especifico", () => {
+  it("aceita publico-alvo e associado especifico", () => {
     expect(
-      surveyAudienceSchema.safeParse([{ dimension: "profile", value: "producer" }]).success,
+      surveyAudienceSchema.safeParse([
+        { dimension: "segment", segmentId: "a0000000-0000-4000-8000-000000000001" },
+      ]).success,
     ).toBe(true);
     expect(
       surveyAudienceSchema.safeParse([
@@ -173,14 +175,24 @@ describe("surveyAudienceSchema (§23 a §31, GAP 1)", () => {
     expect(surveyAudienceSchema.safeParse([{ dimension: "contact" }]).success).toBe(false);
   });
 
-  it("GAP 1 recusa segmento, categoria e carteira com a mensagem que diz o que usar", () => {
-    for (const dimension of ["segment", "category", "portfolio"] as const) {
+  it("recusa publico-alvo sem id — um filtro que nao filtra", () => {
+    expect(surveyAudienceSchema.safeParse([{ dimension: "segment" }]).success).toBe(false);
+  });
+
+  /**
+   * ⚠️ `profile` ENTROU NESTA LISTA em 09/09. Ela era a dimensão que funcionava
+   * — o perfil da triagem do bot — e virou a que não existe mais: a unificação
+   * de 28/08 fez do Público-alvo o perfil do associado. Ver
+   * 20260909000000_survey_audience_members.sql.
+   */
+  it("recusa perfil, categoria e carteira com a mensagem que diz o que usar", () => {
+    for (const dimension of ["profile", "category", "portfolio"] as const) {
       const r = surveyAudienceSchema.safeParse([
         { dimension, value: "x", segmentId: "a0000000-0000-4000-8000-000000000001" },
       ]);
       expect(r.success).toBe(false);
       if (!r.success) {
-        expect(r.error.issues[0]?.message).toMatch(/cadastro de associados/i);
+        expect(r.error.issues[0]?.message).toMatch(/Publico-alvo|Público-alvo/i);
         expect(r.error.issues[0]?.message).toMatch(/Regiao|Região/i);
       }
     }

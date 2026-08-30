@@ -189,36 +189,70 @@ outros.
 
 ### O que resolve hoje, e o que não
 
-| Dimensão         | §   | Resolve? | De onde sai                        |
-| ---------------- | --- | -------- | ---------------------------------- |
-| Toda a base      | 24  | ✅       | todos os contatos **com telefone** |
-| Segmento         | 25  | ❌       | não há vínculo contato ↔ segmento  |
-| Categoria        | 26  | ❌       | não existe no banco                |
-| Região           | 27  | ✅       | `chat_contacts.state` (UF)         |
-| Perfil           | 28  | ✅       | `chat_contacts.contact_profile`    |
-| Carteira         | 29  | ❌       | não existe no banco                |
-| Grupo específico | 30  | ✅       | `chat_contacts.id`                 |
+> **Mudou em 09/09** (`20260909000000_survey_audience_members.sql`). Até então o
+> público saía de `chat_contacts` — a agenda de quem conversou com o bot do site
+> — e a tela respondia "Público estimado: nenhum contato" com a base de
+> associados cheia. Agora sai de `members`, **a mesma base de Bolsa, Normativas,
+> Comunicação e Eventos**. Ver a seção 11, GAP 1.
 
-**Elegível = contato com telefone.** Sem telefone não há WhatsApp para receber, e
-contá-lo no público inflaria a taxa de participação com gente que nunca teve
-chance de responder.
+| Dimensão               | §   | Resolve? | De onde sai                               |
+| ---------------------- | --- | -------- | ----------------------------------------- |
+| Toda a base            | 24  | ✅       | todo associado ativo **com WhatsApp**     |
+| Público-alvo           | 25  | ✅       | `event_segments` → `members.profile_type` |
+| Categoria              | 26  | ❌       | não existe no banco                       |
+| Região                 | 27  | ✅       | `members.state` (UF)                      |
+| Perfil                 | 28  | ❌       | **aposentado** — virou o Público-alvo     |
+| Carteira               | 29  | ❌       | não existe no banco                       |
+| Associados específicos | 30  | ✅       | `members` escolhidos a dedo               |
+
+**Elegível = associado ativo com WhatsApp.** Sem telefone não há WhatsApp para
+receber, e contá-lo no público inflaria a taxa de participação com gente que
+nunca teve chance de responder. É a mesma definição que `start_broadcast` usa —
+duas definições dariam dois números para a mesma pergunta.
+
+**O mesmo telefone conta uma vez** (`distinct on`, como em `start_broadcast`):
+dois cadastros com o mesmo WhatsApp são uma pessoa, e ela não pode receber duas
+vezes nem contar duas vezes na participação.
 
 **Usuários internos nunca entram** (§24): `profiles` não é consultada em lugar
 nenhum do resolvedor. Não é uma regra a lembrar — é uma consequência de a tabela
 nem ser olhada.
 
+### Perfil foi aposentado, não removido
+
+`Perfil` (Produtor · Associado · Fornecedor) era o perfil da **triagem do bot**,
+gravado em `chat_contacts.contact_profile`. A unificação de 28/08
+(`20260828194955_unify_membership_profiles.sql`) fez de **Criadores · Empresas ·
+Técnicos · Universidades** a única taxonomia do sistema — e depois dela "o perfil
+de um associado" e "o público-alvo" são a mesma coisa.
+
+Manter as duas reabriria exatamente a ambiguidade que aquela migration fechou
+("Associados" convivendo com "Produtores", sem ninguém saber qual marcar para
+alcançar uma criadora). A tela mostra Perfil **desabilitado**, com o motivo, para
+quem procurar por ele descobrir para onde foi.
+
+Enquetes **agendadas antes** da mudança mantêm seus critérios de Perfil como
+registro do que foi decidido — o público delas já estava fotografado. Só os
+rascunhos foram limpos.
+
 ### As três recusadas
 
 `assert_survey_audience()` levanta `SV007` com esta mensagem:
 
-> A segmentação por _Segmento_ depende do cadastro de associados, que ainda não
-> existe neste sistema. Use Região, Perfil, contatos específicos ou Toda a base.
+> A segmentação por _Perfil_ não é mais usada. O perfil do associado virou o
+> Público-alvo (Criadores, Empresas, Técnicos, Universidades); use ele, Região,
+> associados específicos ou Toda a base.
 
 **Por que recusar em vez de aceitar em silêncio:** as duas alternativas falham
 sem ninguém perceber. Aceitar e não filtrar faria a enquete alcançar gente demais;
 aceitar e filtrar tudo faria alcançar ninguém. É exatamente o erro que o seed de
 públicos de Eventos já documentou neste projeto ("a segmentação rotulava mas não
 separava").
+
+⚠️ E é por isso que `profile` **não entra** na lista de dimensões que "contam
+como critério" no resolvedor: uma enquete antiga que só tenha Perfil resolve para
+**ninguém**, e não para a base inteira. Errar para menos é recuperável; errar
+para mais já saiu no WhatsApp de todo mundo.
 
 O Zod (`surveyAudienceCriterionSchema`) repete a recusa **antes** do banco, para
 a pessoa não descobrir depois de preencher o formulário inteiro. A lista de
@@ -478,7 +512,7 @@ Alguns casos que vale destacar:
 | Arquivo                     | Casos | Foco                                                            |
 | --------------------------- | ----- | --------------------------------------------------------------- |
 | `survey.rules.test.ts`      | 38    | Etapa derivada, taxas, tradução da resposta do chat             |
-| `survey.schema.test.ts`     | 29    | Contratos de entrada, GAP 1, datas impossíveis                  |
+| `survey.schema.test.ts`     | 29    | Contratos de entrada, dimensões recusadas, datas impossíveis    |
 | `surveys.test.ts` (actions) | 50    | **Autorização na API**, payloads maliciosos, mapeamento de erro |
 | `survey-chatbot.test.ts`    | 20    | Portão, idempotência, nunca lançar, nunca vazar                 |
 
@@ -491,21 +525,56 @@ Dois defeitos meus que os testes pegaram:
 
 ## 11. GAPs
 
-### GAP 1 — Não existe cadastro de associados
+### GAP 1 — ✅ FECHADO em 09/09
 
-As tabelas de pessoas deste banco são `profiles` (usuários do CRM) e
-`chat_contacts` (quem falou com o bot). **Nenhuma é um registro de associados da
-APCS.** O módulo de Eventos já havia documentado isso.
+**Era:** as tabelas de pessoas deste banco eram `profiles` (usuários do CRM) e
+`chat_contacts` (quem falou com o bot). Nenhuma era um registro de associados, e
+por isso três dimensões de segmentação eram recusadas.
 
-Consequências:
+**O cadastro chegou** em 21/08 (`members`), e o resto do sistema migrou para ele
+— mas Enquetes ficou para trás. O sintoma, relatado da tela: marcar Perfil =
+Produtor · Associado · Fornecedor e ler _"Público estimado: nenhum contato com
+telefone cadastrado corresponde a esta segmentação"_ com a base cheia. E, logo
+acima, "Região: nenhum contato com estado cadastrado" numa base em que todo
+associado tem UF. O módulo estava perguntando à tabela errada.
 
-- O "associado" do §19 é, aqui, um `chat_contact` — a única entidade com telefone, que é o que o WhatsApp precisa. `survey_responses.contact_id` referencia `chat_contacts`, e a unicidade `(survey_id, contact_id)` é o §18 imposto pelo banco.
-- Três dimensões de segmentação são recusadas (seção 4).
+`20260909000000_survey_audience_members.sql` fecha o gap:
 
-**O que destrava:** um cadastro de associados, ou — bem mais barato — uma tabela
-`contact_segment_links` ligando `chat_contacts` a `event_segments`. Com ela, a
-dimensão `segment` passa a resolver removendo três linhas de validação. As
-dimensões já estão no enum justamente para que isso não exija `alter type`.
+- `resolve_audience_criteria` passa a resolver sobre **`members`**, com a mesma
+  definição de elegibilidade de `start_broadcast`.
+- A dimensão `segment` (agora **Público-alvo**) é liberada e resolve por
+  `event_segments` → `profile_for_event_segment` → `members.profile_type`.
+- `profile` é aposentada (ver a seção 4).
+
+#### ⚠️ A identidade continua sendo `chat_contacts.id` — e por quê
+
+Quatro tabelas de Enquetes se identificam por ele: `survey_recipients`,
+`survey_responses`, `survey_opt_outs` e `survey_conversation_states`, mais o
+caminho de entrada do chatbot. Trocar essa identidade por `member_id` em todas
+elas seria reescrever o módulo inteiro para resolver um problema de **público**.
+
+A saída é a que o próprio esquema já previa: **`members.contact_id`**, cujo
+comentário em `20260821000000_create_membership.sql` diz que é por ali que
+Enquetes ia poder segmentar por "é associado". A coluna existia e nunca era
+preenchida. Agora:
+
+- `link_phone_book_entry()` liga (ou cria) a linha de agenda de um associado,
+  usando `notification_phone_key` — a mesma chave que `20260828205853` criou para
+  comparar `members.whatsapp` (sem DDI) com `chat_contacts.phone` (com DDI).
+- Um gatilho **BEFORE** em `members` mantém a ponte viva. BEFORE, e não AFTER,
+  porque um AFTER precisaria de um `update members` disparado por um
+  `update members` — recursão.
+- A migration faz o backfill de quem já estava cadastrado.
+
+`chat_contacts` é a **agenda** (quem tem telefone), não a tela de Leads — aquela
+lê `csp_leads`, outra tabela.
+
+#### A conferência que a migration faz
+
+Ela não pergunta "a função existe?" — pergunta **"o número bate?"**. Para cada
+público-alvo, o que `estimate_audience_criteria` responde tem de ser exatamente
+quantos associados daquele perfil existem com WhatsApp. Foi um número que não
+batia que trouxe a correção; é o número que a conferência reproduz.
 
 ### GAP 2 — Não existe envio de WhatsApp
 
@@ -643,7 +712,7 @@ Classe própria porque `P0` é **reservada** pelo PL/pgSQL (`P0004` é
 | `SV004` | janela de datas inválida                                    |
 | `SV005` | a enquete precisa de pergunta e alternativas                |
 | `SV006` | a segmentação não alcança ninguém                           |
-| `SV007` | dimensão de segmentação sem cadastro de apoio (GAP 1)       |
+| `SV007` | dimensão de segmentação aposentada ou sem cadastro de apoio |
 | `SV008` | enquete anônima — participantes não podem ser identificados |
 | `SV009` | tamanho de lote de disparo inválido                         |
 | `SV010` | contexto de conversa inválido ou evento sem identificador   |
@@ -685,8 +754,8 @@ participação são a matéria da tela de Resultados; na grid custariam uma cons
 de métricas por linha e competiriam com a informação que faz alguém abrir a
 enquete.
 
-**§4 — a barra tem 5 filtros, não 8.** Segmento, Categoria e Carteira não podem
-existir em enquete nenhuma (o banco os recusa — GAP 1). Um filtro que só sabe
+**§4 — a barra tem 5 filtros, não 8.** Perfil, Categoria e Carteira não podem
+existir em enquete nova (o banco os recusa — seção 4). Um filtro que só sabe
 devolver zero manda a pessoa procurar defeito nas enquetes em vez de no cadastro
 que falta. No lugar dos três controles mortos, uma nota dizendo o que falta.
 
@@ -799,7 +868,7 @@ criação).
 | 5   | **Exportação XLSX**                 | O CSV atende "conforme infraestrutura existente". XLSX exigiria dependência nova.                                                                                        |
 | 6   | **Permissões testadas na ROTA**     | Testadas na action (50 casos) e no banco (45 casos, papel a papel, inclusive `anon`). Testar o `redirect()` das páginas exigiria autenticar como Atendente no navegador. |
 | 7   | **Alertas de monitoramento**        | Os contadores existem; falta o coletor (§53 prevê "quando houver infraestrutura").                                                                                       |
-| 8   | **GAP 1 — cadastro de associados**  | Inalterado. Três dimensões de segmentação continuam recusadas, e a checagem de atendimento humano só enxerga quem virou lead.                                            |
+| 8   | **GAP 1 — cadastro de associados**  | ✅ Fechado em 09/09: o público sai de `members`. Categoria e Carteira seguem sem cadastro de apoio, e a checagem de atendimento humano ainda só enxerga quem virou lead. |
 
 ## 17. Arquivos
 
@@ -1124,7 +1193,7 @@ _Responder_ na mensagem da enquete), e ignorá-la faria a pessoa perder o voto.
 
 ⚠️ Esta checagem **só enxerga quem virou lead**: `chat_conversations.contact_id`
 só é preenchido quando a triagem do chat fecha. Limitação do cadastro atual
-(GAP 1), não desta regra.
+(seção 11), não desta regra.
 
 ### 20.6 Idempotência em três camadas
 

@@ -172,10 +172,12 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
     "Confira as datas: o encerramento deve ser posterior ao início, e o envio não pode ser anterior ao início.",
   surveyNeedsQuestion: "Informe a pergunta e ao menos duas alternativas.",
   surveyEmptyAudience:
-    "A segmentação escolhida não alcança nenhum contato com telefone cadastrado. Revise o público-alvo.",
-  // Diz o que falta E o que dá para usar hoje — ver o GAP 1 em docs/ENQUETES.md.
+    "A segmentação escolhida não alcança nenhum associado ativo com WhatsApp cadastrado. Revise o público-alvo.",
+  // Diz o que não vale mais E o que usar no lugar — ver a seção 4 de
+  // docs/ENQUETES.md. Perfil entrou nesta lista em 09/09: ele virou o
+  // Público-alvo na unificação de perfis.
   surveyDimensionUnavailable:
-    "A segmentação por Segmento, Categoria ou Carteira depende do cadastro de associados, que ainda não existe no sistema. Use Região, Perfil, contatos específicos ou Toda a base.",
+    "A segmentação por Perfil, Categoria ou Carteira não está disponível. Use Público-alvo, Região, associados específicos ou Toda a base.",
   surveyIsAnonymous:
     "Esta enquete é anônima: os participantes não podem ser identificados. Os resultados continuam disponíveis por alternativa.",
   // Os dois abaixo vêm da mensageria (PROMPT 3/3) e, hoje, só de caminhos que

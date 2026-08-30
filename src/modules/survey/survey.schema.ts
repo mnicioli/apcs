@@ -245,11 +245,11 @@ export type SurveyQuestionInput = z.infer<typeof surveyQuestionSchema>;
  *      "Região" sem dizer qual região é um filtro que não filtra. O gêmeo é o
  *      CHECK `survey_audience_shape`.
  *
- *   2. RECUSA as três dimensões sem cadastro de apoio (Segmento, Categoria,
- *      Carteira), com a mesma mensagem que o banco dá. Isso é redundante de
- *      propósito: o banco é a autoridade, mas descobrir a recusa só depois de
- *      preencher o formulário inteiro é uma péssima experiência — e a lista de
- *      dimensões disponíveis mora num lugar só, em `survey.rules.ts`.
+ *   2. RECUSA as dimensões aposentadas (Perfil) e as sem cadastro de apoio
+ *      (Categoria, Carteira), com a mesma mensagem que o banco dá. Isso é
+ *      redundante de propósito: o banco é a autoridade, mas descobrir a recusa
+ *      só depois de preencher o formulário inteiro é uma péssima experiência — e
+ *      a lista de dimensões disponíveis mora num lugar só, em `survey.rules.ts`.
  */
 export const surveyAudienceCriterionSchema = z
   .object({
@@ -264,10 +264,18 @@ export const surveyAudienceCriterionSchema = z
         code: z.ZodIssueCode.custom,
         path: ["dimension"],
         message:
-          "Esta segmentação depende do cadastro de associados, que ainda não existe no sistema. " +
-          "Use Região, Perfil, contatos específicos ou Toda a base.",
+          "Esta segmentação não está mais disponível. " +
+          "Use Público-alvo, Região, associados específicos ou Toda a base.",
       });
       return;
+    }
+
+    if (criterio.dimension === "segment" && !criterio.segmentId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["segmentId"],
+        message: "Escolha o público-alvo.",
+      });
     }
 
     if (criterio.dimension === "contact" && !criterio.contactId) {
@@ -289,13 +297,9 @@ export const surveyAudienceCriterionSchema = z
       }
     }
 
-    if (criterio.dimension === "profile" && !criterio.value) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["value"],
-        message: "Escolha o perfil.",
-      });
-    }
+    // Não há mais checagem de `profile`: a dimensão foi aposentada e o `return`
+    // lá em cima já a barra. Uma validação abaixo dele seria código morto que
+    // sugere um caminho que não existe.
   });
 
 /**
