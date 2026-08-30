@@ -22,8 +22,10 @@ const TIME: DirectoryEntry[] = [
 
 const CATALOGO = [{ id: "c1", name: "Dr. Marcelo Ribeiro" }];
 
+const CIDADES = ["Espírito Santo do Pinhal", "Mogi Guaçu"];
+
 function montar() {
-  return render(<LectureForm directory={TIME} speakers={CATALOGO} />);
+  return render(<LectureForm directory={TIME} speakers={CATALOGO} cities={CIDADES} />);
 }
 
 /**
@@ -42,7 +44,8 @@ async function preencherMinimo(user: ReturnType<typeof userEvent.setup>, contain
 
   await user.type(campo("name"), "Manejo sanitário");
   await user.type(campo("theme"), "Prevenção em granjas");
-  await user.type(campo("city"), "Espírito Santo do Pinhal");
+  // A cidade deixou de ser texto livre: escolhe-se no seletor do catálogo.
+  await user.selectOptions(screen.getByLabelText(/^Cidade/), "Espírito Santo do Pinhal");
   await user.type(campo("eventDate"), "2026-09-10");
 }
 
@@ -186,12 +189,112 @@ describe("horário na grade de 5 minutos", () => {
   });
 });
 
-describe("placeholder da cidade", () => {
-  it("sugere a cidade da APCS", () => {
-    const { container } = montar();
-    expect(container.querySelector('[name="city"]')).toHaveAttribute(
+/**
+ * O SELETOR DE CIDADE — o mesmo mecanismo do palestrante, pedido para a cidade.
+ *
+ * ⚠️ ANTES ERA TEXTO LIVRE, e o defeito que isso produzia era silencioso:
+ * "Espírito Santo do Pinhal", "espirito santo do pinhal" e "Esp. Sto. do Pinhal"
+ * viravam três cidades no banco e uma só para quem lê. O filtro por cidade
+ * encontrava uma grafia e perdia as outras sem avisar.
+ *
+ * Quem normaliza de verdade é o gatilho `lectures_normalize_city`
+ * (20260911000000_lecture_cities.sql). O que estes testes protegem é a metade da
+ * tela: a lista aparece, "Outra" abre a digitação, e o valor escolhido chega ao
+ * envio.
+ */
+describe("seletor de cidade", () => {
+  it("lista o catálogo e a saída para uma cidade nova", () => {
+    montar();
+
+    const seletor = screen.getByLabelText(/^Cidade/);
+    const opcoes = within(seletor)
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+
+    expect(opcoes).toContain("Espírito Santo do Pinhal");
+    expect(opcoes).toContain("Mogi Guaçu");
+    expect(opcoes.some((t) => t?.startsWith("Outra"))).toBe(true);
+  });
+
+  it("“Outra” abre o campo de digitar, com a cidade da APCS de exemplo", async () => {
+    const user = userEvent.setup();
+    montar();
+
+    expect(screen.queryByLabelText("Nome da cidade")).toBeNull();
+
+    await user.selectOptions(screen.getByLabelText(/^Cidade/), "nova");
+
+    expect(screen.getByLabelText("Nome da cidade")).toHaveAttribute(
       "placeholder",
       "Espírito Santo do Pinhal",
     );
+  });
+
+  it("a cidade escolhida chega ao envio", async () => {
+    const user = userEvent.setup();
+    const { container } = montar();
+
+    await preencherMinimo(user, container);
+    await user.selectOptions(screen.getByLabelText("Palestrante"), `p:${TIME[0]!.id}`);
+    await user.click(screen.getByRole("button", { name: /cadastrar/i }));
+
+    expect(createLectureAction).toHaveBeenCalledWith(
+      expect.objectContaining({ city: "Espírito Santo do Pinhal" }),
+    );
+  });
+
+  /**
+   * ⚠️ O CATÁLOGO PODE NÃO VIR. `listLectureCities` engole a falha e devolve
+   * lista vazia de propósito — derrubar o cadastro de palestra porque a lista de
+   * cidades não carregou seria trocar um inconveniente por uma parada. Com a
+   * lista vazia, "Outra" é o caminho, e ele precisa continuar funcionando.
+   */
+  it("sem catálogo, ainda dá para cadastrar digitando", async () => {
+    const user = userEvent.setup();
+    render(<LectureForm directory={TIME} speakers={CATALOGO} cities={[]} />);
+
+    await user.selectOptions(screen.getByLabelText(/^Cidade/), "nova");
+    await user.type(screen.getByLabelText("Nome da cidade"), "Andradas");
+
+    expect(screen.getByLabelText("Nome da cidade")).toHaveValue("Andradas");
+  });
+});
+
+/**
+ * §21. O responsável já vem marcado — ver `RESPONSAVEL_PADRAO` no formulário.
+ *
+ * ⚠️ E VOLTA A "Não definido" QUANDO A PESSOA NÃO ESTÁ NO TIME. É o
+ * comportamento escolhido: marcar o responsável errado por padrão seria pior do
+ * que não marcar nenhum, e é isto que o segundo caso fixa.
+ */
+describe("responsável padrão", () => {
+  const VALDOMIRO: DirectoryEntry = {
+    id: "22222222-2222-4222-8222-222222222222",
+    fullName: "Valdomiro Ferreira Junior",
+    email: "valdomiro@apcs.com.br",
+    role: "admin",
+  };
+
+  it("vem marcado quando existe no time", () => {
+    render(<LectureForm directory={[...TIME, VALDOMIRO]} speakers={CATALOGO} cities={CIDADES} />);
+
+    expect(screen.getByLabelText("Responsável")).toHaveValue(VALDOMIRO.id);
+  });
+
+  it("ignora acento e caixa para encontrá-lo", () => {
+    render(
+      <LectureForm
+        directory={[{ ...VALDOMIRO, fullName: "VALDOMIRO FERREIRA JUNIOR" }]}
+        speakers={CATALOGO}
+        cities={CIDADES}
+      />,
+    );
+
+    expect(screen.getByLabelText("Responsável")).toHaveValue(VALDOMIRO.id);
+  });
+
+  it("fica em “Não definido” quando ele não está no time", () => {
+    montar();
+    expect(screen.getByLabelText("Responsável")).toHaveValue("");
   });
 });

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowDown, ArrowUp, CalendarDays, Plus } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
-import { listLectures, listLectureSpeakers } from "@/lib/services/lectures";
+import { listLectureCities, listLectures, listLectureSpeakers } from "@/lib/services/lectures";
 import { searchDirectory } from "@/lib/services/profile";
 import { formatCalendarDate, formatTimeRange, todayInSaoPaulo } from "@/lib/utils";
 import {
@@ -87,10 +87,11 @@ export default async function LecturesPage({
   // meia-noite, e aí a grid discordaria dela mesma.
   const today = todayInSaoPaulo();
 
-  const [result, directory, speakers] = await Promise.all([
+  const [result, directory, speakers, cities] = await Promise.all([
     listLectures(filters, sort, page, pageSize),
     searchDirectory(),
     listLectureSpeakers(),
+    listLectureCities(),
   ]);
 
   const canWrite = hasPermission(role, "lectures.write");
@@ -127,7 +128,12 @@ export default async function LecturesPage({
         </div>
       </div>
 
-      <LectureFiltersBar filters={filters} directory={directory} speakers={speakers} />
+      <LectureFiltersBar
+        filters={filters}
+        directory={directory}
+        speakers={speakers}
+        cities={cities}
+      />
 
       {result.items.length === 0 ? (
         <Card>

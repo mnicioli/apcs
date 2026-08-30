@@ -3,7 +3,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
-import { listLecturesInRange, listLectureSpeakers } from "@/lib/services/lectures";
+import {
+  listLectureCities,
+  listLecturesInRange,
+  listLectureSpeakers,
+} from "@/lib/services/lectures";
 import { searchDirectory } from "@/lib/services/profile";
 import { todayInSaoPaulo } from "@/lib/utils";
 import { calendarRange } from "@/modules/lecture/lecture.calendar";
@@ -56,10 +60,11 @@ export default async function LectureCalendarPage({
   const filters = parseLectureFilters(params);
   const range = calendarRange(view, anchor);
 
-  const [lectures, directory, speakers] = await Promise.all([
+  const [lectures, directory, speakers, cities] = await Promise.all([
     listLecturesInRange(range.start, range.end, filters),
     searchDirectory(),
     listLectureSpeakers(),
+    listLectureCities(),
   ]);
 
   const canWrite = hasPermission(role, "lectures.write");
@@ -92,6 +97,7 @@ export default async function LectureCalendarPage({
         filters={filters}
         directory={directory}
         speakers={speakers}
+        cities={cities}
         preserve={{ view, date: anchor }}
         showPriority={false}
         showPeriod={false}

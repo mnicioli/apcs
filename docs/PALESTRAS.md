@@ -269,7 +269,8 @@ segue abaixo.
 | `listLecturesInRange`   | §31    | `GET /palestras/calendario?start&end`  |
 | `listStatusTransitions` | §4     | `GET /palestras/transicoes`            |
 | `getLectureInbox`       | §57    | `GET /palestras/caixa-de-entrada`      |
-| `listLectureCities`     | §32    | `GET /palestras/cidades`               |
+| `listLectureCities`     | §32    | `GET /palestras/cidades` (catálogo)    |
+| `listLectureSpeakers`   | §20    | `GET /palestras/palestrantes`          |
 | `listLectureAudit`      | §41    | `GET /palestras/{id}/historico`        |
 | `findLectureConflicts`  | §33    | `GET /palestras/conflitos?data&hora`   |
 
@@ -513,6 +514,46 @@ comunicadas ao solicitante, e `on delete restrict` impede que apagar uma linha d
 catálogo apague o nome de quem apresentou. Corrigir uma digitação errada é
 decisão consciente, por migration. A coluna `active` existe para tirar da lista
 quem não palestra mais sem apagar nada — ainda sem tela.
+
+### G2.1 — Cidade era texto livre ✅ RESOLVIDO
+
+**Era:** `lectures.city` nasceu como texto digitado à mão, no cadastro e no
+chatbot. Sem catálogo, "Espírito Santo do Pinhal", "espirito santo do pinhal" e
+"Esp. Sto. do Pinhal" são três cidades para o banco e uma só para quem lê.
+
+O prejuízo aparecia no filtro, e aparecia **calado**: digitar uma grafia
+encontrava as palestras dela e perdia as outras, e a tela respondia "nenhuma
+palestra encontrada" com a mesma cara de quando realmente não há nenhuma —
+mandando procurar defeito nas palestras em vez de no acento.
+
+**Resolvido em** `20260911000000_lecture_cities.sql`, com o catálogo
+`lecture_cities` e o gatilho `lectures_normalize_city`.
+
+**A decisão de desenho, e onde ela difere de `lecture_speakers`:** aqui **não há
+coluna nova nem FK**. O catálogo de palestrantes precisou de
+`speaker_catalog_id` porque havia duas origens possíveis para a mesma informação
+(um perfil do CRM ou um nome de fora). Cidade não tem essa dualidade:
+`lectures.city` continua sendo a fonte da verdade — é ela que a tela mostra, que
+`search_text` indexa e que o filtro consulta — e o catálogo é só a **lista** de
+valores distintos.
+
+O que se ganha ao não criar FK: `create_lecture`, `update_lecture` e
+`create_lecture_request` **não mudam de assinatura**. As três passam pelo gatilho
+de graça, e cada `drop`+`create`+regrant evitado é uma chance a menos de 42725 em
+produção (ver a seção 7 de `20260905000000_lecture_speakers.sql`).
+
+**O gatilho também padroniza a grafia.** Quem digitar "espirito santo do pinhal"
+grava "Espírito Santo do Pinhal" — a forma que já estava no catálogo. É isso que
+mantém a lista curta e o filtro certo **inclusive no caminho do chatbot**, onde
+ninguém revisa o que foi digitado.
+
+**Sem CRUD, pelo mesmo motivo de G2:** a cidade entra pelo "Outra" do próprio
+formulário e, a partir daí, aparece no seletor e no filtro. A chave de
+deduplicação é a mesma dos palestrantes (`speaker_name_key`) — uma função só para
+a pergunta "estes dois textos são o mesmo nome?".
+
+**O que ficou de fora:** renomear e apagar, como em G2. `active` existe para
+tirar da lista uma digitação errada sem apagar nada — ainda sem tela.
 
 ### G3 — Não existe volta no fluxo 🟡
 

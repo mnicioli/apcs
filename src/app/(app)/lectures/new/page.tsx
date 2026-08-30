@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
-import { listLectureSpeakers } from "@/lib/services/lectures";
+import { listLectureCities, listLectureSpeakers } from "@/lib/services/lectures";
 import { searchDirectory } from "@/lib/services/profile";
 import { LECTURE_MODULE_TITLE } from "@/modules/lecture/lecture.labels";
 import { isCalendarDate } from "@/modules/lecture/lecture.calendar";
@@ -39,7 +39,11 @@ export default async function NewLecturePage({
   if (!hasPermission(role, "lectures.write")) redirect("/dashboard");
 
   const { date, time } = await searchParams;
-  const [directory, speakers] = await Promise.all([searchDirectory(), listLectureSpeakers()]);
+  const [directory, speakers, cities] = await Promise.all([
+    searchDirectory(),
+    listLectureSpeakers(),
+    listLectureCities(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -61,6 +65,7 @@ export default async function NewLecturePage({
       <LectureForm
         directory={directory}
         speakers={speakers}
+        cities={cities}
         prefill={{
           date: date && isCalendarDate(date) ? date : undefined,
           startTime: time && HORA.test(time) ? time : undefined,

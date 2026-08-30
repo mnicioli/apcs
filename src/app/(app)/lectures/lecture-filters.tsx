@@ -49,6 +49,7 @@ export function LectureFiltersBar({
   filters,
   directory,
   speakers = [],
+  cities = [],
   preserve = {},
   showPriority = true,
   showPeriod = true,
@@ -65,6 +66,16 @@ export function LectureFiltersBar({
    * ninguém.
    */
   speakers?: LectureSpeaker[];
+  /**
+   * As cidades que já têm palestra.
+   *
+   * ⚠️ Substituiu um campo de TEXTO LIVRE, e a troca conserta um filtro que
+   * errava calado: digitar "espirito santo do pinhal" não encontrava as
+   * palestras gravadas como "Espírito Santo do Pinhal", e a tela respondia
+   * "nenhuma palestra" com a mesma cara de quando realmente não há nenhuma.
+   * Escolher de uma lista não tem como errar a grafia.
+   */
+  cities?: string[];
   /** Parâmetros que não são filtro e precisam sobreviver (`view`, `date`). */
   preserve?: Record<string, string>;
   /** O calendário não filtra por prioridade — o escopo não a lista no §11. */
@@ -266,12 +277,31 @@ export function LectureFiltersBar({
 
         <div className="space-y-2">
           <Label htmlFor={cityId}>Cidade</Label>
-          <Input
+          {/* ⚠️ NAVEGA NA HORA, sem o debounce que o campo de texto precisava.
+              Escolher numa lista é um gesto único e deliberado — esperar 300 ms
+              depois dele só faria a tela parecer travada. O debounce continua
+              valendo para a busca, onde cada tecla é um evento. */}
+          <Select
             id={cityId}
             value={city}
-            onChange={(event) => setCity(event.target.value)}
-            placeholder="Espírito Santo do Pinhal"
-          />
+            onChange={(event) => {
+              const escolhida = event.target.value;
+              setCity(escolhida);
+              navigate({ ...filters, query: term, city: escolhida, from, to });
+            }}
+          >
+            <option value="">Todas as cidades</option>
+            {cities.map((cidade) => (
+              <option key={cidade} value={cidade}>
+                {cidade}
+              </option>
+            ))}
+            {/* A cidade que está na URL mas saiu do catálogo (desativada, ou um
+                link antigo). Sem esta opção o seletor mostraria "Todas" enquanto
+                a lista ainda estivesse filtrada — a tela mentindo sobre o próprio
+                estado. */}
+            {city !== "" && !cities.includes(city) && <option value={city}>{city}</option>}
+          </Select>
         </div>
 
         <div className="space-y-2">

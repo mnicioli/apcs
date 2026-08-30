@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
-import { getLecture } from "@/lib/services/lectures";
+import { getLecture, listLectureCities } from "@/lib/services/lectures";
 import { searchDirectory } from "@/lib/services/profile";
 import { isLectureId, lectureHref } from "@/modules/lecture/lecture.routes";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,7 +35,11 @@ export default async function EditLecturePage({ params }: { params: Promise<{ id
   // não vira consulta ao banco.
   if (!isLectureId(id)) notFound();
 
-  const [lecture, directory] = await Promise.all([getLecture(id), searchDirectory()]);
+  const [lecture, directory, cities] = await Promise.all([
+    getLecture(id),
+    searchDirectory(),
+    listLectureCities(),
+  ]);
   if (!lecture) notFound();
 
   return (
@@ -64,7 +68,7 @@ export default async function EditLecturePage({ params }: { params: Promise<{ id
         </CardContent>
       </Card>
 
-      <LectureForm directory={directory} lecture={lecture} />
+      <LectureForm directory={directory} lecture={lecture} cities={cities} />
     </div>
   );
 }

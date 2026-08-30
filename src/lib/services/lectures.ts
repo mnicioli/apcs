@@ -555,30 +555,6 @@ export async function countPendingLectures(): Promise<number> {
 }
 
 /**
- * As cidades já usadas, para o filtro virar uma lista em vez de um campo livre.
- *
- * Lê só a coluna e deduplica aqui: um `select distinct` não existe no PostgREST,
- * e uma coluna de texto de algumas milhares de linhas é barata de trazer. Se um
- * dia doer, o caminho é uma view materializada.
- */
-export async function listLectureCities(): Promise<string[]> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("lectures")
-    .select("city")
-    .order("city", { ascending: true })
-    .returns<{ city: string }[]>();
-
-  if (error) {
-    console.error(`[lectures] listLectureCities falhou: ${error.message}`);
-    throw error;
-  }
-
-  return [...new Set((data ?? []).map((row) => row.city))];
-}
-
-/**
  * O CATÁLOGO DE PALESTRANTES — quem já apresentou e não tem conta no cockpit.
  *
  * Alimenta o seletor "Palestrante" do cadastro, do diálogo de atribuição e do
@@ -608,6 +584,50 @@ export async function listLectureSpeakers(): Promise<LectureSpeaker[]> {
   } catch (error) {
     console.error(
       `[lectures] catálogo de palestrantes indisponível: ${error instanceof Error ? error.message : error}`,
+    );
+    return [];
+  }
+}
+
+/**
+ * O CATÁLOGO DE CIDADES — a lista do seletor e a do filtro, a mesma.
+ *
+ * Ele não é uma tabela que alguém alimenta: o gatilho `lectures_normalize_city`
+ * registra cada cidade nova no momento em que uma palestra é gravada nela
+ * (20260911000000_lecture_cities.sql). Digitar uma cidade em "Outra" uma vez
+ * basta — na palestra seguinte ela já está no dropdown, e na tela de consulta
+ * também.
+ *
+ * ⚠️ SUBSTITUIU UMA FUNÇÃO DE MESMO NOME que trazia `distinct lectures.city` e
+ * deduplicava em memória. Ela nasceu com o módulo, com a intenção declarada de
+ * "o filtro virar uma lista em vez de um campo livre", e nunca foi chamada por
+ * tela nenhuma. Duas diferenças a aposentaram: ela trazia a coluna `city` de
+ * TODAS as palestras a cada carregamento de tela, e não tinha como esconder uma
+ * cidade digitada errada — a lista só crescia.
+ *
+ * Só as ATIVAS. Uma lista que só cresce vira uma lista que ninguém lê.
+ *
+ * ⚠️ Não lança, pela mesma razão de `listLectureSpeakers`: sem o catálogo o
+ * seletor fica só com "Outra", que continua sendo um formulário utilizável.
+ * Derrubar o cadastro de palestra porque a lista de cidades não veio seria
+ * trocar um inconveniente por uma parada.
+ */
+export async function listLectureCities(): Promise<string[]> {
+  try {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from("lecture_cities")
+      .select("name")
+      .eq("active", true)
+      .order("name", { ascending: true })
+      .returns<{ name: string }[]>();
+
+    if (error) throw error;
+    return (data ?? []).map((linha) => linha.name);
+  } catch (error) {
+    console.error(
+      `[lectures] catálogo de cidades indisponível: ${error instanceof Error ? error.message : error}`,
     );
     return [];
   }

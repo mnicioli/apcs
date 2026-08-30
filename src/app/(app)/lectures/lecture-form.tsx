@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
 import { createLectureAction, updateLectureAction } from "@/lib/actions/lectures";
 import type { DirectoryEntry } from "@/lib/services/profile";
+import { normalizeForSearch } from "@/lib/utils";
 import {
   LECTURE_FORMAT_LABELS,
   LECTURE_PRIORITY_LABELS,
@@ -62,22 +63,51 @@ import { TimeSelect } from "@/components/ui/time-select";
 export function LectureForm({
   directory,
   speakers = [],
+  cities = [],
   lecture,
   prefill,
 }: {
   directory: DirectoryEntry[];
   /** O catálogo de palestrantes de fora (§20). */
   speakers?: LectureSpeaker[];
+  /** O catálogo de cidades já usadas em alguma palestra. */
+  cities?: string[];
   /** Ausente = cadastro. Presente = edição. */
   lecture?: Lecture;
   /** Vem do clique num espaço vazio do calendário (§29). */
   prefill?: { date?: string; startTime?: string };
 }) {
   return lecture ? (
-    <EditLectureForm lecture={lecture} />
+    <EditLectureForm lecture={lecture} cities={cities} />
   ) : (
-    <CreateLectureForm directory={directory} speakers={speakers} prefill={prefill} />
+    <CreateLectureForm
+      directory={directory}
+      speakers={speakers}
+      cities={cities}
+      prefill={prefill}
+    />
   );
+}
+
+/**
+ * O RESPONSÁVEL QUE JÁ VEM MARCADO NO CADASTRO.
+ *
+ * ⚠️ UM NOME NO CÓDIGO É FRÁGIL, e vale saber o preço antes de pagá-lo: no dia
+ * em que esta pessoa sair da APCS ou trocar de sobrenome no cadastro, o padrão
+ * simplesmente deixa de ser aplicado — o campo volta a abrir em "Não definido".
+ * Escolhi que ele FALHE ASSIM, e não que aponte para outra pessoa qualquer:
+ * marcar o responsável errado por padrão é pior do que não marcar nenhum.
+ *
+ * A alternativa robusta é uma linha em Configurações ("responsável padrão de
+ * palestras"), que sobreviveria à troca de pessoa. Ela não foi feita porque
+ * exigiria migration, tela e serviço para um campo que hoje tem um valor só.
+ */
+const RESPONSAVEL_PADRAO = "Valdomiro Ferreira Junior";
+
+/** O id de quem deve vir marcado — string vazia quando a pessoa não está no time. */
+function responsavelPadrao(directory: DirectoryEntry[]): string {
+  const procurado = normalizeForSearch(RESPONSAVEL_PADRAO);
+  return directory.find((p) => normalizeForSearch(p.fullName ?? "") === procurado)?.id ?? "";
 }
 
 /**
@@ -95,6 +125,97 @@ const PERFIL = "p:";
 const CATALOGO = "c:";
 const OUTRO = "novo";
 
+/**
+ * O "Outra" do seletor de cidade.
+ *
+ * Valor próprio, e não o mesmo `OUTRO` do palestrante: são dois seletores
+ * independentes na mesma tela, e compartilhar a constante faria parecer que
+ * escolher "Outra" num deles tem relação com o outro. O texto é igual; o
+ * significado, não.
+ */
+const OUTRA_CIDADE = "nova";
+
+/**
+ * O seletor de cidade, usado no cadastro E na edição.
+ *
+ * ⚠️ O CAMPO GRAVADO CONTINUA SENDO TEXTO. `lectures.city` é texto livre no
+ * banco; o catálogo (`lecture_cities`) é só a lista de valores já usados, e quem
+ * o mantém em dia é o gatilho `lectures_normalize_city`
+ * (20260911000000_lecture_cities.sql). Por isso escolher no dropdown grava o
+ * NOME, não um id — mesma decisão do seletor de palestrante, e pelo mesmo
+ * motivo: um caminho só para gravar, em vez de dois que precisariam concordar.
+ *
+ * ⚠️ UMA CIDADE QUE NÃO ESTÁ NA LISTA APARECE ASSIM MESMO. Na edição de uma
+ * palestra antiga — ou depois de alguém desativar uma cidade — o valor salvo
+ * entra como uma opção extra. Sem isso, abrir a edição trocaria a cidade da
+ * palestra em silêncio, pelo simples fato de a lista não a conhecer.
+ */
+function CityField({
+  id,
+  cities,
+  value,
+  disabled = false,
+  invalid = false,
+  onChange,
+}: {
+  id: string;
+  cities: string[];
+  value: string;
+  disabled?: boolean;
+  invalid?: boolean;
+  onChange: (cidade: string) => void;
+}) {
+  const conhecida = cities.some((c) => normalizeForSearch(c) === normalizeForSearch(value));
+  const digitando = value !== "" && !conhecida;
+
+  // Quem está digitando uma cidade nova mantém "Outra" marcada enquanto digita —
+  // senão o seletor voltaria para "Selecione" a cada tecla.
+  const [outra, setOutra] = useState(digitando);
+  const escolha = outra ? OUTRA_CIDADE : conhecida ? value : "";
+
+  return (
+    <div className="space-y-2">
+      <Select
+        id={id}
+        value={escolha}
+        disabled={disabled}
+        aria-invalid={invalid}
+        onChange={(event) => {
+          const escolhido = event.target.value;
+          if (escolhido === OUTRA_CIDADE) {
+            setOutra(true);
+            onChange("");
+            return;
+          }
+          setOutra(false);
+          onChange(escolhido);
+        }}
+      >
+        <option value="">Selecione a cidade</option>
+        {cities.map((cidade) => (
+          <option key={cidade} value={cidade}>
+            {cidade}
+          </option>
+        ))}
+        {/* A cidade salva que saiu da lista — ver o comentário do componente. */}
+        {!outra && value !== "" && !conhecida && <option value={value}>{value}</option>}
+        <option value={OUTRA_CIDADE}>Outra (digitar)…</option>
+      </Select>
+
+      {outra && (
+        <Input
+          aria-label="Nome da cidade"
+          placeholder="Espírito Santo do Pinhal"
+          disabled={disabled}
+          aria-invalid={invalid}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ----------------------------------------------------------------------------
 // Cadastro (§21)
 // ----------------------------------------------------------------------------
@@ -102,10 +223,12 @@ const OUTRO = "novo";
 function CreateLectureForm({
   directory,
   speakers,
+  cities,
   prefill,
 }: {
   directory: DirectoryEntry[];
   speakers: LectureSpeaker[];
+  cities: string[];
   prefill?: { date?: string; startTime?: string };
 }) {
   const router = useRouter();
@@ -165,7 +288,9 @@ function CreateLectureForm({
       priority: "normal",
       speakerId: "",
       speakerName: "",
-      responsibleId: "",
+      // Já marcado — ver `responsavelPadrao`. Continua editável: é um padrão,
+      // não uma imposição.
+      responsibleId: responsavelPadrao(directory),
       requesterName: "",
       requesterEmail: "",
       requesterPhone: "",
@@ -176,6 +301,9 @@ function CreateLectureForm({
   const tipo = watch("type");
   const status = watch("status");
   const inicio = watch("startTime");
+  // O seletor de cidade é controlado: o valor mora no formulário, e `watch` é o
+  // que o mantém em dia entre o dropdown e o campo de digitar.
+  const cidade = watch("city");
 
   // §23: trocar OUTROS por outro tipo LIMPA o detalhe. Sem isto, "Evento
   // técnico" ficaria pendurado num registro de universidade — o CHECK do banco
@@ -270,12 +398,21 @@ function CreateLectureForm({
             />
           </Field>
 
-          <Field id={ids.city} label="Cidade" required error={errors.city?.message}>
-            <Input
+          <Field
+            id={ids.city}
+            label="Cidade"
+            required
+            error={errors.city?.message}
+            hint="A cidade que não estiver na lista entra por “Outra” — e fica na lista para as próximas."
+          >
+            <CityField
               id={ids.city}
-              aria-invalid={!!errors.city}
-              placeholder="Espírito Santo do Pinhal"
-              {...register("city")}
+              cities={cities}
+              value={cidade}
+              invalid={!!errors.city}
+              onChange={(valor) =>
+                setValue("city", valor, { shouldDirty: true, shouldValidate: isSubmitted })
+              }
             />
           </Field>
 
@@ -574,7 +711,7 @@ function CreateLectureForm({
 // Edição (§30)
 // ----------------------------------------------------------------------------
 
-function EditLectureForm({ lecture }: { lecture: Lecture }) {
+function EditLectureForm({ lecture, cities }: { lecture: Lecture; cities: string[] }) {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -608,6 +745,7 @@ function EditLectureForm({ lecture }: { lecture: Lecture }) {
   });
 
   const tipo = watch("type");
+  const cidade = watch("city");
 
   useEffect(() => {
     if (tipo !== "other") setValue("typeOther", "", { shouldValidate: isSubmitted });
@@ -652,12 +790,21 @@ function EditLectureForm({ lecture }: { lecture: Lecture }) {
             <Input id={ids.theme} aria-invalid={!!erros.theme} {...register("theme")} />
           </Field>
 
-          <Field id={ids.city} label="Cidade" required error={erros.city?.message}>
-            <Input
+          <Field
+            id={ids.city}
+            label="Cidade"
+            required
+            error={erros.city?.message}
+            hint="A cidade que não estiver na lista entra por “Outra”."
+          >
+            <CityField
               id={ids.city}
-              aria-invalid={!!erros.city}
-              placeholder="Espírito Santo do Pinhal"
-              {...register("city")}
+              cities={cities}
+              value={cidade ?? ""}
+              invalid={!!erros.city}
+              onChange={(valor) =>
+                setValue("city", valor, { shouldDirty: true, shouldValidate: isSubmitted })
+              }
             />
           </Field>
 

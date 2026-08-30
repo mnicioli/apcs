@@ -18,12 +18,15 @@ const CATALOGO = [
   { id: "c2", name: "Dra. Helena Costa" },
 ];
 
-function montar(speakers = CATALOGO) {
+const CIDADES = ["Espírito Santo do Pinhal", "Mogi Guaçu"];
+
+function montar(speakers = CATALOGO, cities = CIDADES, filters = EMPTY_LECTURE_FILTERS) {
   return render(
     <LectureFiltersBar
-      filters={EMPTY_LECTURE_FILTERS}
+      filters={filters}
       directory={TIME}
       speakers={speakers}
+      cities={cities}
       showPriority={false}
       showPeriod={false}
     />,
@@ -79,12 +82,47 @@ describe("a dica da busca", () => {
   });
 });
 
-describe("placeholders", () => {
-  it("a cidade sugere a cidade da APCS", () => {
+/**
+ * O FILTRO DE CIDADE — era um campo de texto, virou lista.
+ *
+ * ⚠️ O DEFEITO QUE A TROCA CONSERTA ERRAVA CALADO. Digitar "espirito santo do
+ * pinhal" não encontrava as palestras gravadas como "Espírito Santo do Pinhal",
+ * e a tela respondia "nenhuma palestra encontrada" com a mesma cara de quando
+ * realmente não há nenhuma — mandando procurar defeito nas palestras em vez de
+ * no acento.
+ */
+describe("filtro de cidade", () => {
+  it("oferece as cidades cadastradas, e 'todas' como padrão", () => {
     montar();
-    expect(screen.getByLabelText("Cidade")).toHaveAttribute(
-      "placeholder",
-      "Espírito Santo do Pinhal",
-    );
+
+    const opcoes = within(screen.getByLabelText("Cidade"))
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+
+    expect(opcoes).toEqual(["Todas as cidades", "Espírito Santo do Pinhal", "Mogi Guaçu"]);
+  });
+
+  /**
+   * ⚠️ Uma cidade DESATIVADA — ou um link antigo — deixa a URL filtrada por algo
+   * que não está mais na lista. Sem esta opção extra o seletor mostraria "Todas
+   * as cidades" enquanto a grid continuasse filtrada: a tela mentindo sobre o
+   * próprio estado.
+   */
+  it("mostra a cidade que está na URL mesmo fora do catálogo", () => {
+    montar(CATALOGO, CIDADES, { ...EMPTY_LECTURE_FILTERS, city: "Andradas" });
+
+    const seletor = screen.getByLabelText("Cidade");
+    expect(seletor).toHaveValue("Andradas");
+    expect(within(seletor).getByRole("option", { name: "Andradas" })).toBeInTheDocument();
+  });
+
+  it("sem catálogo, sobra só 'todas' — e a tela continua utilizável", () => {
+    montar(CATALOGO, []);
+
+    const opcoes = within(screen.getByLabelText("Cidade"))
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+
+    expect(opcoes).toEqual(["Todas as cidades"]);
   });
 });
