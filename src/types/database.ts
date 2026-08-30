@@ -1138,6 +1138,7 @@ export type Database = {
           intent: string;
           latency_ms: number | null;
           outcome: Database["public"]["Enums"]["intelligence_outcome"];
+          reply_message_id: string | null;
           subject: string | null;
           tool: string | null;
           whatsapp_chat_id: string | null;
@@ -1151,6 +1152,7 @@ export type Database = {
           intent: string;
           latency_ms?: number | null;
           outcome: Database["public"]["Enums"]["intelligence_outcome"];
+          reply_message_id?: string | null;
           subject?: string | null;
           tool?: string | null;
           whatsapp_chat_id?: string | null;
@@ -1164,12 +1166,20 @@ export type Database = {
           intent?: string;
           latency_ms?: number | null;
           outcome?: Database["public"]["Enums"]["intelligence_outcome"];
+          reply_message_id?: string | null;
           subject?: string | null;
           tool?: string | null;
           whatsapp_chat_id?: string | null;
           whatsapp_message_id?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "intelligence_interactions_reply_message_id_fkey";
+            columns: ["reply_message_id"];
+            isOneToOne: false;
+            referencedRelation: "whatsapp_messages";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "intelligence_interactions_whatsapp_chat_id_fkey";
             columns: ["whatsapp_chat_id"];
@@ -2778,6 +2788,7 @@ export type Database = {
       whatsapp_chats: {
         Row: {
           archived: boolean;
+          bot_paused_until: string | null;
           chat_key: string;
           contact_id: string | null;
           created_at: string;
@@ -2796,6 +2807,7 @@ export type Database = {
         };
         Insert: {
           archived?: boolean;
+          bot_paused_until?: string | null;
           chat_key: string;
           contact_id?: string | null;
           created_at?: string;
@@ -2814,6 +2826,7 @@ export type Database = {
         };
         Update: {
           archived?: boolean;
+          bot_paused_until?: string | null;
           chat_key?: string;
           contact_id?: string | null;
           created_at?: string;
@@ -5251,6 +5264,11 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      whatsapp_bot_pause_minutes: { Args: never; Returns: number };
+      whatsapp_bot_should_answer: {
+        Args: { p_chat_id: string };
+        Returns: boolean;
+      };
       whatsapp_is_reader: { Args: never; Returns: boolean };
       whatsapp_is_writer: { Args: never; Returns: boolean };
       whatsapp_kind_label: {
@@ -5270,6 +5288,10 @@ export type Database = {
           p_status: Database["public"]["Enums"]["whatsapp_delivery_status"];
         };
         Returns: boolean;
+      };
+      whatsapp_pause_bot: {
+        Args: { p_chat_id: string; p_minutes?: number };
+        Returns: undefined;
       };
       whatsapp_record_inbound_message: {
         Args: {
@@ -5321,6 +5343,14 @@ export type Database = {
           p_provider_message_id?: string;
         };
         Returns: undefined;
+      };
+      whatsapp_start_bot_message: {
+        Args: {
+          p_body: string;
+          p_chat_id: string;
+          p_kind?: Database["public"]["Enums"]["whatsapp_message_kind"];
+        };
+        Returns: string;
       };
       whatsapp_start_outbound_message: {
         Args: { p_body: string; p_chat_id: string };

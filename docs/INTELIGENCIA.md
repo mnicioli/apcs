@@ -285,17 +285,22 @@ robô perguntar tudo de uma vez e falhar na primeira resposta parcial.
 
 É o primeiro item natural de um próximo passo.
 
-### O envio pelo WhatsApp
+### O envio pelo WhatsApp — feito na Etapa 3, ver a seção 11
 
-`handleIncomingMessage` devolve `{ body, attachments, handoff }` e **não envia
-nada**. Quem coloca a resposta na conversa é o webhook — PROMPT 2/3. A separação
-não é burocracia: é o que torna toda a conversa testável sem fornecedor, sem
-rede e sem número de telefone.
+`handleIncomingMessage` continua devolvendo a resposta e **não enviando nada**;
+quem a coloca na conversa é `deliver.ts`. A separação não é burocracia: é o que
+torna toda a conversa testável sem fornecedor, sem rede e sem número de telefone.
 
-Há um detalhe de prazo esperando lá: as URLs assinadas dos anexos duram 5
-minutos (Bolsa e normativa) e 1 hora (imagem de evento). Quem baixa o arquivo é
-o servidor do fornecedor, então a URL precisa continuar válida no momento em que
-**ele** buscar — não no momento em que a montamos. Ver `OutboundDocumentMessage`.
+⚠️ **O prazo das URLs assinadas mudou por causa desta etapa.** As portas de
+chatbot assinavam com 5 minutos, que é o prazo das telas — dimensionado para um
+navegador, com uma pessoa olhando. No caminho do WhatsApp não há navegador: quem
+baixa o arquivo é o servidor da Z-API, quando **ele** processar o envio.
+
+O `broadcast-dispatch.ts` já tinha aprendido isso e assina com uma hora
+("uma URL curta demais expiraria no meio da fila e as últimas pessoas receberiam
+só o texto — sem erro nenhum, que é a pior forma de falhar"). As portas de
+chatbot passaram a usar `CHATBOT_SIGNED_URL_TTL_SECONDS`, com a mesma folga. As
+telas continuam com os 5 minutos.
 
 ### A precedência das Enquetes (§32)
 
@@ -337,3 +342,227 @@ termo no `order by` da mesma função. O contrato de saída
 
 As três primeiras nasceram de defeitos reais deste projeto. A última é a versão,
 para esta camada, do que `decide.test.ts` já faz para o chat da web.
+
+---
+
+## 11. O WhatsApp (Etapa 3)
+
+A camada anterior decidia e não falava. Esta a liga ao número da APCS.
+
+### A fila do webhook
+
+```
+Z-API → /api/webhooks/zapi/[secret]
+            ↓
+        livro-razão      grava TUDO, antes de qualquer decisão
+            ↓
+        opt-out          quem pediu para sair não recebe mais nada
+            ↓
+        enquetes         um "3" dentro de uma enquete é voto, não pergunta
+            ↓
+        robô             o resto — e só DEPOIS do 200
+```
+
+**A ordem é a regra.** Cada passo tira eventos do seguinte, e trocar dois de
+lugar não é refatoração: é mudar o que a APCS responde a uma pessoa.
+
+O que tornou a costura possível foi pequeno: `recordInboundEvents` passou a
+devolver **quais** mensagens gravou (`RecordedMessage[]`), e
+`processInboundEvents` passou a devolver **quais** eventos tratou (`handled`) —
+o mesmo campo que o opt-out já tinha. Antes, os dois devolviam contagens, e uma
+contagem não permite saber o que sobrou.
+
+O `survey-inbox.ts` já dizia, em dois comentários escritos meses antes, que os
+eventos sem contexto de enquete eram "o fluxo normal do chatbot". Faltava só o
+webhook conseguir saber quais eram.
+
+### Por que a resposta sai depois do 200
+
+Classificar chama um modelo; enviar chama o fornecedor duas ou três vezes. São
+segundos, às vezes mais de dez. Para a Z-API, demora significa "não recebi" — e
+ela reentregaria o payload no meio da nossa própria resposta.
+
+O robô roda em `after()`, como os anexos já rodavam. É o §39.
+
+### Nada disso entrou numa fila
+
+O §38 pede para usar a fila, se houver. **Há**, e ela não serve aqui: as filas de
+`broadcast-dispatch` e `event-dispatch` são de campanha — reivindicação em lote,
+orçamento por corrida e, sem cron no projeto, um botão "Continuar" na tela. Uma
+resposta de chatbot posta ali esperaria alguém clicar.
+
+O que a fila existe para resolver — não estourar o limite do fornecedor com mil
+envios — não é o problema de uma resposta para uma pessoa que está esperando.
+
+**E o retry é menor aqui: duas tentativas, não três.** Não é preferência, é
+aritmética de prazo: o timeout do fornecedor é de 15 s e a rota tem
+`maxDuration = 60`. Três tentativas que estourem são 45 s, e com a classificação
+antes e o download de anexo depois, a plataforma mataria a função no meio do
+envio — deixando a mensagem presa em `pending`, sem ninguém para curá-la.
+
+A razão humana leva ao mesmo número: quem escreveu "qual a bolsa hoje?" já
+desistiu antes da terceira tentativa. Melhor a mensagem virar falha visível na
+caixa de entrada, onde um atendente a vê.
+
+### O silêncio
+
+Três coisas calam o robô, e todas moram em `whatsapp_bot_should_answer`:
+
+| Motivo                     | Por quê                                                         |
+| -------------------------- | --------------------------------------------------------------- |
+| conversa de grupo          | um grupo não é alguém perguntando, e não há a quem mandar o PDF |
+| `bot_paused_until` vigente | uma pessoa está atendendo, ou o robô acabou de encaminhar       |
+| atendimento humano aberto  | a mesma checagem que as Enquetes já faziam, agora em SQL        |
+
+**A pausa é uma data, e não um interruptor.** Um `bot_ativo = false` precisaria
+de alguém para religar, e a caixa de entrada do WhatsApp não tem botão de
+"resolver" — o robô ficaria mudo naquela conversa para sempre, e o sintoma
+apareceria meses depois como "o bot parou de responder para o fulano". Com data,
+o silêncio expira sozinho; cada fala humana o renova.
+
+Quem renova é um **gatilho** (`whatsapp_messages_pause_bot`), e não uma chamada.
+A razão é concreta: há dois caminhos por onde uma pessoa fala — a tela do CRM
+(`origin = 'agent'`) e o celular físico (`origin = 'phone'`, que chega pelo
+webhook). O segundo não passa por código nosso nenhum; não existe lugar onde
+encaixar a chamada.
+
+### O eco — a armadilha que quase passou
+
+A Z-API devolve pelo webhook **tudo** que sai do número, inclusive o que ela
+mesma acabou de enviar a nosso pedido. Esse retorno é gravado como
+`origin = 'phone'` ("veio do aparelho"), e a duplicata é descartada pelo índice
+de `provider_message_id`.
+
+Só que o id do fornecedor é escrito na **liquidação**, depois do envio. Entre
+gravar pendente e liquidar cabem os 15 s do timeout do fornecedor — e um eco que
+chegue nessa janela não casa com nada: entra como linha nova, com cara de pessoa
+digitando no celular, e dispararia o gatilho.
+
+O sintoma seria **"o bot responde a primeira mensagem e ignora o resto"**, por
+uma hora, sem nada no log. O desvio está em `whatsapp_pause_bot_on_human` e o
+teste que o fixa, em `whatsapp-bot-sql.test.ts`.
+
+### A porta de saída, e o contador que ela não toca
+
+O robô não usa `whatsapp_start_outbound_message` (a do atendente) por três
+motivos, e o terceiro é o que dói: ela **zera `unread_count`**, com a
+justificativa correta, para uma pessoa, de que "responder é ler".
+
+Aplicada ao robô, essa linha faz a conversa desaparecer da aba "Não lidas" — e o
+associado que escreveu "quero falar com alguém" recebe a frase de encaminhamento
+e nunca mais é procurado. Ninguém veria: a caixa fica bonita, vazia e errada.
+
+Por isso `whatsapp_start_bot_message`, com `origin = 'bot'`, sem autor, e sem
+tocar no contador. A conferência da migration lê o corpo da função e recusa o
+push se ele voltar a mexer nele.
+
+### Imagem e PDF (§13, §14)
+
+A ordem que a pessoa lê é a do §14 — explicação, imagem, PDF. **A explicação vai
+como legenda da imagem**, e não como um balão antes dela.
+
+É um desvio deliberado da letra do §14, pela razão que `messaging.types.ts` já
+tinha escrito: dois balões separados podem ser entregues fora de ordem, e a
+pessoa veria o cartaz sem explicação — ou a explicação antes do cartaz. Os dois
+fornecedores aceitam legenda no anexo.
+
+O segundo anexo leva o **nome do arquivo** como legenda: é o que a pessoa vê
+embaixo do PDF e o que ela vai procurar seis meses depois.
+
+Falha permanente **interrompe o resto**. Mandar o PDF sozinho, sem a imagem com a
+explicação, entrega um arquivo do nada.
+
+### Idempotência (§40, §41)
+
+O robô não tem tabela própria de "já processei". Ele herda a do livro-razão: o
+índice único de `provider_message_id` existe desde agosto, e o que mudou foi
+`recordInboundEvents` passar a **dizer** o que era reentrega. Uma segunda entrega
+do mesmo webhook produz zero mensagens.
+
+### Rastreabilidade (§46)
+
+```
+provider_message_id → whatsapp_messages.id → intelligence_interactions
+                                                  ↓ intent, confidence, tool, outcome
+                                             reply_message_id → a mensagem que saiu
+```
+
+`reply_message_id` é a coluna nova. Sem ela, ligar "o robô decidiu mandar a
+Bolsa" a "este PDF saiu às 14h32" seria adivinhação por proximidade de horário.
+
+O `correlationId` costura tudo isso no log, no escopo `intelligence`.
+
+### O que o §48 pede, e onde está
+
+| Evento do §48              | Onde                                                       |
+| -------------------------- | ---------------------------------------------------------- |
+| `CHATBOT_MESSAGE_RECEIVED` | `whatsapp_messages` (o livro-razão)                        |
+| `INTENT_IDENTIFIED`        | `intelligence_interactions.intent` + `confidence`          |
+| `KNOWLEDGE_ACCESSED`       | `intelligence_interactions.tool = getKnowledge`            |
+| `DOCUMENT_ACCESSED`        | `tool = getActiveNormativa` / `getActiveComunicacao`       |
+| `MEDIA_SENT`               | `whatsapp_messages` com `origin = 'bot'` e `kind` de anexo |
+| `HUMAN_HANDOFF`            | `outcome = 'handoff'` + `bot_paused_until` preenchido      |
+
+**Não há tabela nova de auditoria**, e é deliberado: `admin_audit_log` exige um
+ator autenticado, e o robô não é ninguém. Um contador de anexos em
+`intelligence_interactions` seria um segundo registro do mesmo fato, com menos
+informação (sem id do fornecedor, sem status de entrega) e livre para divergir.
+
+---
+
+## 12. Pendências desta etapa
+
+### O webhook da Cloud API não tem robô
+
+`/api/webhooks/whatsapp` (Meta) só alimenta Enquetes — ele nunca chamou
+`recordInboundEvents`, então não há conversa no livro-razão a que o robô possa
+responder. A caixa de entrada inteira foi construída para a Z-API, que é o
+fornecedor em uso.
+
+Se a APCS trocar de fornecedor, o conserto é conhecido: acrescentar
+`recordInboundEvents` e as mesmas duas chamadas daquela rota. Bolar agora uma
+segunda ingestão para um fornecedor não contratado seria a integração duplicada
+que o §1 proíbe.
+
+### Foto e áudio não são respondidos
+
+Uma mensagem só com anexo não tem o que classificar, e o §36 é explícito que o
+MVP não interpreta mídia. As duas saídas eram responder "não entendi" ou ficar
+calado, e o calado ganhou: a conversa fica com o contador de não lidas **aceso**,
+que é o caminho real de escalada. Um "não entendi" automático faria a pessoa
+achar que foi atendida e parar de esperar.
+
+O dia em que houver transcrição de áudio, a condição some (`motivoParaPular`, em
+`intelligence-inbox.ts`).
+
+### Não há roteamento de atendimento (§23)
+
+O §23 pede para usar a lógica de distribuição existente — Compras, Logística,
+SAC. **Ela não existe**, e o `docs/WHATSAPP.md` já registrava isso: a caixa de
+entrada não tem atribuição nem fila.
+
+Esta etapa não a criou. Ela criou a pergunta menor que o robô precisa responder
+("devo falar agora?"), que é uma data e não um dono. Quando a atribuição chegar,
+ela substitui a checagem de pausa dentro de `whatsapp_bot_should_answer` e nada
+mais neste módulo muda.
+
+### O eco duplica uma linha no histórico
+
+O desvio do eco impede a **pausa** indevida, mas a linha duplicada continua sendo
+gravada (uma mensagem `origin = 'phone'` com o mesmo texto). É uma condição
+anterior a este módulo — vale para a resposta do atendente também — e o conserto
+é na ingestão, não aqui.
+
+---
+
+## 13. As guardas desta etapa
+
+| Teste                        | O que ele impede                                                     |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `deliver.test.ts`            | PDF antes da imagem; anexo para o número errado; meia resposta       |
+| `intelligence-inbox.test.ts` | robô respondendo por cima de enquete, de atendente ou do próprio eco |
+| `whatsapp-bot-sql.test.ts`   | a função do robô voltar a zerar `unread_count`                       |
+
+A última tem uma irmã na própria migration, que lê `pg_proc`. As duas existem
+porque a conferência do banco só roda no `db:push` — ou seja, depois de alguém
+decidir aplicar em produção.

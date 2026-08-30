@@ -42,6 +42,38 @@ export interface PendingMedia {
   media: InboundMedia;
 }
 
+/**
+ * Uma mensagem que passou por aqui, com o que os consumidores seguintes
+ * precisam saber sobre ela.
+ *
+ * ⚠️ ISTO É A IDEMPOTÊNCIA DE TODO MUNDO QUE VEM DEPOIS (§40, §41).
+ *
+ * O livro-razão já sabe distinguir mensagem nova de reentrega — o índice único
+ * de `provider_message_id` faz isso desde 20260822000000. Antes daqui esse
+ * conhecimento morria como número numa contagem, e quem viesse depois teria de
+ * inventar a própria tabela de "já processei este evento" (foi o que as
+ * Enquetes fizeram, e está certo para elas: guardam o DESFECHO, não só o id).
+ *
+ * Devolver a lista faz o robô herdar a idempotência de graça: ele responde ao
+ * que é `duplicate: false`, e uma reentrega do webhook não gera uma segunda
+ * resposta — que é literalmente o §41.
+ */
+export interface RecordedMessage {
+  /** O id do evento no fornecedor. A chave de idempotência. */
+  eventId: string;
+  messageId: string;
+  chatId: string;
+  /** `true` quando o fornecedor reentregou algo que já estava gravado. */
+  duplicate: boolean;
+  /** `true` quando a mensagem SAIU do nosso número (celular, CRM ou robô). */
+  fromMe: boolean;
+  /** Conversa de grupo. Ver `whatsapp_bot_should_answer`. */
+  isGroup: boolean;
+  /** O texto, para quem vai interpretá-lo. Só dígitos no telefone. */
+  text: string;
+  phone: string | null;
+}
+
 export interface WhatsAppInboxOutcome {
   recorded: number;
   duplicates: number;
@@ -49,6 +81,8 @@ export interface WhatsAppInboxOutcome {
   ignored: number;
   /** Anexos para baixar DEPOIS de a resposta HTTP ter saído. */
   pendingMedia: PendingMedia[];
+  /** As mensagens gravadas, na ordem em que chegaram. Ver `RecordedMessage`. */
+  messages: RecordedMessage[];
 }
 
 export async function recordInboundEvents(
@@ -62,6 +96,7 @@ export async function recordInboundEvents(
     statuses: 0,
     ignored: 0,
     pendingMedia: [],
+    messages: [],
   };
 
   for (const evento of events) {
@@ -81,6 +116,23 @@ export async function recordInboundEvents(
       } else {
         resultado.recorded += 1;
         if (gravada.pending) resultado.pendingMedia.push(gravada.pending);
+      }
+
+      // ⚠️ A DUPLICATA TAMBÉM ENTRA NA LISTA, com a marca. Quem vem depois
+      // precisa saber que ela existiu para poder IGNORÁ-LA de propósito;
+      // omiti-la faria "reentrega" e "evento que não gravou por erro" ficarem
+      // indistinguíveis do lado de fora.
+      if (gravada) {
+        resultado.messages.push({
+          eventId: evento.eventId,
+          messageId: gravada.messageId,
+          chatId: gravada.chatId,
+          duplicate: gravada.duplicate,
+          fromMe: evento.conversation?.fromMe ?? false,
+          isGroup: evento.conversation?.isGroup ?? false,
+          text: evento.text,
+          phone: evento.conversation?.isGroup ? null : evento.from,
+        });
       }
     } catch (error) {
       resultado.ignored += 1;

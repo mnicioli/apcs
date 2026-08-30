@@ -255,3 +255,74 @@ export function logWhatsAppEvent(
   if (level === "error") console.error(linha);
   else console.info(linha);
 }
+
+/**
+ * O ROBÔ — §47.
+ *
+ * Escopo próprio (`intelligence`), e não reúso de `whatsapp.inbox`, pelo mesmo
+ * motivo que separou os outros quatro: quem investiga "por que o bot respondeu
+ * isso?" filtra por escopo e quer só as decisões. Misturado à caixa de entrada,
+ * o tráfego de atendimento — que é contínuo e muito maior — afogaria a linha
+ * procurada exatamente no dia em que ela importa.
+ *
+ * ⚠️ AS MESMAS PROIBIÇÕES, e uma a mais que é específica daqui: além de não
+ * registrar o texto da pessoa nem o telefone inteiro, NÃO registra o `subject`
+ * que o modelo extraiu. Ele é um pedaço literal do que a pessoa escreveu — "a
+ * normativa do meu vizinho João" vira `subject`, e iria inteiro para um log
+ * retido por meses num serviço terceiro. Ele fica em
+ * `intelligence_interactions`, que tem RLS e a política de retenção do banco.
+ */
+export type IntelligenceEvent =
+  | "bot.skipped"
+  | "bot.turn"
+  | "bot.turn_failed"
+  | "bot.send_ok"
+  | "bot.send_failed"
+  | "bot.handoff";
+
+export interface IntelligenceLogFields {
+  /** §46. O mesmo id do evento do webhook que originou este turno. */
+  correlationId?: string;
+  provider?: string;
+  /** §46. `whatsapp_chats.id`. */
+  chatId?: string;
+  /** §46. A mensagem RECEBIDA. */
+  messageId?: string;
+  /** §46. A primeira mensagem ENVIADA em resposta. */
+  replyMessageId?: string;
+  providerMessageId?: string;
+  /** Só o NOME da intenção — vocabulário fechado, nunca texto da pessoa. */
+  intent?: string;
+  tool?: string;
+  /** O desfecho da ferramenta, no vocabulário de `intelligence_outcome`. */
+  outcome?: string;
+  /** 0 a 1, com três casas. É número, não conteúdo. */
+  confidence?: number;
+  /** Quantos arquivos acompanharam a resposta. */
+  attachments?: number;
+  /** Quantas mensagens o evento trazia. */
+  count?: number;
+  attempt?: number;
+  /** §47. Tempo de execução do turno inteiro. */
+  durationMs?: number;
+  /** Motivo técnico. Já vem sem dado pessoal. */
+  reason?: string;
+  /** Telefone JÁ MASCARADO. Ver `maskPhone`. */
+  phone?: string;
+}
+
+export function logIntelligenceEvent(
+  level: "info" | "error",
+  event: IntelligenceEvent,
+  fields: IntelligenceLogFields = {},
+): void {
+  const linha = JSON.stringify({
+    ts: new Date().toISOString(),
+    scope: "intelligence",
+    event,
+    ...fields,
+  });
+
+  if (level === "error") console.error(linha);
+  else console.info(linha);
+}

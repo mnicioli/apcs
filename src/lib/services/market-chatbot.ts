@@ -1,10 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  IMAGE_SIGNED_URL_TTL_SECONDS,
-  MARKET_BUCKET,
-  PDF_SIGNED_URL_TTL_SECONDS,
-} from "@/lib/market/storage";
+import { CHATBOT_SIGNED_URL_TTL_SECONDS, MARKET_BUCKET } from "@/lib/market/storage";
 import type { MarketBulletinChatbotView } from "@/modules/market/market.types";
 
 /**
@@ -84,8 +80,10 @@ async function toView(row: ChatbotRow): Promise<MarketBulletinChatbotView | null
   const [image, pdf] = await Promise.all([
     supabase.storage
       .from(MARKET_BUCKET)
-      .createSignedUrl(row.image_path, IMAGE_SIGNED_URL_TTL_SECONDS),
-    supabase.storage.from(MARKET_BUCKET).createSignedUrl(row.pdf_path, PDF_SIGNED_URL_TTL_SECONDS),
+      .createSignedUrl(row.image_path, CHATBOT_SIGNED_URL_TTL_SECONDS),
+    supabase.storage
+      .from(MARKET_BUCKET)
+      .createSignedUrl(row.pdf_path, CHATBOT_SIGNED_URL_TTL_SECONDS),
   ]);
 
   // Sem os DOIS arquivos acessíveis, a publicação não é entregável. Devolver

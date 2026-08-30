@@ -85,3 +85,22 @@ export const PDF_SIGNED_URL_TTL_SECONDS = 300;
  * quem nunca teve permissão de abrir a tela.
  */
 export const IMAGE_SIGNED_URL_TTL_SECONDS = 3600;
+
+/**
+ * Vida da URL assinada quando quem vai buscar o arquivo é o FORNECEDOR.
+ *
+ * ⚠️ OS CINCO MINUTOS ACIMA FORAM DIMENSIONADOS PARA UM NAVEGADOR, com uma
+ * pessoa olhando a tela. No caminho do WhatsApp não há navegador: nós entregamos
+ * a URL à Z-API e é o servidor DELA que baixa o PDF, quando ELE processar o
+ * envio — o que pode ser bem depois de a assinatura ter sido feita.
+ *
+ * O `broadcast-dispatch.ts` já tinha aprendido isso e assina com uma hora, com o
+ * comentário no lugar: "uma URL curta demais expiraria no meio da fila e as
+ * últimas pessoas receberiam só o texto — sem erro nenhum, que é a pior forma de
+ * falhar". A mesma folga vale aqui.
+ *
+ * O risco de segurança é o mesmo dos disparos, que já mandam estes arquivos para
+ * estas pessoas: a URL vai para o WhatsApp de quem pediu, e ela é reencaminhável
+ * de qualquer jeito enquanto valer.
+ */
+export const CHATBOT_SIGNED_URL_TTL_SECONDS = 3600;

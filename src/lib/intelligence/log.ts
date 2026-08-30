@@ -46,28 +46,44 @@ export interface InteractionRecord {
   correlationId: string;
 }
 
-export async function recordInteraction(record: InteractionRecord): Promise<void> {
+/**
+ * Grava a decisão e devolve o id da linha.
+ *
+ * ⚠️ O ID É PARA A OUTRA PONTA DO §46. Quem envia a resposta usa
+ * `linkInteractionReply` para escrever `reply_message_id` — e aí uma linha
+ * responde "o que foi decidido E o que saiu". `null` quando não gravou: a
+ * amarração é desejável, responder é obrigatório, e a ordem entre as duas nunca
+ * se inverte.
+ */
+export async function recordInteraction(record: InteractionRecord): Promise<number | null> {
   try {
     const supabase = createAdminClient();
 
-    const { error } = await supabase.from("intelligence_interactions").insert({
-      whatsapp_chat_id: record.chatId,
-      whatsapp_message_id: record.messageId,
-      intent: record.intent,
-      // ⚠️ TRÊS CASAS, como a coluna `numeric(4,3)`. Sem o arredondamento aqui,
-      // um `0.8333333333` do modelo estoura a escala e o INSERT falha inteiro —
-      // levando junto o registro de um turno que funcionou.
-      confidence: record.confidence === null ? null : Number(record.confidence.toFixed(3)),
-      tool: record.tool,
-      outcome: record.outcome,
-      // O CHECK do banco recusa acima de 200. Cortar aqui é preferível a perder
-      // a linha por causa do tamanho de um termo.
-      subject: record.subject ? record.subject.slice(0, 200) : null,
-      latency_ms: record.latencyMs,
-      correlation_id: record.correlationId,
-    } as never);
+    const { data, error } = await supabase
+      .from("intelligence_interactions")
+      .insert({
+        whatsapp_chat_id: record.chatId,
+        whatsapp_message_id: record.messageId,
+        intent: record.intent,
+        // ⚠️ TRÊS CASAS, como a coluna `numeric(4,3)`. Sem o arredondamento aqui,
+        // um `0.8333333333` do modelo estoura a escala e o INSERT falha inteiro —
+        // levando junto o registro de um turno que funcionou.
+        confidence: record.confidence === null ? null : Number(record.confidence.toFixed(3)),
+        tool: record.tool,
+        outcome: record.outcome,
+        // O CHECK do banco recusa acima de 200. Cortar aqui é preferível a perder
+        // a linha por causa do tamanho de um termo.
+        subject: record.subject ? record.subject.slice(0, 200) : null,
+        latency_ms: record.latencyMs,
+        correlation_id: record.correlationId,
+      } as never)
+      .select("id")
+      .returns<{ id: number }[]>()
+      .single();
 
     if (error) throw error;
+
+    return data?.id ?? null;
   } catch (erro) {
     console.error(`[intelligence.log] não registrou a decisão`, {
       correlationId: record.correlationId,
@@ -75,5 +91,6 @@ export async function recordInteraction(record: InteractionRecord): Promise<void
       outcome: record.outcome,
       motivo: erro instanceof Error ? erro.message : String(erro),
     });
+    return null;
   }
 }

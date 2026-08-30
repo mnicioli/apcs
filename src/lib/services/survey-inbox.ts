@@ -35,6 +35,22 @@ export interface InboxOutcome {
   processed: number;
   duplicates: number;
   ignored: number;
+  /**
+   * Os eventos que a ENQUETE tratou — os que ela respondeu ou consumiu.
+   *
+   * ⚠️ É O MESMO CAMPO QUE `OptOutOutcome.handled`, e existe pelo mesmo motivo:
+   * o webhook precisa saber o que SOBROU para o consumidor seguinte.
+   *
+   * Este arquivo já dizia, em dois comentários, que os eventos sem contexto de
+   * enquete são para o chatbot ("§43. (…) O fluxo normal do chatbot cuida",
+   * "§44. (…) Vira fluxo normal"). Faltava só o webhook conseguir SABER quais
+   * são — a contagem não diz. Agora diz.
+   *
+   * ⚠️ PRECEDÊNCIA: o que está aqui não chega ao robô. Uma pessoa no meio de
+   * uma enquete que escreve "3" está votando, e não perguntando o preço da
+   * Bolsa — o robô respondendo por cima transformaria o voto numa consulta.
+   */
+  handled: string[];
 }
 
 interface ContextRow {
@@ -52,7 +68,7 @@ export async function processInboundEvents(
   provider: MessagingProvider,
   correlationId: string,
 ): Promise<InboxOutcome> {
-  const resultado: InboxOutcome = { processed: 0, duplicates: 0, ignored: 0 };
+  const resultado: InboxOutcome = { processed: 0, duplicates: 0, ignored: 0, handled: [] };
 
   for (const evento of events) {
     try {
@@ -61,6 +77,12 @@ export async function processInboundEvents(
         // §16/§64. Reentrega. É o caminho NORMAL, não uma anomalia: o
         // fornecedor reentrega sempre que não recebe 200 a tempo.
         resultado.duplicates += 1;
+        // ⚠️ REENTREGA CONTA COMO TRATADA. Este módulo já viu este evento numa
+        // volta anterior, e o robô não deve reabri-lo agora. A idempotência
+        // dele tem outra fonte (o livro-razão), e as duas concordam — mas se um
+        // dia divergirem, o certo é o silêncio: uma resposta a mais é pior que
+        // uma a menos.
+        resultado.handled.push(evento.eventId);
         logSurveyEvent("info", "webhook.duplicate", {
           correlationId,
           provider: provider.name,
@@ -74,8 +96,14 @@ export async function processInboundEvents(
           ? await tratarStatus(evento, provider, correlationId)
           : await tratarMensagem(evento, provider, correlationId);
 
-      if (tratado) resultado.processed += 1;
-      else resultado.ignored += 1;
+      if (tratado) {
+        resultado.processed += 1;
+        resultado.handled.push(evento.eventId);
+      } else {
+        // Não tratado é o caminho para o robô: "sem contexto de enquete" é
+        // exatamente o que os §43 e §44 chamam de fluxo normal do chatbot.
+        resultado.ignored += 1;
+      }
     } catch (error) {
       logSurveyEvent("error", "webhook.received", {
         correlationId,

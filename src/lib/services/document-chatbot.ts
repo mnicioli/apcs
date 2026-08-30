@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { DOCUMENTS_BUCKET, SIGNED_URL_TTL_SECONDS } from "@/lib/documents/storage";
+import { CHATBOT_SIGNED_URL_TTL_SECONDS, DOCUMENTS_BUCKET } from "@/lib/documents/storage";
 import type { DocumentCategory, DocumentChatbotView } from "@/modules/document/document.types";
 
 /**
@@ -63,7 +63,7 @@ async function toView(row: ChatbotRow): Promise<DocumentChatbotView | null> {
 
   const { data, error } = await supabase.storage
     .from(DOCUMENTS_BUCKET)
-    .createSignedUrl(row.storage_path, SIGNED_URL_TTL_SECONDS);
+    .createSignedUrl(row.storage_path, CHATBOT_SIGNED_URL_TTL_SECONDS);
 
   // Sem o arquivo acessível não há resposta a dar. Devolver os metadados sem a
   // URL faria o bot anunciar uma normativa que ele não consegue mandar.

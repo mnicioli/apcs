@@ -4,8 +4,10 @@ import { ZApiProvider } from "@/lib/messaging/providers/z-api";
 import { logWhatsAppEvent, newCorrelationId } from "@/lib/messaging/telemetry";
 import { downloadPendingMedia, recordInboundEvents } from "@/lib/services/whatsapp-inbox";
 import { processInboundEvents } from "@/lib/services/survey-inbox";
+import { processChatbotMessages } from "@/lib/services/intelligence-inbox";
 import { processOptOutRequests } from "@/lib/services/notification-optout";
 import type { InboundEvent } from "@/lib/messaging/messaging.types";
+import type { RecordedMessage } from "@/lib/services/whatsapp-inbox";
 
 /**
  * O WEBHOOK DA Z-API.
@@ -13,6 +15,21 @@ import type { InboundEvent } from "@/lib/messaging/messaging.types";
  * Uma rota só para os três avisos que a Z-API manda (mensagem recebida, entrega
  * e status). O painel dela aceita a mesma URL nos três — e o adaptador
  * distingue pelo campo `type` do corpo.
+ *
+ * ----------------------------------------------------------------------------
+ * A FILA DE CONSUMIDORES, EM ORDEM
+ * ----------------------------------------------------------------------------
+ *
+ *     livro-razão  grava TUDO, sempre, antes de qualquer decisão
+ *         ↓
+ *     opt-out      quem pediu para sair não recebe mais nada
+ *         ↓
+ *     enquetes     um "3" dentro de uma enquete é voto, não pergunta
+ *         ↓
+ *     robô         o resto — e só depois do 200 (§39)
+ *
+ * ⚠️ A ORDEM É A REGRA, e cada passo tira eventos do seguinte. Trocar dois de
+ * lugar não é refatoração: é mudar o que a APCS responde a uma pessoa.
  *
  * ----------------------------------------------------------------------------
  * ⚠️ POR QUE O SEGREDO ESTÁ NO CAMINHO DA URL
@@ -131,9 +148,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ se
   // enquete poderia não aparecer para o atendente — que veria uma conversa com
   // um buraco no meio, sem nada indicando que há um buraco.
   let pendingMedia: Awaited<ReturnType<typeof recordInboundEvents>>["pendingMedia"] = [];
+  let gravadas: RecordedMessage[] = [];
   try {
     const gravado = await recordInboundEvents(eventos, provider.name, correlationId);
     pendingMedia = gravado.pendingMedia;
+    gravadas = gravado.messages;
   } catch (error) {
     logWhatsAppEvent("error", "inbox.webhook_received", {
       correlationId,
@@ -178,7 +197,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ se
       !tratados.has(e.eventId) && (e.kind !== "message" || e.conversation?.fromMe !== true),
   );
 
-  let enquetes = { processed: 0, duplicates: 0, ignored: 0 };
+  let enquetes = { processed: 0, duplicates: 0, ignored: 0, handled: [] as string[] };
   if (paraEnquetes.length > 0) {
     try {
       enquetes = await processInboundEvents(paraEnquetes, provider, correlationId);
@@ -191,7 +210,39 @@ export async function POST(request: NextRequest, context: { params: Promise<{ se
         outcome: "enquetes falhou",
         reason: error instanceof Error ? error.message : String(error),
       });
+
+      // ⚠️ A ENQUETE FALHOU: NADA VAI PARA O ROBÔ nesta volta.
+      //
+      // Sem saber o que ela tratou, a única suposição segura é "tudo". O erro
+      // oposto — o robô respondendo "não entendi" a um voto que a enquete tinha
+      // acabado de registrar — atravessa uma conversa em andamento, e não se
+      // desfaz. Ficar calado, sim: a pessoa reescreve.
+      gravadas = [];
     }
+  }
+
+  // ⚠️ O ROBÔ É O ÚLTIMO DA FILA, e cada um dos três anteriores tem precedência
+  // por uma razão própria: quem pediu para sair não recebe nada, um "3" dentro
+  // de uma enquete é voto, e conversa humana em andamento não se atravessa
+  // (esta última mora em `whatsapp_bot_should_answer`).
+  //
+  // ⚠️ E ELE RESPONDE DEPOIS DO 200. A classificação chama um modelo, e a
+  // resposta da Bolsa são duas chamadas ao fornecedor (imagem e PDF), cada uma
+  // com uma retentativa possível. São segundos, às vezes mais de dez. A Z-API
+  // considera "não recebi" o que demora, e reentregaria o payload no meio da
+  // nossa própria resposta. É o §39, e o `after` já era usado aqui pelo mesmo
+  // motivo com os anexos.
+  //
+  // O robô vem ANTES do download de anexo nesta ordem de propósito: há uma
+  // pessoa esperando a resposta, e não há ninguém esperando a foto aparecer na
+  // caixa de entrada.
+  const paraRobo = gravadas.filter((m) => !tratados.has(m.eventId));
+  const jaTratados = new Set([...tratados, ...enquetes.handled]);
+
+  if (paraRobo.length > 0) {
+    after(async () => {
+      await processChatbotMessages(paraRobo, jaTratados, provider, correlationId);
+    });
   }
 
   // O anexo baixa DEPOIS da resposta. Ver `downloadPendingMedia`: um áudio de
@@ -208,6 +259,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ se
     events: eventos.length,
     surveys: enquetes.processed,
     optOuts: optOut.registered,
+    // Quantas ficaram PARA o robô. O que ele fez com elas acontece depois desta
+    // resposta e sai no log, com o mesmo `correlationId`.
+    chatbot: paraRobo.length,
   });
 }
 

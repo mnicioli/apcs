@@ -19,10 +19,11 @@ import type { IntentName, ToolName } from "@/modules/intelligence/intent.types";
 /**
  * O ENCANAMENTO — contexto → interpretação → decisão → ferramenta → resposta.
  *
- * ⚠️ ELE NÃO ENVIA NADA. Devolve a resposta pronta e quem a coloca no WhatsApp
- * é o webhook — que é o PROMPT 2/3. A separação não é burocracia: assim toda a
- * conversa é testável sem fornecedor, sem rede e sem número de telefone, do
- * mesmo jeito que `src/lib/chat/engine.ts` já é.
+ * ⚠️ ELE NÃO ENVIA NADA, e continua não enviando. Devolve a resposta pronta;
+ * quem a coloca no WhatsApp é `deliver.ts`, chamado por
+ * `intelligence-inbox.ts`. A separação não é burocracia: assim toda a conversa
+ * é testável sem fornecedor, sem rede e sem número de telefone, do mesmo jeito
+ * que `src/lib/chat/engine.ts` já é.
  *
  * ⚠️ E ELE NÃO DECIDE NADA. Quem decide é `router.ts`, que é puro. Este arquivo
  * só executa a decisão e cuida do que tem I/O: ler o contexto, chamar o modelo,
@@ -49,17 +50,34 @@ export interface HandleMessageInput {
   correlationId: string;
 }
 
-export interface BotReply {
+/** O que sai do turno antes de a trilha ser gravada. */
+interface Resposta {
   /** O texto a enviar. Nunca vazio. */
   body: string;
   attachments: ToolAttachment[];
-  /**
-   * `true` quando a conversa passou para uma pessoa (§31).
-   *
-   * Quem chama decide o que fazer com isso — hoje, marcar a conversa como não
-   * lida na caixa de entrada é o que já basta para aparecer para o atendente.
-   */
   handoff: boolean;
+}
+
+/**
+ * A resposta pronta, mais o que a trilha precisa para fechar a corrente do §46.
+ *
+ * `handoff` vem de `Resposta`: `true` quando a conversa passou para uma pessoa
+ * (§31). Quem chama decide o que fazer com isso — hoje, calar o robô naquela
+ * conversa (`pauseBot`) e deixar o contador de não lidas de pé, que é o que faz
+ * a conversa aparecer para o atendente.
+ */
+export interface BotReply extends Resposta {
+  /**
+   * A linha da trilha deste turno, para amarrar a resposta que sair (§46).
+   *
+   * `null` quando o registro falhou. Registrar é importante; não é mais
+   * importante que responder — ver `recordInteraction`.
+   */
+  interactionId: number | null;
+  /** Para o log de quem entrega. Vocabulário fechado, nunca texto da pessoa. */
+  intent: IntentName;
+  tool: ToolName | null;
+  outcome: InteractionOutcome;
 }
 
 /** O desfecho de uma ferramenta, no vocabulário da trilha. */
@@ -125,10 +143,12 @@ export async function handleIncomingMessage(input: HandleMessageInput): Promise<
    */
   await saveContext(input.chatId, decision.kind === "handoff" ? EMPTY_CONTEXT : proximoContexto);
 
-  await recordInteraction({
+  const intent = intencaoDe(decision);
+
+  const interactionId = await recordInteraction({
     chatId: input.chatId,
     messageId: input.messageId,
-    intent: intencaoDe(decision),
+    intent,
     confidence: confianca,
     tool,
     outcome,
@@ -137,7 +157,7 @@ export async function handleIncomingMessage(input: HandleMessageInput): Promise<
     correlationId: input.correlationId,
   });
 
-  return reply;
+  return { ...reply, interactionId, intent, tool, outcome };
 }
 
 /** A intenção que a trilha registra para esta decisão. */
@@ -153,7 +173,7 @@ async function executar(
   decision: RouterDecision,
   input: HandleMessageInput,
   mensagens: Awaited<ReturnType<typeof loadChatbotMessages>>,
-): Promise<{ reply: BotReply; outcome: InteractionOutcome; tool: ToolName | null }> {
+): Promise<{ reply: Resposta; outcome: InteractionOutcome; tool: ToolName | null }> {
   switch (decision.kind) {
     case "message":
       return {
@@ -204,7 +224,7 @@ async function executar(
 function respostaDaFerramenta(
   resultado: ToolResult,
   mensagens: Awaited<ReturnType<typeof loadChatbotMessages>>,
-): BotReply {
+): Resposta {
   switch (resultado.status) {
     case "ok":
       return { body: resultado.body, attachments: resultado.attachments, handoff: false };

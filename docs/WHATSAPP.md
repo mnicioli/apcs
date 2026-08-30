@@ -243,14 +243,28 @@ Escrito para ninguém procurar:
 - **Não importa o histórico.** A caixa começa do zero. A Z-API tem um endpoint
   de lista de conversas, mas ela **não devolve a transcrição** — importar traria
   nomes e uma última mensagem, sem o diálogo.
-- **Não envia mídia.** Recebe e exibe; o envio pelo CRM é só texto.
+- **Não envia mídia _pela tela_.** Recebe e exibe; a resposta que o atendente
+  digita no CRM é só texto. (O robô manda imagem e PDF, por outro caminho — ver
+  o item seguinte.)
 - **Não mexe no "lido" do aparelho.** `unread_count` é do CRM e responde "alguém
   do time já olhou isto?". O do celular responde outra coisa.
 - **Não tem atribuição nem fila.** Não há "assumir conversa" como na Central de
   Atendimento. As colunas para isso não existem — quando existirem, entram por
   migration.
-- **Não responde sozinho.** O bot de enquete continua respondendo pelo caminho
-  dele (`survey-inbox`); a caixa só registra o que ele disse.
+
+  ⚠️ Desde `20260915000000_whatsapp_bot.sql` existe uma coisa **menor** e que não
+  é atribuição: `bot_paused_until`, a resposta a "o robô deve falar agora?". É
+  uma data, não um dono. Quando a atribuição chegar, ela substitui a checagem de
+  pausa dentro de `whatsapp_bot_should_answer`.
+
+- **A caixa não responde sozinha — o robô responde, e ela registra.** Desde a
+  Etapa 3 da Inteligência, mensagens que sobram do opt-out e das Enquetes vão
+  para `intelligence-inbox.ts`, que classifica e responde. Tudo que ele manda
+  entra aqui como `origin = 'bot'`, e uma resposta do atendente (ou do celular)
+  o cala por uma hora. Ver [INTELIGENCIA.md](./INTELIGENCIA.md), seção 11.
+
+  ⚠️ O robô **não zera** `unread_count`. Ele responder não é o time ter lido — e
+  a conversa continua acesa na aba "Não lidas" até alguém abrir.
 
 ---
 

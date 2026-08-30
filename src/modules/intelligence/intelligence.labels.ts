@@ -123,3 +123,14 @@ export const INTELLIGENCE_OUTCOME_LABELS = {
 export function intentLabel(intent: IntentName, registry: Record<IntentName, { label: string }>) {
   return registry[intent].label;
 }
+
+/**
+ * O nome de arquivo que aparece quando não há nome.
+ *
+ * ⚠️ NÃO DEVERIA ACONTECER — as portas de chatbot sempre trazem o nome
+ * original do arquivo. Existe porque `fileName` é opcional no anexo (a imagem
+ * da Bolsa não tem nome), e um documento chegando aqui sem nome não pode virar
+ * legenda vazia: `whatsapp_start_bot_message` recusa corpo em branco, e o envio
+ * inteiro pararia por causa de um rótulo.
+ */
+export const BOT_UNNAMED_FILE = "Documento da APCS";
