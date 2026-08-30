@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   IMAGE_SIGNED_URL_TTL_SECONDS,
   MARKET_BUCKET,
@@ -22,12 +22,22 @@ import type { MarketBulletinChatbotView } from "@/modules/market/market.types";
  * serve: um boletim de PREÇO desatualizado citado como se fosse o vigente é pior
  * do que "não tenho essa informação agora".
  *
- * ⚠️ AINDA NÃO ESTÁ LIGADA AO MOTOR DO CHAT, e isso é deliberado: hoje todo texto
- * do bot sai do catálogo aprovado em `csp.content.ts`, sem etapa de consulta.
- * Quando essa etapa existir, ela roda ANÔNIMA — `/api/chat` é público e a RLS de
- * `market_bulletins` exige papel autenticado —, então precisará de um cliente
- * `service_role` no servidor e tem de entrar por AQUI. Uma segunda consulta em
- * outro lugar é como as duas entradas divergem no dia em que a regra mudar.
+ * ⚠️ CLIENTE `service_role`, E É OBRIGATÓRIO — não é atalho.
+ *
+ * Quem chama esta porta é o robô, que é ANÔNIMO: não há `auth.uid()`, não há
+ * papel, e a RLS de `market_bulletins` exige papel autenticado. Com o cliente
+ * do usuário (`@/lib/supabase/server`), como este arquivo nasceu, TODA consulta
+ * daqui volta vazia — e o sintoma seria o pior possível: o bot respondendo "não
+ * há boletim disponível" com o boletim publicado e ativo na tela.
+ *
+ * O mesmo vale para as URLs assinadas: a policy do bucket `market` exige papel,
+ * então assinar com o cliente anônimo falharia depois de a consulta ter dado
+ * certo — meia resposta, que é o que `toView` já se recusa a devolver.
+ *
+ * ⚠️ O QUE AUTORIZA ISSO NÃO É ESTE COMENTÁRIO: é o fato de esta função só
+ * conseguir LER, e só linhas que passam pelas três condições acima. Não existe
+ * caminho aqui que escreva, nem parâmetro que relaxe o filtro. É o mesmo
+ * desenho de `lecture-chatbot.ts` e `survey-chatbot.ts`, que já nasceram assim.
  */
 
 /** Só o que o chatbot precisa. O resto da linha nunca sai do servidor. */
@@ -57,7 +67,7 @@ interface ChatbotRow {
  * hoje, que é exatamente o problema que ela existe para resolver.
  */
 async function businessToday(): Promise<string | null> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase.rpc("event_today");
 
   if (error) {
@@ -69,7 +79,7 @@ async function businessToday(): Promise<string | null> {
 }
 
 async function toView(row: ChatbotRow): Promise<MarketBulletinChatbotView | null> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const [image, pdf] = await Promise.all([
     supabase.storage
@@ -110,7 +120,7 @@ export async function getBulletinForChatbot(
   const today = await businessToday();
   if (!today) return null;
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("market_bulletin_versions")
@@ -136,6 +146,40 @@ export async function getBulletinForChatbot(
 }
 
 /**
+ * As Bolsas que o robô PODE citar agora.
+ *
+ * ⚠️ NÃO É A LISTA DE BOLSAS — é a lista das que têm publicação entregável: as
+ * três condições do cabeçalho, todas. O roteador usa isto para o caso mais
+ * comum de todos, que é a pessoa escrever "me manda a bolsa" sem dizer qual.
+ *
+ * Com UMA disponível, não há ambiguidade e ela é a resposta. Com mais de uma, o
+ * robô tem de perguntar — e é melhor perguntar do que mandar a errada.
+ */
+export async function listChatbotBulletins(): Promise<{ id: string; name: string }[]> {
+  const today = await businessToday();
+  if (!today) return [];
+
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("market_bulletin_versions")
+    .select("bulletin:market_bulletins!inner (id, name, chatbot_enabled)")
+    .eq("status", "active")
+    .lte("effective_date", today)
+    .eq("bulletin.chatbot_enabled", true)
+    .returns<{ bulletin: { id: string; name: string } }[]>();
+
+  if (error) {
+    console.error(`[market-chatbot] listChatbotBulletins falhou: ${error.message}`);
+    throw error;
+  }
+
+  return (data ?? [])
+    .map((row) => ({ id: row.bulletin.id, name: row.bulletin.name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/**
  * A mesma porta, procurando pelo NOME.
  *
  * Existe porque o chatbot vai perguntar por "Bolsa de Suínos", não por uuid —
@@ -148,7 +192,7 @@ export async function getBulletinForChatbot(
 export async function getBulletinForChatbotByName(
   name: string,
 ): Promise<MarketBulletinChatbotView | null> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("market_bulletins")

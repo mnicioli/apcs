@@ -23,8 +23,23 @@ import type { EventSegment } from "./event.types";
  * `EventAudienceSource` e nada mais neste módulo muda.
  */
 
-/** Por que a audiência não pôde ser resolvida. Hoje só existe um motivo. */
-export type AudienceUnavailableReason = "no-associate-registry";
+/**
+ * Por que a audiência não pôde ser resolvida.
+ *
+ * ⚠️ OS DOIS MOTIVOS SÃO DIFERENTES PARA QUEM ATENDE:
+ *
+ *   `no-associate-registry`  o sistema não tem de onde tirar a resposta. É
+ *                            problema de configuração, e nenhuma ação de quem
+ *                            está conversando resolve.
+ *   `unknown-member`         o sistema sabe consultar e NÃO reconheceu esta
+ *                            pessoa. É o caso comum de quem escreve para a APCS
+ *                            sem estar no cadastro — e a saída é atendimento
+ *                            humano, ou a filiação.
+ *
+ * Colapsar os dois faria o bot mandar um associado legítimo falar com o suporte
+ * técnico, ou mandar um desconhecido esperar por um conserto que não existe.
+ */
+export type AudienceUnavailableReason = "no-associate-registry" | "unknown-member";
 
 /**
  * O resultado de uma consulta à origem de associados.

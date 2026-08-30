@@ -25,6 +25,28 @@ import {
  */
 
 /**
+ * QUEM FAZ A LEITURA — e por padrão é sempre o cliente do usuário.
+ *
+ * ⚠️ ESTA COSTURA EXISTE PARA UM CONSUMIDOR SÓ: `event-chatbot.ts`. O robô é
+ * ANÔNIMO — sem `auth.uid()`, sem papel —, e a RLS de `events` exige papel
+ * autenticado. Sem poder trocar o leitor, aquele arquivo teria de repetir aqui
+ * a consulta inteira com `service_role`: a mesma cláusula de status, a mesma de
+ * data, a mesma ordenação e a mesma assinatura de imagem, em dois lugares. É
+ * assim que as duas entradas divergem no dia em que a regra mudar.
+ *
+ * ⚠️ O PARÂMETRO É OPCIONAL E O PADRÃO É SEGURO. Toda tela do CRM chama sem
+ * argumento nenhum e continua passando pela RLS; só quem PASSA um leitor
+ * explícito escapa dela — e passar `service_role` é uma linha visível no
+ * arquivo de quem passou, não um efeito colateral escondido aqui.
+ *
+ * As funções que aceitam o parâmetro são as duas que o robô usa: `getEvent` e
+ * `getAvailableEvents`. As demais (grid, trilha, audiência) NÃO aceitam, de
+ * propósito: nenhuma delas tem consumidor anônimo, e abrir a costura onde ela
+ * não é necessária é convidar o próximo a usá-la sem precisar.
+ */
+export type EventReader = Awaited<ReturnType<typeof createClient>>;
+
+/**
  * Teto de leitura POR LADO da grid — os que estão por vir e os que já passaram.
  *
  * O projeto não tem paginação server-side em módulo nenhum, e não é aqui que
@@ -149,11 +171,14 @@ function toEvent(row: EventRow, imageUrl: string | null): EventSummary {
  * Uma grid com a imagem faltando ainda responde "que eventos existem"; uma
  * grid que não carrega não responde nada.
  */
-async function signImageUrls(paths: string[]): Promise<Map<string, string>> {
+async function signImageUrls(paths: string[], leitor?: EventReader): Promise<Map<string, string>> {
   const urls = new Map<string, string>();
   if (paths.length === 0) return urls;
 
-  const supabase = await createClient();
+  // ⚠️ O LEITOR TEM DE CHEGAR ATÉ AQUI. A policy do bucket `events` exige papel,
+  // então assinar com o cliente anônimo falharia DEPOIS de a consulta ter dado
+  // certo — o robô anunciaria o evento e não conseguiria mandar o cartaz.
+  const supabase = leitor ?? (await createClient());
   const { data, error } = await supabase.storage
     .from(EVENTS_BUCKET)
     .createSignedUrls(paths, IMAGE_SIGNED_URL_TTL_SECONDS);
@@ -170,8 +195,11 @@ async function signImageUrls(paths: string[]): Promise<Map<string, string>> {
   return urls;
 }
 
-async function toEvents(rows: EventRow[]): Promise<EventSummary[]> {
-  const urls = await signImageUrls(rows.map((row) => row.image_path));
+async function toEvents(rows: EventRow[], leitor?: EventReader): Promise<EventSummary[]> {
+  const urls = await signImageUrls(
+    rows.map((row) => row.image_path),
+    leitor,
+  );
   return rows.map((row) => toEvent(row, urls.get(row.image_path) ?? null));
 }
 
@@ -241,8 +269,11 @@ export async function listEvents(
 }
 
 /** Um evento pelo id, ou `null` se não existir (ou a RLS o esconder). */
-export async function getEvent(eventId: string): Promise<EventSummary | null> {
-  const supabase = await createClient();
+export async function getEvent(
+  eventId: string,
+  leitor?: EventReader,
+): Promise<EventSummary | null> {
+  const supabase = leitor ?? (await createClient());
 
   const { data, error } = await supabase
     .from("events")
@@ -257,7 +288,7 @@ export async function getEvent(eventId: string): Promise<EventSummary | null> {
   }
   if (!data) return null;
 
-  const [event] = await toEvents([data]);
+  const [event] = await toEvents([data], leitor);
   return event ?? null;
 }
 
@@ -387,13 +418,16 @@ function rowMatchesSegments(row: EventRow, segmentSlugs: readonly string[]): boo
  * A resolução "público → quais associados" NÃO existe: não há cadastro de
  * associados neste banco. Ver `event.audience.ts` e docs/EVENTS.md.
  */
-export async function getAvailableEvents(options?: {
-  segmentSlugs?: readonly string[];
-  limit?: number;
-  /** Teto de data, para "esta semana" / "próximos 30 dias". AAAA-MM-DD. */
-  untilDate?: string;
-}): Promise<EventSummary[]> {
-  const supabase = await createClient();
+export async function getAvailableEvents(
+  options?: {
+    segmentSlugs?: readonly string[];
+    limit?: number;
+    /** Teto de data, para "esta semana" / "próximos 30 dias". AAAA-MM-DD. */
+    untilDate?: string;
+  },
+  leitor?: EventReader,
+): Promise<EventSummary[]> {
+  const supabase = leitor ?? (await createClient());
 
   const { data: today, error: todayError } = await supabase.rpc("event_today");
   if (todayError) {
@@ -434,7 +468,7 @@ export async function getAvailableEvents(options?: {
 
   // O recorte vem ANTES de assinar as URLs: assinar a varredura inteira para
   // devolver dez eventos seria pagar vinte vezes pelo que se usa.
-  return toEvents(eligible.slice(0, limit));
+  return toEvents(eligible.slice(0, limit), leitor);
 }
 
 /**

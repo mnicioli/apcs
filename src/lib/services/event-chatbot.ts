@@ -1,10 +1,8 @@
 import "server-only";
-import { getAvailableEvents, getEvent } from "@/lib/services/events";
-import {
-  NO_ASSOCIATE_REGISTRY,
-  type EventAudience,
-  type EventAudienceSource,
-} from "@/modules/event/event.audience";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { MEMBERS_REGISTRY } from "@/lib/services/event-audience";
+import { getAvailableEvents, getEvent, type EventReader } from "@/lib/services/events";
+import { type EventAudience, type EventAudienceSource } from "@/modules/event/event.audience";
 import {
   clampChatbotLimit,
   compareChatbotEvents,
@@ -21,26 +19,38 @@ import {
  * chama estas funções e recebe `ChatbotEvent` — uma lista fechada de campos,
  * sem nome de funcionário, sem status cru, sem carimbo administrativo.
  *
- * ⚠️ AINDA NÃO ESTÁ LIGADA AO `decide.ts`, e isso é deliberado: hoje todo texto
- * do bot sai do catálogo aprovado em `csp.content.ts`, sem etapa de consulta.
- * Quando essa etapa existir, ela roda ANÔNIMA — `/api/chat` é público e a RLS
- * de `events` exige papel autenticado —, então precisará de um cliente
- * `service_role` no servidor e tem de entrar por aqui. Ver docs/EVENTS.md.
+ * ⚠️ TODA LEITURA DAQUI PASSA PELO `service_role`, E É OBRIGATÓRIO.
  *
- * ⚠️ E NÃO EXISTE CADASTRO DE ASSOCIADOS. As funções que recebem `associateId`
- * devolvem `unknown-audience` até que uma `EventAudienceSource` real exista —
- * elas não inventam elegibilidade nem fingem que ninguém é elegível.
+ * Quem chama é o robô, que é ANÔNIMO: sem `auth.uid()`, sem papel, e a RLS de
+ * `events` exige papel autenticado. Este arquivo nasceu delegando para
+ * `getAvailableEvents`/`getEvent` com o cliente do USUÁRIO — ligado assim, ele
+ * devolveria lista vazia SEMPRE, e o sintoma seria o bot dizendo "não há
+ * eventos" com a agenda cheia na tela ao lado.
+ *
+ * O leitor é passado explicitamente (`EventReader`) em vez de duplicar a
+ * consulta aqui: a cláusula de status, a de data, a ordenação e a assinatura da
+ * imagem continuam existindo em UM lugar só.
  */
 
 /**
  * De onde sai "a que segmentos esta pessoa pertence".
  *
- * Uma função, e não uma constante, porque é aqui que a troca acontece no dia em
- * que houver cadastro: um `if` de configuração, e todo o resto do módulo segue
- * igual.
+ * ⚠️ ERA `NO_ASSOCIATE_REGISTRY` — a implementação que admite não saber —
+ * porque em agosto não havia cadastro de associados. Há desde
+ * `20260821000000_create_membership.sql`, e `event.audience.ts` prometia
+ * exatamente isto: "no dia em que o cadastro existir, escreve-se uma
+ * implementação e nada mais neste módulo muda". Nada mais mudou.
+ *
+ * Continua sendo uma função, e não uma constante, porque é aqui que a troca
+ * acontece — e o dia em que houver uma segunda origem, é um `if` neste corpo.
  */
 function audienceSource(): EventAudienceSource {
-  return NO_ASSOCIATE_REGISTRY;
+  return MEMBERS_REGISTRY;
+}
+
+/** O leitor do robô. Ver o aviso no topo do arquivo. */
+function chatbotReader(): EventReader {
+  return createAdminClient() as unknown as EventReader;
 }
 
 export interface ChatbotEventQuery {
@@ -65,11 +75,14 @@ export async function getAvailableEventsForSegments(
 ): Promise<ChatbotEvent[]> {
   if (segmentSlugs.length === 0) return [];
 
-  const events = await getAvailableEvents({
-    segmentSlugs,
-    limit: clampChatbotLimit(query.limit),
-    untilDate: query.untilDate,
-  });
+  const events = await getAvailableEvents(
+    {
+      segmentSlugs,
+      limit: clampChatbotLimit(query.limit),
+      untilDate: query.untilDate,
+    },
+    chatbotReader(),
+  );
 
   // O SQL já filtrou por status, data e segmento. Este `map` existe para o
   // recorte de campos; a ordenação vem do banco e é reafirmada aqui para o
@@ -89,7 +102,7 @@ export async function getEventForSegments(
   eventId: string,
   segmentSlugs: readonly string[],
 ): Promise<ChatbotEventResult> {
-  const event = await getEvent(eventId);
+  const event = await getEvent(eventId, chatbotReader());
   if (!event) return { status: "unavailable" };
 
   const today = await currentEventDate();
@@ -99,12 +112,16 @@ export async function getEventForSegments(
 }
 
 /**
- * A listagem por associado — o que o chatbot vai chamar de verdade.
+ * A listagem por associado — o que o chatbot chama de verdade.
  *
- * Hoje devolve `unknown-audience` porque não há de onde tirar os segmentos de
- * uma pessoa. **Isso não é uma lista vazia**: "não sei quem você é" e "não há
- * eventos para você" são respostas diferentes, e o bot precisa saber qual das
- * duas deu — uma pede encaminhamento para atendimento humano, a outra não.
+ * ⚠️ `unknown-audience` NÃO É LISTA VAZIA, e é a razão de os dois estados
+ * existirem. "Não sei quem você é" e "não há eventos para você" pedem respostas
+ * diferentes do bot: a primeira é encaminhamento (ou convite à filiação), a
+ * segunda é só a agenda estando vazia para aquele público.
+ *
+ * Desde `20260914000000_event_audience_members.sql` o primeiro caso é raro e
+ * significa o que diz: o telefone que escreveu não está no cadastro, ou o
+ * associado está inativo.
  */
 export async function getAvailableEventsForAssociate(
   associateId: string,
@@ -145,7 +162,7 @@ export async function getEventForAssociate(
  * "enviar para ninguém" e reportar sucesso nos dois casos.
  */
 export async function resolveEventAudience(eventId: string): Promise<EventAudience> {
-  const event = await getEvent(eventId);
+  const event = await getEvent(eventId, chatbotReader());
   if (!event) return { status: "not-found" };
   if (event.segments.length === 0) return { status: "no-segments" };
 
@@ -168,8 +185,7 @@ export async function resolveEventAudience(eventId: string): Promise<EventAudien
 
 /** O "hoje" oficial da APCS, lido do banco (a Vercel roda em UTC). */
 async function currentEventDate(): Promise<string> {
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase.rpc("event_today");
   if (error) {

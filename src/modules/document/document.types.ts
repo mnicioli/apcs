@@ -86,6 +86,30 @@ export interface DocumentDetail extends DocumentSummary {
   versions: DocumentVersion[];
 }
 
+/**
+ * O QUE O CHATBOT RECEBE — e é bem menos do que uma `DocumentVersion`.
+ *
+ * ⚠️ TIPO PRÓPRIO, e não a versão completa, pelo mesmo motivo que
+ * `MarketBulletinChatbotView` existe: o robô precisa de uma coisa que a versão
+ * não tem (a URL do arquivo) e não precisa de quase nada que ela tem (quem
+ * ativou, quando desativou, o tamanho em bytes, o número da versão).
+ *
+ * `pdfUrl` é assinada e de vida curta. Ela existe aqui porque quem recebe a
+ * normativa no WhatsApp não tem login no CRM — um link para tela autenticada
+ * seria um beco sem saída. Ver `OutboundDocumentMessage` em messaging.types.ts.
+ */
+export interface DocumentChatbotView {
+  documentId: string;
+  category: DocumentCategory;
+  /** O nome do cadastro ("Selo Suíno Paulista"), não o do arquivo. */
+  name: string;
+  version: number;
+  effectiveDate: string;
+  /** Como o arquivo aparece na conversa. Com a extensão. */
+  fileName: string;
+  pdfUrl: string;
+}
+
 /** Filtros da grid, lidos da URL. */
 export interface DocumentFilters {
   /** Busca parcial por nome. String vazia = sem filtro. */

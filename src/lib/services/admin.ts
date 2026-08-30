@@ -347,6 +347,9 @@ export const SETTING_FALLBACKS: Record<SettingKey, string> = {
   [SETTING_KEYS.chatbotHumanHandoff]:
     "Certo! Já avisei a equipe da APCS. Alguém vai falar com você por aqui mesmo, " +
     "no horário de atendimento.",
+  [SETTING_KEYS.chatbotUnidentified]:
+    "Não encontrei este número no cadastro de associados da APCS, e a agenda de eventos " +
+    "depende disso. Posso encaminhar você para um atendente?",
 };
 
 export function readSetting(settings: Map<string, string>, key: SettingKey): string {

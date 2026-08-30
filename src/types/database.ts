@@ -542,6 +542,44 @@ export type Database = {
           },
         ];
       };
+      conversation_context: {
+        Row: {
+          current_intent: string | null;
+          current_subject: string | null;
+          expires_at: string | null;
+          pending_intent: string | null;
+          pending_subject: string | null;
+          updated_at: string;
+          whatsapp_chat_id: string;
+        };
+        Insert: {
+          current_intent?: string | null;
+          current_subject?: string | null;
+          expires_at?: string | null;
+          pending_intent?: string | null;
+          pending_subject?: string | null;
+          updated_at?: string;
+          whatsapp_chat_id: string;
+        };
+        Update: {
+          current_intent?: string | null;
+          current_subject?: string | null;
+          expires_at?: string | null;
+          pending_intent?: string | null;
+          pending_subject?: string | null;
+          updated_at?: string;
+          whatsapp_chat_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "conversation_context_whatsapp_chat_id_fkey";
+            columns: ["whatsapp_chat_id"];
+            isOneToOne: true;
+            referencedRelation: "whatsapp_chats";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       csp_leads: {
         Row: {
           city: string;
@@ -1087,6 +1125,63 @@ export type Database = {
             columns: ["updated_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      intelligence_interactions: {
+        Row: {
+          confidence: number | null;
+          correlation_id: string | null;
+          created_at: string;
+          id: number;
+          intent: string;
+          latency_ms: number | null;
+          outcome: Database["public"]["Enums"]["intelligence_outcome"];
+          subject: string | null;
+          tool: string | null;
+          whatsapp_chat_id: string | null;
+          whatsapp_message_id: string | null;
+        };
+        Insert: {
+          confidence?: number | null;
+          correlation_id?: string | null;
+          created_at?: string;
+          id?: never;
+          intent: string;
+          latency_ms?: number | null;
+          outcome: Database["public"]["Enums"]["intelligence_outcome"];
+          subject?: string | null;
+          tool?: string | null;
+          whatsapp_chat_id?: string | null;
+          whatsapp_message_id?: string | null;
+        };
+        Update: {
+          confidence?: number | null;
+          correlation_id?: string | null;
+          created_at?: string;
+          id?: never;
+          intent?: string;
+          latency_ms?: number | null;
+          outcome?: Database["public"]["Enums"]["intelligence_outcome"];
+          subject?: string | null;
+          tool?: string | null;
+          whatsapp_chat_id?: string | null;
+          whatsapp_message_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "intelligence_interactions_whatsapp_chat_id_fkey";
+            columns: ["whatsapp_chat_id"];
+            isOneToOne: false;
+            referencedRelation: "whatsapp_chats";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "intelligence_interactions_whatsapp_message_id_fkey";
+            columns: ["whatsapp_message_id"];
+            isOneToOne: false;
+            referencedRelation: "whatsapp_messages";
             referencedColumns: ["id"];
           },
         ];
@@ -3709,6 +3804,10 @@ export type Database = {
         Args: { p_criteria: Json };
         Returns: number;
       };
+      event_segments_for_member: {
+        Args: { p_member_id: string };
+        Returns: string[];
+      };
       event_today: { Args: never; Returns: string };
       expand_event_segments: {
         Args: { p_segment_ids: string[] };
@@ -4002,6 +4101,10 @@ export type Database = {
           opted_out_at: string;
           source: string;
         }[];
+      };
+      members_in_event_segments: {
+        Args: { p_slugs: string[] };
+        Returns: string[];
       };
       membership_ip_hourly_limit: { Args: never; Returns: number };
       membership_is_reader: { Args: never; Returns: boolean };
@@ -5296,6 +5399,13 @@ export type Database = {
         | "error"
         | "blocked";
       event_status: "active" | "inactive";
+      intelligence_outcome:
+        | "tool_ok"
+        | "tool_empty"
+        | "tool_error"
+        | "confirmed"
+        | "message"
+        | "handoff";
       knowledge_status: "active" | "inactive";
       lead_status: "new" | "in_contact" | "qualified" | "discarded";
       lecture_audit_action:
@@ -5603,6 +5713,14 @@ export const Constants = {
         "blocked",
       ],
       event_status: ["active", "inactive"],
+      intelligence_outcome: [
+        "tool_ok",
+        "tool_empty",
+        "tool_error",
+        "confirmed",
+        "message",
+        "handoff",
+      ],
       knowledge_status: ["active", "inactive"],
       lead_status: ["new", "in_contact", "qualified", "discarded"],
       lecture_audit_action: [

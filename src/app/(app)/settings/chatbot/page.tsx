@@ -53,16 +53,18 @@ export default async function SettingsChatbotPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="border-border bg-muted/40 text-muted-foreground rounded-lg border px-4 py-3 text-sm">
-            As três primeiras parecem a mesma coisa e não são. <strong>Não entendi</strong> é o robô
-            sem saber o que a pessoa quer; <strong>nada publicado</strong> é ele tendo entendido e a
+            As quatro parecem a mesma coisa e não são. <strong>Não entendi</strong> é o robô sem
+            saber o que a pessoa quer; <strong>nada publicado</strong> é ele tendo entendido e a
             APCS não ter o que enviar agora; <strong>falha na consulta</strong> é o sistema com
-            problema. Textos iguais nos três fariam a equipe atender sem saber qual dos três
-            aconteceu.
+            problema; <strong>telefone não reconhecido</strong> é a resposta depender de saber quem
+            está perguntando. Textos iguais fariam a equipe atender sem saber qual dos quatro
+            aconteceu — e cada um é trabalho de uma pessoa diferente.
           </div>
 
           {campo(SETTING_KEYS.chatbotFallback)}
           {campo(SETTING_KEYS.chatbotNoResult)}
           {campo(SETTING_KEYS.chatbotError)}
+          {campo(SETTING_KEYS.chatbotUnidentified)}
         </CardContent>
       </Card>
 

@@ -158,75 +158,19 @@ export async function getDocument(documentId: string): Promise<DocumentDetail | 
   return { ...toSummary(data, versions), versions };
 }
 
-/**
- * A PORTA DO CHATBOT — a versão oficial de uma normativa, ou `null`.
+/*
+ * ⚠️ AS DUAS PORTAS DO CHATBOT SAÍRAM DAQUI em 20260913 (Etapa 2 do módulo
+ * Inteligência) e agora moram em `document-chatbot.ts`.
  *
- * Só devolve a versão que está `active` E `available_for_chatbot`. Não existe
- * caminho aqui que devolva "a mais recente" ou "a de maior número": citar uma
- * normativa revogada é pior do que não responder.
+ * `getActiveChatbotVersion` e `getActiveChatbotVersionByName` usavam o cliente
+ * do USUÁRIO — o mesmo deste arquivo — para atender um consumidor ANÔNIMO. A
+ * RLS de `document_versions` exige papel autenticado, então ligadas como
+ * estavam elas devolveriam vazio SEMPRE, e o sintoma seria o robô dizendo "não
+ * encontrei essa normativa" com a normativa publicada e ativa na tela.
  *
- * `null` NÃO significa "use a anterior". Significa que não há documento oficial
- * publicado, e o atendimento deve ser encaminhado para uma pessoa. Quem chama
- * decide isso — ver docs/DOCUMENTS.md.
+ * Não as traga de volta. Um service que mistura o cliente do usuário com o
+ * `service_role` é um service em que a próxima função vai usar o errado — e
+ * esse erro não dá exceção, dá resposta vazia.
  *
- * Ainda não está ligada ao motor do chat: hoje todo texto do bot sai do catálogo
- * aprovado em `src/modules/chat/flows/csp.content.ts`, sem etapa de recuperação
- * de documento. Quando essa etapa existir, ela roda anônima com `service_role`,
- * e a consulta precisa continuar sendo esta — uma só, para as duas entradas não
- * divergirem no dia em que a regra mudar.
+ * `src/test/chatbot-doors.test.ts` reprova quem tentar.
  */
-export async function getActiveChatbotVersion(documentId: string): Promise<DocumentVersion | null> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("document_versions")
-    .select(VERSION_COLUMNS)
-    .eq("document_id", documentId)
-    .eq("status", "active")
-    .eq("available_for_chatbot", true)
-    .returns<VersionRow[]>()
-    .maybeSingle();
-
-  if (error) {
-    console.error(`[documents] getActiveChatbotVersion falhou: ${error.message}`);
-    throw error;
-  }
-
-  return data ? toVersion(data) : null;
-}
-
-/**
- * A mesma porta, procurando pelo NOME dentro de uma categoria.
- *
- * Existe porque o chatbot vai perguntar por "ISP" ou "Revista", não por uuid —
- * ele não conhece (nem deve conhecer) os ids do banco.
- *
- * A comparação ignora caixa pelo mesmo motivo do índice
- * `documents_category_name_key`: "revista" e "Revista" são o mesmo documento, e
- * a unicidade por categoria garante que a busca não fique ambígua.
- *
- * Vale a mesma regra: só devolve versão ATIVA e disponível. `null` significa
- * encaminhar para atendimento humano, nunca "usar a anterior".
- */
-export async function getActiveChatbotVersionByName(
-  category: DocumentCategory,
-  name: string,
-): Promise<DocumentVersion | null> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("documents")
-    .select("id")
-    .eq("category", category)
-    .ilike("name", name.trim())
-    .returns<{ id: string }[]>()
-    .maybeSingle();
-
-  if (error) {
-    console.error(`[documents] getActiveChatbotVersionByName falhou: ${error.message}`);
-    throw error;
-  }
-  if (!data) return null;
-
-  return getActiveChatbotVersion(data.id);
-}

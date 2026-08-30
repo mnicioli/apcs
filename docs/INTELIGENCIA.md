@@ -3,10 +3,13 @@
 Documentação do menu **Inteligência**. Leia antes de mexer no que o chatbot
 responde, e antes de ligar um módulo novo ao robô.
 
-> **Etapa 1 (esta entrega):** Base de Conhecimento + as mensagens configuráveis
-> do chatbot.
-> **Etapa 2 (a seguir):** Intelligence Layer — Intent Router, Tool Registry,
-> contexto da conversa e o log de decisão.
+> **Etapa 1:** Base de Conhecimento + as mensagens configuráveis do chatbot.
+> **Etapa 2:** Intelligence Layer — Intent Router, Tool Registry, contexto da
+> conversa e o log de decisão.
+>
+> As duas estão entregues. O que **não** está é o envio pelo WhatsApp: o motor
+> devolve a resposta pronta (texto + anexos) e quem a coloca na conversa é o
+> webhook, que é o PROMPT 2/3.
 
 ---
 
@@ -29,13 +32,13 @@ Base de Conhecimento acrescenta é a fonte de resposta que faltava — a textual
 
 ## 2. As cinco fontes de resposta, e quem manda em cada uma
 
-| Pergunta do associado            | Fonte                      | Porta do chatbot                        | Regra de publicação                  |
-| -------------------------------- | -------------------------- | --------------------------------------- | ------------------------------------ |
-| "Qual o valor da Bolsa?"         | `market_bulletin_versions` | `market-chatbot.ts`                     | ativa + `chatbot_enabled` + vigência |
-| "Me manda a normativa X"         | `document_versions`        | `documents.ts::getActiveChatbotVersion` | ativa + `available_for_chatbot`      |
-| "Que eventos tem?"               | `events`                   | `event-chatbot.ts`                      | visibilidade por segmento            |
-| "Quero uma palestra"             | `lectures`                 | `lecture-chatbot.ts`                    | só CRIA solicitação                  |
-| "Qual o horário de atendimento?" | **`knowledge_entries`**    | **`search_knowledge()`**                | **ativo + liberado + vigência**      |
+| Pergunta do associado            | Fonte                      | Porta do chatbot       | Regra de publicação                  |
+| -------------------------------- | -------------------------- | ---------------------- | ------------------------------------ |
+| "Qual o valor da Bolsa?"         | `market_bulletin_versions` | `market-chatbot.ts`    | ativa + `chatbot_enabled` + vigência |
+| "Me manda a normativa X"         | `document_versions`        | `document-chatbot.ts`  | ativa + `available_for_chatbot`      |
+| "Que eventos tem?"               | `events`                   | `event-chatbot.ts`     | visibilidade por segmento            |
+| "Quero uma palestra"             | `lectures`                 | `lecture-chatbot.ts`   | só CRIA solicitação                  |
+| "Qual o horário de atendimento?" | **`knowledge_entries`**    | `knowledge-chatbot.ts` | **ativo + liberado + vigência**      |
 
 ⚠️ **A Base de Conhecimento não duplica nenhuma das outras quatro.** Ela existe
 para o que não tem dono em lugar nenhum: horário, contato, como funciona um
@@ -161,22 +164,29 @@ confere isso na própria aplicação (seção "A CONFERÊNCIA").
 
 ---
 
-## 7. As cinco frases do chatbot
+## 7. As seis frases do chatbot
 
 Em `/settings/chatbot`, gravadas em `app_settings`:
 
-| Chave                   | Quando aparece                            |
-| ----------------------- | ----------------------------------------- |
-| `chatbot.welcome`       | a pessoa manda "oi"                       |
-| `chatbot.fallback`      | o robô **não entendeu** o pedido          |
-| `chatbot.no_result`     | entendeu, e **não há publicação vigente** |
-| `chatbot.error`         | a consulta **falhou**                     |
-| `chatbot.human_handoff` | pediu para falar com alguém               |
+| Chave                   | Quando aparece                                    |
+| ----------------------- | ------------------------------------------------- |
+| `chatbot.welcome`       | a pessoa manda "oi" — e também quando pede ajuda  |
+| `chatbot.fallback`      | o robô **não entendeu** o pedido                  |
+| `chatbot.no_result`     | entendeu, e **não há publicação vigente**         |
+| `chatbot.error`         | a consulta **falhou**                             |
+| `chatbot.unidentified`  | a resposta depende de saber **quem** está falando |
+| `chatbot.human_handoff` | pediu para falar com alguém                       |
 
-⚠️ **As três do meio parecem a mesma coisa e não são.** Textos iguais nos três
-fariam a equipe atender sem saber qual dos três aconteceu — e o segundo ("não
-temos boletim ativo") é trabalho para quem publica, enquanto o terceiro é
-trabalho para quem cuida do sistema.
+⚠️ **As quatro do meio parecem a mesma coisa e não são**, e cada uma é trabalho
+de uma pessoa diferente: `no_result` é de quem publica, `error` é de quem cuida
+do sistema, `unidentified` é de quem cuida do cadastro, e `fallback` é de quem
+escreve as palavras-chave. Um texto só para todas faria a equipe atender sem
+saber qual dos quatro aconteceu.
+
+⚠️ **Saudação e ajuda compartilham `welcome` de propósito.** A frase de
+boas-vindas É, por construção, a lista do que o robô sabe fazer — que é a
+resposta a "o que você faz?". Um texto de ajuda separado seria uma segunda cópia
+da mesma lista, e a segunda é a que envelhece quando um módulo novo é ligado.
 
 Cada uma tem um padrão escrito no código (`SETTING_FALLBACKS`) para o caso de a
 linha não existir. Um bot sem frase de erro não fica calado: fica mandando
@@ -184,55 +194,146 @@ string vazia, que no WhatsApp é uma mensagem que nem chega a ser enviada.
 
 ---
 
-## 8. Gaps conhecidos e o que vem na Etapa 2
+## 8. A camada de roteamento (Etapa 2)
 
-### G1 — Não existe roteador de intenção fora do CSP
+```
+mensagem
+   |
+   +- tem pergunta pendente?  -> affirmation.ts   (sim/nao, SEM modelo)
+   |                                 |
+   +- nao                      -> classify.ts     (LLM: intent + confianca + assunto)
+                                     |
+                                     v
+                               router.ts   <- puro, testavel, sem I/O
+                                     |
+        +---------------+------------+--------+--------------+
+        v               v                     v              v
+     tools.ts       confirmacao           mensagem        handoff
+   (5 ferramentas)  (faixa media)      (app_settings)      (§31)
+```
 
-`CHAT_INTENTS` são as sete intenções **daquele fluxo**, não do domínio APCS. A
-Etapa 2 traz `intent.registry.ts` e `router.ts`.
+| Peça          | Arquivo                                       | Responsabilidade                     |
+| ------------- | --------------------------------------------- | ------------------------------------ |
+| Registro      | `src/modules/intelligence/intent.registry.ts` | intenção → ferramenta, sensibilidade |
+| Decisão       | `src/modules/intelligence/router.ts`          | **puro**: escolhe o que fazer        |
+| Interpretação | `src/lib/intelligence/classify.ts`            | chama o Claude; devolve JSON         |
+| Sim/não       | `src/lib/intelligence/affirmation.ts`         | determinístico, sem modelo           |
+| Ferramentas   | `src/lib/intelligence/tools.ts`               | consultam as portas de domínio       |
+| Memória       | `src/lib/intelligence/context.ts`             | §28, §29, §30                        |
+| Trilha        | `src/lib/intelligence/log.ts`                 | §26, §36                             |
+| Encanamento   | `src/lib/intelligence/engine.ts`              | banco → modelo → decisão → banco     |
 
-### G2 — As cinco portas de domínio existem e ninguém as chama
+### As três faixas de confiança (§23)
 
-Todas carregam o mesmo comentário: _"ainda não está ligada ao `decide.ts`, e
-isso é deliberado"_. A Etapa 2 traz o `tool.registry.ts` que as chama.
+| Faixa | Consulta                | Ação sensível |
+| ----- | ----------------------- | ------------- |
+| alta  | ≥ 0.75 executa          | ≥ 0.85        |
+| média | ≥ 0.45 confirma         | idem          |
+| baixa | responde com `fallback` | idem          |
 
-### G3 — Sem contexto de conversa no WhatsApp
+⚠️ **A faixa do meio existe por causa do §24.** "Quero saber o valor" não pode
+virar Bolsa automaticamente — pode ser a anuidade. O robô pergunta.
 
-`chat_conversations.collected` é do CSP. O §28 ("e a Câmara Setorial?") exige
-estado persistido por conversa, com expiração (§30). Etapa 2.
+⚠️ **Ação sensível é a que deixa rastro fora do robô**: abrir uma solicitação,
+ou chamar uma pessoa. Consultar o boletim errado custa uma mensagem; chamar um
+atendente por engano custa o tempo de alguém e faz o associado esperar.
 
-### G4 — Sem log de decisão da IA
+⚠️ **Confiança fora de faixa, ou `NaN`, cai em "baixa".** O número vem de um
+modelo, e "não sei ler isto" tem de falhar para o lado que pergunta de novo.
 
-Intent, confiança, ferramenta, resultado (§26/§36) não são registrados em lugar
-nenhum. Etapa 2, referenciando `whatsapp_chats` — **sem** criar uma estrutura
-paralela de conversa (§27).
+### A memória, e por que ela expira
 
-### G5 — Três portas de domínio usam o cliente AUTENTICADO
+`conversation_context` guarda a última intenção e o último assunto **por
+conversa**. É o que faz "E a Câmara Setorial?" — uma frase sem verbo — ser
+compreensível: ela herda a intenção do turno anterior.
 
-`documents.ts`, `market-chatbot.ts` e `event-chatbot.ts` usam
-`@/lib/supabase/server`. O chatbot é **anônimo**: ligadas como estão, as três
-devolvem vazio por RLS. Palestras e Enquetes já usam `@/lib/supabase/admin`.
+⚠️ **A herança sempre CONFIRMA, nunca executa.** É inferência nossa, não leitura
+do modelo; tratá-la como certa faria uma frase solta disparar uma ferramenta.
 
-Está na Etapa 2, e é a primeira coisa dela: sem isso o funil da Bolsa (§15) não
-roda de ponta a ponta, e o Tool Registry teria três ferramentas que aparentam
-funcionar e respondem "não encontrei".
+⚠️ **Trinta minutos** (§30). Curto demais quebra a conversa de WhatsApp, onde a
+pessoa responde quando pode; longo demais faz o robô responder a pergunta de
+ontem.
 
-### G6 — Sem cache, e é uma decisão
+⚠️ **Uma linha por conversa** — a chave primária é o id do chat. Isso é o que
+dispensa rotina de limpeza: a tabela nunca passa do número de conversas.
+
+### O log de decisão
+
+`intelligence_interactions` — uma linha por mensagem processada. Ela **não
+guarda o texto da mensagem** (§35): ele já vive em `whatsapp_messages`, com a
+política de retenção daquele módulo. O que fica aqui é o raciocínio.
+
+⚠️ **`tool_empty` e `tool_error` são valores separados no enum**, e é a decisão
+central da tabela. Mil `tool_empty` são um catálogo desatualizado; mil
+`tool_error` são um incidente. A soma dos dois não distingue nada.
+
+---
+
+## 9. O que ficou de fora, e por quê
+
+### As duas ferramentas de ESCRITA
+
+`solicitar_palestra` e `participar_enquete` **encaminham para uma pessoa** em vez
+de executar. As portas do banco já existem e são estreitas de propósito
+(`create_lecture_request` não tem parâmetro de status; `register_survey_response`
+só registra um voto).
+
+O que falta não é a porta: é o **roteiro** que coleta nome, cidade e contato ao
+longo de vários turnos. Roteiro é `csp.flow.ts` — com slots, ordem e retomada —,
+e não cabe num roteador de um turno só. Espremer as duas numa ferramenta faria o
+robô perguntar tudo de uma vez e falhar na primeira resposta parcial.
+
+É o primeiro item natural de um próximo passo.
+
+### O envio pelo WhatsApp
+
+`handleIncomingMessage` devolve `{ body, attachments, handoff }` e **não envia
+nada**. Quem coloca a resposta na conversa é o webhook — PROMPT 2/3. A separação
+não é burocracia: é o que torna toda a conversa testável sem fornecedor, sem
+rede e sem número de telefone.
+
+Há um detalhe de prazo esperando lá: as URLs assinadas dos anexos duram 5
+minutos (Bolsa e normativa) e 1 hora (imagem de evento). Quem baixa o arquivo é
+o servidor do fornecedor, então a URL precisa continuar válida no momento em que
+**ele** buscar — não no momento em que a montamos. Ver `OutboundDocumentMessage`.
+
+### A precedência das Enquetes (§32)
+
+Quando há enquete em andamento, quem trata a mensagem é `survey-inbox.ts`,
+**antes** do roteador — aquele é um autômato com pergunta corrente e tolerância
+a resposta inválida. O mesmo vale para o opt-out global, que vem antes de tudo.
+
+Essa ordem já existe no webhook da Z-API e precisa continuar existindo quando o
+roteador entrar na fila. Está escrito aqui para não ser redescoberto.
+
+### Sem cache, e é uma decisão
 
 O §38 pede para avaliar cache. A recomendação é **não implementar agora**: a
-elegibilidade depende de datas (`effective_date`, vigência), então um cache
-correto teria de invalidar por relógio e não só por evento — e o próprio §38 diz
-que ele nunca pode devolver conteúdo inativo. Risco assimétrico, ganho
-hipotético até haver volume medido. O ponto de extensão fica; a infraestrutura,
-não.
+elegibilidade depende de datas, então um cache correto teria de invalidar por
+relógio e não só por evento — e o próprio §38 diz que ele nunca pode devolver
+conteúdo inativo. Risco assimétrico, ganho hipotético até haver volume medido.
 
-### G7 — Sem busca semântica, e também é uma decisão
+### Sem busca semântica, e também é uma decisão
 
 `search_knowledge()` casa palavras-chave, título e (para perguntas curtas)
-conteúdo. É determinístico e explicável — a tela de teste mostra exatamente o
-que o robô veria.
+conteúdo. É determinístico e explicável — a tela de teste mostra exatamente o que
+o robô veria.
 
-O §42 pede que a estrutura **comporte** RAG no futuro, não que ele exista agora.
-O caminho, quando houver volume: uma coluna de embedding em `knowledge_entries`
-e um segundo termo no `order by` da mesma função. O contrato de saída
+O §42 pede que a estrutura **comporte** RAG, não que ele exista. O caminho,
+quando houver volume: uma coluna de embedding em `knowledge_entries` e um segundo
+termo no `order by` da mesma função. O contrato de saída
 (`id, title, content, category, score`) já é o de um recuperador.
+
+---
+
+## 10. As guardas que este módulo acrescentou
+
+| Teste                           | O que ele impede                                            |
+| ------------------------------- | ----------------------------------------------------------- |
+| `sql-role-ceilings.test.ts`     | permissão que existe no teto e em cargo nenhum              |
+| `chatbot-doors.test.ts`         | porta de chatbot com o cliente do usuário — resposta vazia  |
+| `intelligence-registry.test.ts` | nome de intenção que o CHECK do banco recusaria em produção |
+| `router.test.ts`                | qualquer caminho do roteador que produza texto não aprovado |
+
+As três primeiras nasceram de defeitos reais deste projeto. A última é a versão,
+para esta camada, do que `decide.test.ts` já faz para o chat da web.

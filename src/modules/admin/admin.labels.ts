@@ -85,6 +85,12 @@ export const SETTING_KEYS = {
   chatbotNoResult: "chatbot.no_result",
   chatbotError: "chatbot.error",
   chatbotHumanHandoff: "chatbot.human_handoff",
+  // ⚠️ SEXTA FRASE, acrescentada com a camada de roteamento. Ela existe porque a
+  // agenda de eventos é SEGMENTADA: sem reconhecer o telefone, o robô não sabe
+  // o que aquela pessoa pode ver. Responder "não há eventos" ali seria uma
+  // afirmação falsa sobre a agenda — e é por isso que não dá para reaproveitar
+  // `chatbot.no_result`.
+  chatbotUnidentified: "chatbot.unidentified",
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -113,6 +119,10 @@ export const SETTING_LABELS: Record<SettingKey, { title: string; help: string }>
   [SETTING_KEYS.chatbotHumanHandoff]: {
     title: "Encaminhado para atendente",
     help: "O que o associado lê ao pedir uma pessoa. É a mensagem que define a expectativa de quando alguém vai responder — vale citar o horário de atendimento.",
+  },
+  [SETTING_KEYS.chatbotUnidentified]: {
+    title: "Telefone não reconhecido",
+    help: "Quando a resposta depende de saber quem está perguntando (a agenda de eventos é por público) e o telefone não está no cadastro. Diga como se identificar ou como se associar — “não há eventos” seria mentira sobre a agenda.",
   },
 };
 
