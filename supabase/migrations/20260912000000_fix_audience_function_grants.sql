@@ -137,40 +137,63 @@ $privilegios$;
 -- O NÚMERO devolvido aqui não importa e nem seria o certo: sem um JWT,
 -- `auth.uid()` é nulo, `current_app_role()` também, e a RLS de `members` recusa
 -- tudo. O que importa é o erro que NÃO acontece.
+--
+-- ⚠️ O `set role` É UM COMANDO DE PRIMEIRO NÍVEL, e não uma linha dentro do
+-- bloco PL/pgSQL. A primeira versão desta migration fazia o contrário e falhou
+-- na mão de quem a aplicou: o `perform` rodou e imprimiu o "sem erro de
+-- privilegio", mas o `reset role` que vinha depois, DENTRO do bloco, não
+-- devolveu o papel — e a seção 3 morreu com "permission denied for table
+-- members", executando ainda como `authenticated`.
+--
+-- Aqui o `reset role` é um statement próprio: ele não depende da semântica de
+-- `SET` dentro de PL/pgSQL, que é justamente onde a primeira versão escorregou.
+-- E se o bloco levantar exceção, a transação inteira aborta — o papel não fica
+-- pendurado de jeito nenhum.
+
+-- O id do público-alvo é lido AGORA, como dono. Depois da troca de papel a RLS
+-- de `event_segments` esconderia a linha, e a conferência viraria um "pulado"
+-- que passa sem testar nada.
+do $preparo$
+begin
+  perform set_config(
+    'apcs.segmento_de_teste',
+    coalesce(
+      (
+        select s.id::text
+        from public.event_segments s
+        where s.active and public.profile_for_event_segment(s.slug) is not null
+        order by s.slug
+        limit 1
+      ),
+      ''
+    ),
+    true
+  );
+end;
+$preparo$;
+
+set local role authenticated;
+
 do $execucao$
 declare
-  v_segmento uuid;
+  v_segmento text := coalesce(current_setting('apcs.segmento_de_teste', true), '');
   v_estado text;
   v_mensagem text;
 begin
-  if not pg_has_role(current_user, 'authenticated', 'MEMBER') then
-    raise notice 'Sem como assumir authenticated nesta conexao — conferencia de execucao pulada.';
-    return;
-  end if;
-
-  select s.id into v_segmento
-  from public.event_segments s
-  where s.active and public.profile_for_event_segment(s.slug) is not null
-  order by s.slug
-  limit 1;
-
-  if v_segmento is null then
+  if v_segmento = '' then
     raise notice 'Nenhum publico-alvo ativo — nada a exercitar.';
     return;
   end if;
 
   begin
-    set local role authenticated;
-
     perform public.estimate_audience_criteria(
-      jsonb_build_array(jsonb_build_object('dimension', 'segment', 'segmentId', v_segmento))
+      jsonb_build_array(
+        jsonb_build_object('dimension', 'segment', 'segmentId', v_segmento::uuid)
+      )
     );
-
-    reset role;
   exception
     when others then
       get stacked diagnostics v_estado = returned_sqlstate, v_mensagem = message_text;
-      reset role;
       raise exception
         'A estimativa de publico AINDA falha para quem usa o sistema. SQLSTATE % — %',
         v_estado, v_mensagem;
@@ -179,6 +202,8 @@ begin
   raise notice 'Estimativa de publico: executada como authenticated, sem erro de privilegio.';
 end;
 $execucao$;
+
+reset role;
 
 -- ----------------------------------------------------------------------------
 -- 3. E, já que estamos aqui: quantos associados o disparo alcança?
@@ -197,6 +222,15 @@ declare
   v_com_perfil integer;
   v_linha record;
 begin
+  -- ⚠️ A GUARDA QUE FALTOU NA PRIMEIRA VERSÃO. Se o papel da seção 2 vazar de
+  -- novo, o erro aqui seria "permission denied for table members" — que manda
+  -- procurar um grant faltando em `members`, quando o problema é o papel errado.
+  -- Uma mensagem que aponta para o lugar errado custa mais do que a falha.
+  if current_user = 'authenticated' then
+    raise exception
+      'O papel de teste da secao 2 nao foi desfeito: ainda rodando como authenticated. O `reset role` de primeiro nivel nao foi executado.';
+  end if;
+
   select count(*) into v_total from public.members;
 
   select count(*) into v_ativos
