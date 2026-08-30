@@ -108,10 +108,27 @@ export async function startBroadcastAction(
 
     const supabase = await createClient();
 
-    // O documento leva a mensagem; a imagem sai antes dele, sem texto. Quem
-    // decide se há um, dois ou nenhum é `resolveBroadcastSubject` — a partir do
-    // registro, não da tela.
-    const semImagem = {
+    /*
+     * ⚠️ AQUI HAVIA UMA SEGUNDA TENTATIVA SEM OS `p_image_*`, e ela existia por
+     * uma razão específica que já passou.
+     *
+     * Os quatro parâmetros de imagem nasceram em
+     * 20260907000000_broadcast_image.sql. Entre o deploy deste código e a
+     * aplicação da migration, o banco só conhecia a versão de nove parâmetros e
+     * o PostgREST respondia PGRST202 — o que faria DIVULGAÇÃO NENHUMA sair, em
+     * nenhum dos quatro módulos, por um deploy que "só acrescentava uma imagem".
+     * A ponte reenviava sem imagem: a Bolsa saía só com o PDF, que é a
+     * degradação certa.
+     *
+     * A migration está aplicada em produção. Manter a ponte agora só
+     * esconderia um PGRST202 de verdade — que hoje significa outra coisa (o
+     * banco atrás do código) e tem tradução própria em `mapPostgresError`.
+     *
+     * O documento leva a mensagem; a imagem sai antes dele, sem texto. Quem
+     * decide se há um, dois ou nenhum é `resolveBroadcastSubject` — a partir do
+     * registro, não da tela.
+     */
+    const { data, error } = await supabase.rpc("start_broadcast", {
       p_source: source,
       p_source_id: sourceId,
       p_title: alvo.subject.title,
@@ -121,39 +138,11 @@ export async function startBroadcastAction(
       p_media_path: alvo.attachments.document?.path ?? null,
       p_media_mime: alvo.attachments.document?.mime ?? null,
       p_media_filename: alvo.attachments.document?.filename ?? null,
-    };
-
-    let { data, error } = await supabase.rpc("start_broadcast", {
-      ...semImagem,
       p_image_bucket: alvo.attachments.image?.bucket ?? null,
       p_image_path: alvo.attachments.image?.path ?? null,
       p_image_mime: alvo.attachments.image?.mime ?? null,
       p_image_filename: alvo.attachments.image?.filename ?? null,
     } as never);
-
-    /**
-     * ⚠️ REDE DE SEGURANÇA PARA A JANELA ENTRE O DEPLOY E A MIGRATION.
-     *
-     * Os quatro `p_image_*` nasceram em 20260907000000_broadcast_image.sql. Do
-     * momento em que este código sobe até o momento em que a migration roda, o
-     * banco só conhece a versão de nove parâmetros — e o PostgREST responde
-     * "could not find the function" (PGRST202). Sem isto, o efeito seria
-     * DIVULGAÇÃO NENHUMA saindo, em nenhum dos quatro módulos, por um deploy que
-     * "só acrescentava uma imagem".
-     *
-     * A segunda tentativa manda exatamente o que a versão antiga espera, e o
-     * resultado é o comportamento de antes: a Bolsa sai só com o PDF. É a
-     * degradação certa — perder a imagem é um aborrecimento, não mandar o
-     * boletim é uma semana sem boletim.
-     *
-     * REMOVER quando a migration estiver aplicada em produção.
-     */
-    if (error?.code === "PGRST202" || error?.code === "42883") {
-      console.warn(
-        "[broadcast.start] o banco ainda não tem os parâmetros de imagem — rode a migration 20260907000000_broadcast_image.sql. Enviando só o documento.",
-      );
-      ({ data, error } = await supabase.rpc("start_broadcast", semImagem as never));
-    }
 
     if (error) return failFromPostgres("broadcast.start", error, { source, sourceId, segmentIds });
 

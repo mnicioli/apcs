@@ -5,7 +5,6 @@ import { fail, failFromPostgres, ok, type ActionResult } from "@/lib/actions/err
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { untyped } from "@/lib/supabase/untyped";
 import { invalidateRoleCache } from "@/lib/services/roles";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getSiteOrigin } from "@/lib/http/site-url";
@@ -135,19 +134,19 @@ export async function inviteUserAction(
     // `set_user_role_key` que audita, e ela precisa saber quem está
     // convidando.
     const supabase = await createClient();
-    const { error: papelError } = await untyped(supabase).rpc("set_user_role_key", {
+    const { error: papelError } = await supabase.rpc("set_user_role_key", {
       p_user_id: novoId,
       p_role_key: role,
-    });
+    } as never);
 
     if (papelError) {
       console.error("[admin.invite] papel não aplicado:", papelError.code);
     }
 
-    await untyped(supabase).rpc("log_user_invite_cargo", {
+    await supabase.rpc("log_user_invite_cargo", {
       p_email: email,
       p_role_key: role,
-    });
+    } as never);
 
     revalidateAdmin();
     return ok({ roleApplied: !papelError });

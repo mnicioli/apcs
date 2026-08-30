@@ -6,21 +6,195 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5";
   };
+  graphql_public: {
+    Tables: {
+      [_ in never]: never;
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json;
+          operationName?: string;
+          query?: string;
+          variables?: Json;
+        };
+        Returns: Json;
+      };
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
+    };
+  };
   public: {
     Tables: {
+      admin_audit_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["admin_audit_action"];
+          actor_id: string | null;
+          actor_name: string | null;
+          created_at: string;
+          id: string;
+          metadata: Json;
+          target: string | null;
+        };
+        Insert: {
+          action: Database["public"]["Enums"]["admin_audit_action"];
+          actor_id?: string | null;
+          actor_name?: string | null;
+          created_at?: string;
+          id?: string;
+          metadata?: Json;
+          target?: string | null;
+        };
+        Update: {
+          action?: Database["public"]["Enums"]["admin_audit_action"];
+          actor_id?: string | null;
+          actor_name?: string | null;
+          created_at?: string;
+          id?: string;
+          metadata?: Json;
+          target?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "admin_audit_logs_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      app_role_ceilings: {
+        Row: {
+          base_role: Database["public"]["Enums"]["app_role"];
+          permission: string;
+        };
+        Insert: {
+          base_role: Database["public"]["Enums"]["app_role"];
+          permission: string;
+        };
+        Update: {
+          base_role?: Database["public"]["Enums"]["app_role"];
+          permission?: string;
+        };
+        Relationships: [];
+      };
+      app_role_permissions: {
+        Row: {
+          permission: string;
+          role_key: string;
+        };
+        Insert: {
+          permission: string;
+          role_key: string;
+        };
+        Update: {
+          permission?: string;
+          role_key?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "app_role_permissions_role_key_fkey";
+            columns: ["role_key"];
+            isOneToOne: false;
+            referencedRelation: "app_roles";
+            referencedColumns: ["key"];
+          },
+        ];
+      };
+      app_roles: {
+        Row: {
+          base_role: Database["public"]["Enums"]["app_role"];
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          is_builtin: boolean;
+          key: string;
+          label: string;
+          sort_order: number;
+          updated_at: string;
+        };
+        Insert: {
+          base_role: Database["public"]["Enums"]["app_role"];
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          is_builtin?: boolean;
+          key: string;
+          label: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Update: {
+          base_role?: Database["public"]["Enums"]["app_role"];
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          is_builtin?: boolean;
+          key?: string;
+          label?: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "app_roles_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      app_settings: {
+        Row: {
+          key: string;
+          updated_at: string;
+          updated_by: string | null;
+          value: string;
+        };
+        Insert: {
+          key: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          value: string;
+        };
+        Update: {
+          key?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          value?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "app_settings_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       broadcast_recipients: {
         Row: {
           attempts: number;
           broadcast_id: string;
           created_at: string;
           id: string;
+          last_attempt_at: string | null;
+          last_error: string | null;
           member_id: string | null;
           member_name: string | null;
           member_phone: string;
           provider_message_id: string | null;
           status: Database["public"]["Enums"]["broadcast_recipient_status"];
-          last_attempt_at: string | null;
-          last_error: string | null;
         };
         Insert: {
           attempts?: number;
@@ -102,6 +276,10 @@ export type Database = {
           created_by_name: string | null;
           finished_at: string | null;
           id: string;
+          image_bucket: string | null;
+          image_filename: string | null;
+          image_mime: string | null;
+          image_path: string | null;
           last_error: string | null;
           media_bucket: string | null;
           media_filename: string | null;
@@ -123,6 +301,10 @@ export type Database = {
           created_by_name?: string | null;
           finished_at?: string | null;
           id?: string;
+          image_bucket?: string | null;
+          image_filename?: string | null;
+          image_mime?: string | null;
+          image_path?: string | null;
           last_error?: string | null;
           media_bucket?: string | null;
           media_filename?: string | null;
@@ -144,6 +326,10 @@ export type Database = {
           created_by_name?: string | null;
           finished_at?: string | null;
           id?: string;
+          image_bucket?: string | null;
+          image_filename?: string | null;
+          image_mime?: string | null;
+          image_path?: string | null;
           last_error?: string | null;
           media_bucket?: string | null;
           media_filename?: string | null;
@@ -323,6 +509,35 @@ export type Database = {
             columns: ["conversation_id"];
             isOneToOne: false;
             referencedRelation: "chat_conversations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      consent_texts: {
+        Row: {
+          body: string;
+          created_at: string;
+          created_by: string | null;
+          version: string;
+        };
+        Insert: {
+          body: string;
+          created_at?: string;
+          created_by?: string | null;
+          version: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          created_by?: string | null;
+          version?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "consent_texts_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -808,6 +1023,7 @@ export type Database = {
         Row: {
           created_at: string;
           created_by: string | null;
+          description: string | null;
           end_time: string | null;
           event_date: string;
           id: string;
@@ -825,6 +1041,7 @@ export type Database = {
         Insert: {
           created_at?: string;
           created_by?: string | null;
+          description?: string | null;
           end_time?: string | null;
           event_date: string;
           id?: string;
@@ -842,6 +1059,7 @@ export type Database = {
         Update: {
           created_at?: string;
           created_by?: string | null;
+          description?: string | null;
           end_time?: string | null;
           event_date?: string;
           id?: string;
@@ -915,6 +1133,41 @@ export type Database = {
           },
         ];
       };
+      lecture_speakers: {
+        Row: {
+          active: boolean;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          name: string;
+          name_key: string | null;
+        };
+        Insert: {
+          active?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          name: string;
+          name_key?: string | null;
+        };
+        Update: {
+          active?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          name?: string;
+          name_key?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "lecture_speakers_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       lecture_status_transitions: {
         Row: {
           created_at: string;
@@ -963,6 +1216,7 @@ export type Database = {
           requester_phone: string | null;
           responsible_id: string | null;
           search_text: string | null;
+          speaker_catalog_id: string | null;
           speaker_id: string | null;
           start_time: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -1001,6 +1255,7 @@ export type Database = {
           requester_phone?: string | null;
           responsible_id?: string | null;
           search_text?: string | null;
+          speaker_catalog_id?: string | null;
           speaker_id?: string | null;
           start_time?: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -1039,6 +1294,7 @@ export type Database = {
           requester_phone?: string | null;
           responsible_id?: string | null;
           search_text?: string | null;
+          speaker_catalog_id?: string | null;
           speaker_id?: string | null;
           start_time?: string | null;
           status?: Database["public"]["Enums"]["lecture_status"];
@@ -1068,6 +1324,13 @@ export type Database = {
             columns: ["responsible_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "lectures_speaker_catalog_id_fkey";
+            columns: ["speaker_catalog_id"];
+            isOneToOne: false;
+            referencedRelation: "lecture_speakers";
             referencedColumns: ["id"];
           },
           {
@@ -1604,102 +1867,6 @@ export type Database = {
           },
         ];
       };
-      admin_audit_logs: {
-        Row: {
-          action: Database["public"]["Enums"]["admin_audit_action"];
-          actor_id: string | null;
-          actor_name: string | null;
-          created_at: string;
-          id: string;
-          metadata: Json;
-          target: string | null;
-        };
-        Insert: {
-          action: Database["public"]["Enums"]["admin_audit_action"];
-          actor_id?: string | null;
-          actor_name?: string | null;
-          created_at?: string;
-          id?: string;
-          metadata?: Json;
-          target?: string | null;
-        };
-        Update: {
-          action?: Database["public"]["Enums"]["admin_audit_action"];
-          actor_id?: string | null;
-          actor_name?: string | null;
-          created_at?: string;
-          id?: string;
-          metadata?: Json;
-          target?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "admin_audit_logs_actor_id_fkey";
-            columns: ["actor_id"];
-            isOneToOne: false;
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      app_settings: {
-        Row: {
-          key: string;
-          updated_at: string;
-          updated_by: string | null;
-          value: string;
-        };
-        Insert: {
-          key: string;
-          updated_at?: string;
-          updated_by?: string | null;
-          value: string;
-        };
-        Update: {
-          key?: string;
-          updated_at?: string;
-          updated_by?: string | null;
-          value?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "app_settings_updated_by_fkey";
-            columns: ["updated_by"];
-            isOneToOne: false;
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      consent_texts: {
-        Row: {
-          body: string;
-          created_at: string;
-          created_by: string | null;
-          version: string;
-        };
-        Insert: {
-          body: string;
-          created_at?: string;
-          created_by?: string | null;
-          version: string;
-        };
-        Update: {
-          body?: string;
-          created_at?: string;
-          created_by?: string | null;
-          version?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "consent_texts_created_by_fkey";
-            columns: ["created_by"];
-            isOneToOne: false;
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
       notification_opt_outs: {
         Row: {
           channel: Database["public"]["Enums"]["survey_channel"];
@@ -1739,6 +1906,13 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "notification_opt_outs_revoked_by_fkey";
+            columns: ["revoked_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "survey_opt_outs_contact_id_fkey";
             columns: ["contact_id"];
             isOneToOne: false;
@@ -1756,6 +1930,7 @@ export type Database = {
           full_name: string | null;
           id: string;
           role: Database["public"]["Enums"]["app_role"];
+          role_key: string;
           updated_at: string;
         };
         Insert: {
@@ -1766,6 +1941,7 @@ export type Database = {
           full_name?: string | null;
           id: string;
           role?: Database["public"]["Enums"]["app_role"];
+          role_key?: string;
           updated_at?: string;
         };
         Update: {
@@ -1776,9 +1952,18 @@ export type Database = {
           full_name?: string | null;
           id?: string;
           role?: Database["public"]["Enums"]["app_role"];
+          role_key?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "profiles_role_key_fkey";
+            columns: ["role_key"];
+            isOneToOne: false;
+            referencedRelation: "app_roles";
+            referencedColumns: ["key"];
+          },
+        ];
       };
       survey_audience_criteria: {
         Row: {
@@ -2633,160 +2818,6 @@ export type Database = {
           isSetofReturn: false;
         };
       };
-      broadcast_audience_size: {
-        Args: { p_segment_ids: string[] };
-        Returns: { reachable: number; blocked: number }[];
-      };
-      broadcast_is_writer: {
-        Args: Record<PropertyKey, never>;
-        Returns: boolean;
-      };
-      start_broadcast: {
-        Args: {
-          p_body: string;
-          p_media_bucket?: string | null;
-          p_media_filename?: string | null;
-          p_media_mime?: string | null;
-          p_media_path?: string | null;
-          p_segment_ids: string[];
-          p_source: Database["public"]["Enums"]["broadcast_source"];
-          p_source_id: string;
-          p_title: string;
-        };
-        Returns: { broadcast_id: string; queued: number; blocked: number }[];
-      };
-      claim_broadcast_recipients: {
-        Args: { p_broadcast_id: string; p_limit?: number };
-        Returns: {
-          id: string;
-          member_id: string | null;
-          member_name: string | null;
-          member_phone: string;
-          attempts: number;
-        }[];
-      };
-      settle_broadcast_recipient: {
-        Args: {
-          p_error?: string | null;
-          p_ok: boolean;
-          p_provider_message_id?: string | null;
-          p_recipient_id: string;
-        };
-        Returns: undefined;
-      };
-      release_stale_broadcast_recipients: {
-        Args: { p_broadcast_id: string; p_older_than?: unknown };
-        Returns: number;
-      };
-      finish_broadcast: {
-        Args: { p_broadcast_id: string; p_last_error?: string | null };
-        Returns: Database["public"]["Tables"]["broadcasts"]["Row"];
-      };
-      retry_failed_broadcast_recipients: {
-        Args: { p_broadcast_id: string; p_max_attempts?: number };
-        Returns: number;
-      };
-      log_password_reset: {
-        Args: { p_email: string };
-        Returns: undefined;
-      };
-      set_user_active: {
-        Args: { p_active: boolean; p_user_id: string };
-        Returns: {
-          active: boolean;
-          avatar_url: string | null;
-          created_at: string;
-          email: string;
-          full_name: string | null;
-          id: string;
-          role: Database["public"]["Enums"]["app_role"];
-          updated_at: string;
-        };
-      };
-      update_user_profile: {
-        Args: { p_email: string; p_full_name: string; p_user_id: string };
-        Returns: {
-          active: boolean;
-          avatar_url: string | null;
-          created_at: string;
-          email: string;
-          full_name: string | null;
-          id: string;
-          role: Database["public"]["Enums"]["app_role"];
-          updated_at: string;
-        };
-      };
-      list_notification_blocks: {
-        Args: { p_include_revoked?: boolean; p_limit?: number; p_offset?: number };
-        Returns: {
-          channel: Database["public"]["Enums"]["survey_channel"];
-          contact_name: string;
-          created_at: string;
-          id: string;
-          member_id: string;
-          member_name: string;
-          note: string;
-          phone_key: string;
-          revoked_at: string;
-          revoked_note: string;
-          source: string;
-          total_count: number;
-        }[];
-      };
-      log_user_invite: {
-        Args: { p_email: string; p_role: Database["public"]["Enums"]["app_role"] };
-        Returns: undefined;
-      };
-      publish_consent_text: {
-        Args: { p_body: string; p_version: string };
-        Returns: {
-          body: string;
-          created_at: string;
-          created_by: string | null;
-          version: string;
-        };
-      };
-      resume_notification_block: {
-        Args: { p_note: string; p_opt_out_id: string };
-        Returns: boolean;
-      };
-      set_app_setting: {
-        Args: { p_key: string; p_value: string };
-        Returns: {
-          key: string;
-          updated_at: string;
-          updated_by: string | null;
-          value: string;
-        };
-      };
-      set_user_role: {
-        Args: { p_role: Database["public"]["Enums"]["app_role"]; p_user_id: string };
-        Returns: {
-          avatar_url: string | null;
-          created_at: string;
-          email: string;
-          full_name: string | null;
-          id: string;
-          role: Database["public"]["Enums"]["app_role"];
-          updated_at: string;
-        };
-      };
-      update_event_segment: {
-        Args: {
-          p_active: boolean;
-          p_description: string;
-          p_name: string;
-          p_segment_id: string;
-        };
-        Returns: {
-          active: boolean;
-          created_at: string;
-          description: string | null;
-          id: string;
-          name: string;
-          slug: string;
-        };
-      };
       approve_membership_application: {
         Args: { p_application_id: string; p_note?: string };
         Returns: {
@@ -2875,6 +2906,7 @@ export type Database = {
           requester_phone: string | null;
           responsible_id: string | null;
           search_text: string | null;
+          speaker_catalog_id: string | null;
           speaker_id: string | null;
           start_time: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -2892,7 +2924,11 @@ export type Database = {
         };
       };
       assign_lecture_speaker: {
-        Args: { p_lecture_id: string; p_profile_id: string };
+        Args: {
+          p_lecture_id: string;
+          p_profile_id: string;
+          p_speaker_name?: string;
+        };
         Returns: {
           attendees_actual: number | null;
           attendees_estimated: number | null;
@@ -2922,6 +2958,7 @@ export type Database = {
           requester_phone: string | null;
           responsible_id: string | null;
           search_text: string | null;
+          speaker_catalog_id: string | null;
           speaker_id: string | null;
           start_time: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -2942,6 +2979,14 @@ export type Database = {
         Args: { p_survey_id: string };
         Returns: number;
       };
+      broadcast_audience_size: {
+        Args: { p_segment_ids: string[] };
+        Returns: {
+          blocked: number;
+          reachable: number;
+        }[];
+      };
+      broadcast_is_writer: { Args: never; Returns: boolean };
       cancel_survey: {
         Args: { p_reason?: string; p_survey_id: string };
         Returns: {
@@ -2970,6 +3015,16 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      claim_broadcast_recipients: {
+        Args: { p_broadcast_id: string; p_limit?: number };
+        Returns: {
+          attempts: number;
+          id: string;
+          member_id: string;
+          member_name: string;
+          member_phone: string;
+        }[];
       };
       claim_event_recipients: {
         Args: { p_dispatch_id: string; p_event_id: string; p_limit?: number };
@@ -3087,6 +3142,7 @@ export type Database = {
         };
         Returns: undefined;
       };
+      count_active_user_managers: { Args: never; Returns: number };
       count_event_audience: {
         Args: { p_event_id: string };
         Returns: {
@@ -3098,6 +3154,32 @@ export type Database = {
       count_survey_context_miss: {
         Args: { p_max?: number; p_state_id: string };
         Returns: number;
+      };
+      create_app_role: {
+        Args: {
+          p_base_role: Database["public"]["Enums"]["app_role"];
+          p_description: string;
+          p_key: string;
+          p_label: string;
+          p_permissions: string[];
+        };
+        Returns: {
+          base_role: Database["public"]["Enums"]["app_role"];
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          is_builtin: boolean;
+          key: string;
+          label: string;
+          sort_order: number;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "app_roles";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       create_document_version: {
         Args: {
@@ -3134,6 +3216,7 @@ export type Database = {
       };
       create_event: {
         Args: {
+          p_description: string;
           p_end_time: string;
           p_event_date: string;
           p_event_id: string;
@@ -3149,6 +3232,7 @@ export type Database = {
         Returns: {
           created_at: string;
           created_by: string | null;
+          description: string | null;
           end_time: string | null;
           event_date: string;
           id: string;
@@ -3187,6 +3271,7 @@ export type Database = {
           p_requester_phone?: string;
           p_responsible_id: string;
           p_speaker_id: string;
+          p_speaker_name?: string;
           p_start_time: string;
           p_status: Database["public"]["Enums"]["lecture_status"];
           p_theme: string;
@@ -3222,6 +3307,7 @@ export type Database = {
           requester_phone: string | null;
           responsible_id: string | null;
           search_text: string | null;
+          speaker_catalog_id: string | null;
           speaker_id: string | null;
           start_time: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -3287,6 +3373,7 @@ export type Database = {
           requester_phone: string | null;
           responsible_id: string | null;
           search_text: string | null;
+          speaker_catalog_id: string | null;
           speaker_id: string | null;
           start_time: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -3413,6 +3500,21 @@ export type Database = {
         Args: never;
         Returns: Database["public"]["Enums"]["app_role"];
       };
+      current_consent_text: {
+        Args: never;
+        Returns: {
+          body: string;
+          created_at: string;
+          created_by: string | null;
+          version: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "consent_texts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       deactivate_document_version: {
         Args: { p_version_id: string };
         Returns: {
@@ -3472,6 +3574,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      delete_app_role: { Args: { p_key: string }; Returns: undefined };
       delete_survey: { Args: { p_survey_id: string }; Returns: undefined };
       estimate_audience_criteria: {
         Args: { p_criteria: Json };
@@ -3541,6 +3644,7 @@ export type Database = {
           requester_phone: string | null;
           responsible_id: string | null;
           search_text: string | null;
+          speaker_catalog_id: string | null;
           speaker_id: string | null;
           start_time: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -3555,6 +3659,40 @@ export type Database = {
           to: "lectures";
           isOneToOne: false;
           isSetofReturn: true;
+        };
+      };
+      finish_broadcast: {
+        Args: { p_broadcast_id: string; p_last_error?: string };
+        Returns: {
+          body: string;
+          created_by: string | null;
+          created_by_name: string | null;
+          finished_at: string | null;
+          id: string;
+          image_bucket: string | null;
+          image_filename: string | null;
+          image_mime: string | null;
+          image_path: string | null;
+          last_error: string | null;
+          media_bucket: string | null;
+          media_filename: string | null;
+          media_mime: string | null;
+          media_path: string | null;
+          source: Database["public"]["Enums"]["broadcast_source"];
+          source_id: string;
+          started_at: string;
+          status: Database["public"]["Enums"]["broadcast_status"];
+          title: string;
+          total_blocked: number;
+          total_errors: number;
+          total_recipients: number;
+          total_sent: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "broadcasts";
+          isOneToOne: true;
+          isSetofReturn: false;
         };
       };
       finish_event_dispatch: {
@@ -3600,6 +3738,41 @@ export type Database = {
       };
       is_admin: { Args: never; Returns: boolean };
       is_notification_blocked: { Args: { p_phone: string }; Returns: boolean };
+      lecture_speaker_label: {
+        Args: { p_catalog_id: string; p_profile_id: string };
+        Returns: string;
+      };
+      link_phone_book_entry: {
+        Args: {
+          p_city: string;
+          p_current: string;
+          p_full_name: string;
+          p_phone: string;
+          p_state: string;
+        };
+        Returns: string;
+      };
+      list_notification_blocks: {
+        Args: {
+          p_include_revoked?: boolean;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: {
+          channel: Database["public"]["Enums"]["survey_channel"];
+          contact_name: string;
+          created_at: string;
+          id: string;
+          member_id: string;
+          member_name: string;
+          note: string;
+          phone_key: string;
+          revoked_at: string;
+          revoked_note: string;
+          source: string;
+          total_count: number;
+        }[];
+      };
       lock_document: { Args: { p_document_id: string }; Returns: undefined };
       lock_event: { Args: { p_event_id: string }; Returns: undefined };
       lock_lecture: { Args: { p_lecture_id: string }; Returns: undefined };
@@ -3612,6 +3785,26 @@ export type Database = {
         Returns: undefined;
       };
       lock_survey: { Args: { p_survey_id: string }; Returns: undefined };
+      log_admin_action: {
+        Args: {
+          p_action: Database["public"]["Enums"]["admin_audit_action"];
+          p_metadata?: Json;
+          p_target: string;
+        };
+        Returns: undefined;
+      };
+      log_password_reset: { Args: { p_email: string }; Returns: undefined };
+      log_user_invite: {
+        Args: {
+          p_email: string;
+          p_role: Database["public"]["Enums"]["app_role"];
+        };
+        Returns: undefined;
+      };
+      log_user_invite_cargo: {
+        Args: { p_email: string; p_role_key: string };
+        Returns: undefined;
+      };
       mark_survey_recipient: {
         Args: {
           p_error?: string;
@@ -3728,6 +3921,21 @@ export type Database = {
         Args: { p_slug: string };
         Returns: Database["public"]["Enums"]["membership_profile_type"];
       };
+      publish_consent_text: {
+        Args: { p_body: string; p_version: string };
+        Returns: {
+          body: string;
+          created_at: string;
+          created_by: string | null;
+          version: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "consent_texts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       reconcile_survey_counters: {
         Args: { p_survey_id?: string };
         Returns: {
@@ -3785,6 +3993,7 @@ export type Database = {
           requester_phone: string | null;
           responsible_id: string | null;
           search_text: string | null;
+          speaker_catalog_id: string | null;
           speaker_id: string | null;
           start_time: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -3873,15 +4082,15 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      release_stale_broadcast_recipients: {
+        Args: { p_broadcast_id: string; p_older_than?: string };
+        Returns: number;
+      };
       release_stale_event_recipients: {
         Args: { p_event_id: string; p_older_than?: string };
         Returns: number;
       };
       release_survey_recipients: { Args: { p_ids: string[] }; Returns: number };
-      resume_member_notifications: {
-        Args: { p_member_id: string; p_note: string };
-        Returns: number;
-      };
       reopen_membership_application: {
         Args: { p_application_id: string; p_reason?: string };
         Returns: {
@@ -3966,6 +4175,7 @@ export type Database = {
           requester_phone: string | null;
           responsible_id: string | null;
           search_text: string | null;
+          speaker_catalog_id: string | null;
           speaker_id: string | null;
           start_time: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -3990,6 +4200,7 @@ export type Database = {
           phone: string;
         }[];
       };
+      resolve_lecture_speaker: { Args: { p_name: string }; Returns: string };
       resolve_survey_audience: {
         Args: { p_survey_id: string };
         Returns: {
@@ -4013,6 +4224,18 @@ export type Database = {
           survey_id: string;
           survey_title: string;
         }[];
+      };
+      resume_member_notifications: {
+        Args: { p_member_id: string; p_note: string };
+        Returns: number;
+      };
+      resume_notification_block: {
+        Args: { p_note: string; p_opt_out_id: string };
+        Returns: boolean;
+      };
+      retry_failed_broadcast_recipients: {
+        Args: { p_broadcast_id: string; p_max_attempts?: number };
+        Returns: number;
       };
       retry_failed_survey_recipients: {
         Args: { p_max_attempts?: number; p_survey_id: string };
@@ -4052,11 +4275,27 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      set_app_setting: {
+        Args: { p_key: string; p_value: string };
+        Returns: {
+          key: string;
+          updated_at: string;
+          updated_by: string | null;
+          value: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "app_settings";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       set_event_status: {
         Args: { p_command: string; p_event_id: string };
         Returns: {
           created_at: string;
           created_by: string | null;
+          description: string | null;
           end_time: string | null;
           event_date: string;
           id: string;
@@ -4113,6 +4352,7 @@ export type Database = {
           requester_phone: string | null;
           responsible_id: string | null;
           search_text: string | null;
+          speaker_catalog_id: string | null;
           speaker_id: string | null;
           start_time: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -4133,6 +4373,78 @@ export type Database = {
         Args: { p_criteria: Json; p_survey_id: string };
         Returns: number;
       };
+      set_user_active: {
+        Args: { p_active: boolean; p_user_id: string };
+        Returns: {
+          active: boolean;
+          avatar_url: string | null;
+          created_at: string;
+          email: string;
+          full_name: string | null;
+          id: string;
+          role: Database["public"]["Enums"]["app_role"];
+          role_key: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "profiles";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_user_role: {
+        Args: {
+          p_role: Database["public"]["Enums"]["app_role"];
+          p_user_id: string;
+        };
+        Returns: {
+          active: boolean;
+          avatar_url: string | null;
+          created_at: string;
+          email: string;
+          full_name: string | null;
+          id: string;
+          role: Database["public"]["Enums"]["app_role"];
+          role_key: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "profiles";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_user_role_key: {
+        Args: { p_role_key: string; p_user_id: string };
+        Returns: {
+          active: boolean;
+          avatar_url: string | null;
+          created_at: string;
+          email: string;
+          full_name: string | null;
+          id: string;
+          role: Database["public"]["Enums"]["app_role"];
+          role_key: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "profiles";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      settle_broadcast_recipient: {
+        Args: {
+          p_error?: string;
+          p_ok: boolean;
+          p_provider_message_id?: string;
+          p_recipient_id: string;
+        };
+        Returns: undefined;
+      };
       settle_event_recipient: {
         Args: {
           p_error: string;
@@ -4140,6 +4452,29 @@ export type Database = {
           p_recipient_id: string;
         };
         Returns: undefined;
+      };
+      speaker_name_key: { Args: { p_name: string }; Returns: string };
+      start_broadcast: {
+        Args: {
+          p_body: string;
+          p_image_bucket?: string;
+          p_image_filename?: string;
+          p_image_mime?: string;
+          p_image_path?: string;
+          p_media_bucket?: string;
+          p_media_filename?: string;
+          p_media_mime?: string;
+          p_media_path?: string;
+          p_segment_ids: string[];
+          p_source: Database["public"]["Enums"]["broadcast_source"];
+          p_source_id: string;
+          p_title: string;
+        };
+        Returns: {
+          blocked: number;
+          broadcast_id: string;
+          queued: number;
+        }[];
       };
       start_event_dispatch: {
         Args: { p_event_id: string };
@@ -4350,8 +4685,34 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      update_app_role: {
+        Args: {
+          p_description: string;
+          p_key: string;
+          p_label: string;
+          p_permissions: string[];
+        };
+        Returns: {
+          base_role: Database["public"]["Enums"]["app_role"];
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          is_builtin: boolean;
+          key: string;
+          label: string;
+          sort_order: number;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "app_roles";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       update_event: {
         Args: {
+          p_description: string;
           p_end_time: string;
           p_event_date: string;
           p_event_id: string;
@@ -4367,6 +4728,7 @@ export type Database = {
         Returns: {
           created_at: string;
           created_by: string | null;
+          description: string | null;
           end_time: string | null;
           event_date: string;
           id: string;
@@ -4384,6 +4746,28 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "events";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_event_segment: {
+        Args: {
+          p_active: boolean;
+          p_description: string;
+          p_name: string;
+          p_segment_id: string;
+        };
+        Returns: {
+          active: boolean;
+          created_at: string;
+          description: string | null;
+          id: string;
+          name: string;
+          slug: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_segments";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -4431,6 +4815,7 @@ export type Database = {
           requester_phone: string | null;
           responsible_id: string | null;
           search_text: string | null;
+          speaker_catalog_id: string | null;
           speaker_id: string | null;
           start_time: string | null;
           status: Database["public"]["Enums"]["lecture_status"];
@@ -4603,6 +4988,26 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      update_user_profile: {
+        Args: { p_email: string; p_full_name: string; p_user_id: string };
+        Returns: {
+          active: boolean;
+          avatar_url: string | null;
+          created_at: string;
+          email: string;
+          full_name: string | null;
+          id: string;
+          role: Database["public"]["Enums"]["app_role"];
+          role_key: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "profiles";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       whatsapp_is_reader: { Args: never; Returns: boolean };
       whatsapp_is_writer: { Args: never; Returns: boolean };
       whatsapp_kind_label: {
@@ -4687,7 +5092,24 @@ export type Database = {
       whatsapp_unread_total: { Args: never; Returns: number };
     };
     Enums: {
+      admin_audit_action:
+        | "user_role_changed"
+        | "user_invited"
+        | "segment_updated"
+        | "consent_text_published"
+        | "setting_updated"
+        | "notification_block_revoked"
+        | "user_updated"
+        | "user_deactivated"
+        | "user_reactivated"
+        | "user_password_reset"
+        | "role_created"
+        | "role_updated"
+        | "role_deleted";
       app_role: "admin" | "ceo" | "pm" | "tech_lead" | "comercial" | "financeiro" | "viewer";
+      broadcast_recipient_status: "pending" | "sending" | "sent" | "error" | "blocked";
+      broadcast_source: "normative" | "communication" | "market_bulletin" | "lecture";
+      broadcast_status: "running" | "done" | "failed";
       chat_contact_channel: "whatsapp" | "phone" | "email";
       chat_contact_profile: "producer" | "member" | "supplier";
       chat_contact_time: "morning" | "afternoon" | "evening" | "any";
@@ -4709,9 +5131,6 @@ export type Database = {
         | "version_viewed"
         | "version_downloaded";
       document_category: "normative" | "communication";
-      broadcast_recipient_status: "pending" | "sending" | "sent" | "error" | "blocked";
-      broadcast_source: "normative" | "communication" | "market_bulletin" | "lecture";
-      broadcast_status: "running" | "done" | "failed";
       document_version_status: "active" | "inactive";
       event_audit_action:
         | "event_created"
@@ -4768,17 +5187,6 @@ export type Database = {
       market_bulletin_status_reason: "manual" | "superseded";
       market_bulletin_version_status: "active" | "inactive";
       member_origin: "application" | "import" | "manual";
-      admin_audit_action:
-        | "user_role_changed"
-        | "user_invited"
-        | "segment_updated"
-        | "consent_text_published"
-        | "setting_updated"
-        | "notification_block_revoked"
-        | "user_updated"
-        | "user_deactivated"
-        | "user_reactivated"
-        | "user_password_reset";
       member_status: "active" | "inactive" | "suspended";
       membership_application_status: "pending" | "in_review" | "approved" | "rejected";
       membership_audit_action:
@@ -4976,9 +5384,30 @@ export type CompositeTypes<
     : never;
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
+      admin_audit_action: [
+        "user_role_changed",
+        "user_invited",
+        "segment_updated",
+        "consent_text_published",
+        "setting_updated",
+        "notification_block_revoked",
+        "user_updated",
+        "user_deactivated",
+        "user_reactivated",
+        "user_password_reset",
+        "role_created",
+        "role_updated",
+        "role_deleted",
+      ],
       app_role: ["admin", "ceo", "pm", "tech_lead", "comercial", "financeiro", "viewer"],
+      broadcast_recipient_status: ["pending", "sending", "sent", "error", "blocked"],
+      broadcast_source: ["normative", "communication", "market_bulletin", "lecture"],
+      broadcast_status: ["running", "done", "failed"],
       chat_contact_channel: ["whatsapp", "phone", "email"],
       chat_contact_profile: ["producer", "member", "supplier"],
       chat_contact_time: ["morning", "afternoon", "evening", "any"],
@@ -5002,9 +5431,6 @@ export const Constants = {
         "version_downloaded",
       ],
       document_category: ["normative", "communication"],
-      broadcast_recipient_status: ["pending", "sending", "sent", "error", "blocked"],
-      broadcast_source: ["normative", "communication", "market_bulletin", "lecture"],
-      broadcast_status: ["running", "done", "failed"],
       document_version_status: ["active", "inactive"],
       event_audit_action: [
         "event_created",
@@ -5066,18 +5492,6 @@ export const Constants = {
       market_bulletin_status_reason: ["manual", "superseded"],
       market_bulletin_version_status: ["active", "inactive"],
       member_origin: ["application", "import", "manual"],
-      admin_audit_action: [
-        "user_role_changed",
-        "user_invited",
-        "segment_updated",
-        "consent_text_published",
-        "setting_updated",
-        "notification_block_revoked",
-        "user_updated",
-        "user_deactivated",
-        "user_reactivated",
-        "user_password_reset",
-      ],
       member_status: ["active", "inactive", "suspended"],
       membership_application_status: ["pending", "in_review", "approved", "rejected"],
       membership_audit_action: [

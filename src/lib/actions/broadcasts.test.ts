@@ -1,19 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * A JANELA ENTRE O DEPLOY E A MIGRATION — o caso que este arquivo existe para
- * cobrir.
+ * O QUE `startBroadcastAction` MANDA AO BANCO — uma chamada, com tudo.
  *
- * ⚠️ Os quatro parâmetros `p_image_*` nasceram em
- * 20260907000000_broadcast_image.sql. Do momento em que o código sobe até o
- * momento em que alguém roda a migration, o banco só conhece a versão antiga da
- * função — e o PostgREST responde "could not find the function" (PGRST202). Sem
- * a segunda tentativa, o efeito seria DIVULGAÇÃO NENHUMA saindo, em nenhum dos
- * quatro módulos, por um deploy que "só acrescentava uma imagem".
+ * ⚠️ ESTE ARQUIVO NASCEU COBRINDO UMA PONTE QUE JÁ FOI DEMOLIDA. Os quatro
+ * parâmetros `p_image_*` nasceram em 20260907000000_broadcast_image.sql, e entre
+ * o deploy e a migration o banco só conhecia a versão antiga da função: o
+ * PostgREST respondia PGRST202 e NENHUMA divulgação sairia, em nenhum dos quatro
+ * módulos, por um deploy que "só acrescentava uma imagem". A action reenviava
+ * sem a imagem, e a Bolsa saía só com o PDF.
  *
- * ⚠️ É UM TESTE DE PONTE, e ele MORRE junto com a ponte: quando a migration
- * estiver aplicada em produção e o `if` sair da action, este arquivo sai junto.
- * Está escrito aqui para que, enquanto a rede existir, ela seja de verdade.
+ * A migration está aplicada e a segunda tentativa saiu. O que sobrou aqui são as
+ * duas asserções que NÃO eram sobre a ponte, e que continuam valendo: a chamada
+ * leva imagem e documento juntos, e é UMA só — um erro do banco volta traduzido
+ * na primeira, sem retentativa que possa escrever duas vezes.
  */
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -84,17 +84,6 @@ const FILA_CRIADA = {
   error: null,
 };
 
-const NAO_ACHOU_A_FUNCAO = {
-  data: null,
-  error: {
-    code: "PGRST202",
-    message:
-      "Could not find the function public.start_broadcast(p_body, p_image_bucket, ...) in the schema cache",
-    details: null,
-    hint: null,
-  },
-};
-
 function chamar() {
   return startBroadcastAction({
     source: "market_bulletin",
@@ -108,8 +97,8 @@ beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
-describe("banco já com os parâmetros de imagem", () => {
-  it("manda os quatro `p_image_*` de uma vez só", async () => {
+describe("a chamada que sai", () => {
+  it("leva imagem e documento juntos, numa vez só", async () => {
     rpc.mockResolvedValue(FILA_CRIADA);
 
     const resultado = await chamar();
@@ -122,56 +111,41 @@ describe("banco já com os parâmetros de imagem", () => {
       p_media_path: "b/1/pdf/x.pdf",
     });
   });
-});
 
-describe("banco ainda sem os parâmetros de imagem", () => {
-  it("repete SEM a imagem em vez de deixar a divulgação morrer", async () => {
-    rpc.mockResolvedValueOnce(NAO_ACHOU_A_FUNCAO).mockResolvedValueOnce(FILA_CRIADA);
-
-    const resultado = await chamar();
-
-    expect(resultado.ok).toBe(true);
-    expect(rpc).toHaveBeenCalledTimes(2);
-
-    // A segunda chamada é exatamente o que a versão antiga da função espera:
-    // um `p_image_*` sobrando faria o PostgREST recusar de novo.
-    const segunda = rpc.mock.calls[1]?.[1] as Record<string, unknown>;
-    expect(segunda.p_media_path).toBe("b/1/pdf/x.pdf");
-    expect(Object.keys(segunda).some((chave) => chave.startsWith("p_image_"))).toBe(false);
-  });
-
-  it("avisa no log do servidor qual migration está faltando", async () => {
-    rpc.mockResolvedValueOnce(NAO_ACHOU_A_FUNCAO).mockResolvedValueOnce(FILA_CRIADA);
-
-    await chamar();
-
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining("20260907000000_broadcast_image.sql"),
-    );
-  });
-
-  it("o mesmo vale para o 42883 do Postgres, não só para o PGRST202", async () => {
-    rpc
-      .mockResolvedValueOnce({
-        data: null,
-        error: { code: "42883", message: "function does not exist" },
-      })
-      .mockResolvedValueOnce(FILA_CRIADA);
-
-    const resultado = await chamar();
-
-    expect(resultado.ok).toBe(true);
-    expect(rpc).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("erro que NÃO é assinatura faltando", () => {
   /**
-   * ⚠️ A rede é estreita de propósito. Repetir sobre qualquer erro faria uma
-   * falha real (permissão, público inválido) virar duas tentativas e duas
-   * chances de escrever no banco — e o segundo erro esconderia o primeiro.
+   * ⚠️ PGRST202 MUDOU DE SIGNIFICADO quando a ponte saiu, e é isso que este
+   * teste fixa.
+   *
+   * Antes ele queria dizer "a migration da imagem ainda não rodou" e disparava
+   * uma segunda tentativa. Agora quer dizer o que sempre quis dizer de verdade —
+   * o banco está atrás do código — e vira `dbOutdated`, cuja mensagem manda
+   * aplicar migration em vez de tentar de novo. Reenviar aqui seria esconder o
+   * diagnóstico atrás de uma falha diferente.
    */
-  it("não repete: devolve o erro traduzido na primeira", async () => {
+  it("função ausente vira `dbOutdated`, sem segunda tentativa", async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: {
+        code: "PGRST202",
+        message: "Could not find the function public.start_broadcast in the schema cache",
+      },
+    });
+
+    const resultado = await chamar();
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.error.code).toBe("dbOutdated");
+  });
+});
+
+describe("erro de regra de negócio", () => {
+  /**
+   * ⚠️ NENHUM ERRO GERA SEGUNDA TENTATIVA. Repetir uma falha real (permissão,
+   * público inválido) daria duas chances de escrever no banco — e o segundo erro
+   * esconderia o primeiro.
+   */
+  it("devolve o erro traduzido na primeira", async () => {
     rpc.mockResolvedValue({
       data: null,
       error: { code: "BC003", message: "Publico-alvo desconhecido ou inativo." },

@@ -10,6 +10,19 @@ export const USERS_SUBTITLE = "Quem tem acesso ao sistema e o que cada um pode f
 export const SETTINGS_TITLE = "Configurações";
 export const SETTINGS_SUBTITLE = "O que a plataforma usa para se comunicar e se organizar.";
 
+/**
+ * ⚠️ ESTE `Record` É UMA BARREIRA, e não uma tabela de conveniência.
+ *
+ * `AdminAuditAction` vem do enum do banco. Um `Record` completo obriga o
+ * type-check a reprovar o dia em que uma migration acrescentar um verbo e
+ * ninguém escrever o rótulo — que é exatamente o que tinha acontecido: as três
+ * ações de cargo entraram em 20260903000100_custom_roles.sql e a trilha as
+ * mostrava como `undefined`. O erro só apareceu quando `pnpm db:types` rodou de
+ * novo, meses depois.
+ *
+ * A lição não é "rodar db:types": é que a barreira já existia e estava
+ * desarmada, porque o tipo que ela guarda vinha de um arquivo desatualizado.
+ */
 export const ADMIN_AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
   user_role_changed: "Papel alterado",
   user_invited: "Usuário convidado",
@@ -21,6 +34,9 @@ export const ADMIN_AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
   user_deactivated: "Conta inativada",
   user_reactivated: "Conta reativada",
   user_password_reset: "Recuperação de senha enviada",
+  role_created: "Cargo criado",
+  role_updated: "Cargo alterado",
+  role_deleted: "Cargo excluído",
 };
 
 /*

@@ -1,7 +1,6 @@
 import "server-only";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { untyped } from "@/lib/supabase/untyped";
 import {
   applyRoleDefinitions,
   currentRoleDefinitions,
@@ -74,7 +73,7 @@ let carregando: Promise<void> | null = null;
 async function carregar(): Promise<void> {
   try {
     const supabase = await createClient();
-    const { data, error } = await untyped(supabase)
+    const { data, error } = await supabase
       .from("app_roles")
       .select(ROLE_COLUMNS)
       .order("sort_order", { ascending: true })
@@ -143,7 +142,7 @@ export const listRoleDefinitions = cache(async (): Promise<readonly RoleDefiniti
  */
 export async function getRoleCeilings(): Promise<Map<Role, Set<Permission>>> {
   const supabase = await createClient();
-  const { data, error } = await untyped(supabase)
+  const { data, error } = await supabase
     .from("app_role_ceilings")
     .select("base_role, permission")
     .returns<{ base_role: string; permission: string }[]>();
@@ -169,7 +168,7 @@ export async function getRoleCeilings(): Promise<Map<Role, Set<Permission>>> {
  */
 export async function countActiveUsersByRole(): Promise<Map<RoleKey, number>> {
   const supabase = await createClient();
-  const { data, error } = await untyped(supabase)
+  const { data, error } = await supabase
     .from("profiles")
     .select("role_key")
     .eq("active", true)

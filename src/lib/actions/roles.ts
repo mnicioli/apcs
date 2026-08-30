@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/errors";
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { createClient } from "@/lib/supabase/server";
-import { untyped } from "@/lib/supabase/untyped";
 import { invalidateRoleCache } from "@/lib/services/roles";
 import {
   createRoleSchema,
@@ -52,13 +51,13 @@ export async function createRoleAction(input: CreateRoleInput): Promise<ActionRe
 
   try {
     const supabase = await createClient();
-    const { error } = await untyped(supabase).rpc("create_app_role", {
+    const { error } = await supabase.rpc("create_app_role", {
       p_key: parsed.data.key,
       p_label: parsed.data.label,
       p_description: parsed.data.description ?? null,
       p_base_role: parsed.data.baseRole,
       p_permissions: parsed.data.permissions,
-    });
+    } as never);
 
     if (error) return fail(mapPostgresError(error).code);
 
@@ -79,12 +78,12 @@ export async function updateRoleAction(input: UpdateRoleInput): Promise<ActionRe
 
   try {
     const supabase = await createClient();
-    const { error } = await untyped(supabase).rpc("update_app_role", {
+    const { error } = await supabase.rpc("update_app_role", {
       p_key: parsed.data.key,
       p_label: parsed.data.label,
       p_description: parsed.data.description ?? null,
       p_permissions: parsed.data.permissions,
-    });
+    } as never);
 
     if (error) return fail(mapPostgresError(error).code);
 
@@ -105,7 +104,7 @@ export async function deleteRoleAction(input: DeleteRoleInput): Promise<ActionRe
 
   try {
     const supabase = await createClient();
-    const { error } = await untyped(supabase).rpc("delete_app_role", { p_key: parsed.data.key });
+    const { error } = await supabase.rpc("delete_app_role", { p_key: parsed.data.key } as never);
 
     if (error) return fail(mapPostgresError(error).code);
 
@@ -135,10 +134,10 @@ export async function setUserRoleKeyAction(
 
   try {
     const supabase = await createClient();
-    const { error } = await untyped(supabase).rpc("set_user_role_key", {
+    const { error } = await supabase.rpc("set_user_role_key", {
       p_user_id: parsed.data.userId,
       p_role_key: parsed.data.roleKey,
-    });
+    } as never);
 
     if (error) return fail(mapPostgresError(error).code);
 

@@ -1,6 +1,5 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { untyped } from "@/lib/supabase/untyped";
 import { formatTime } from "@/lib/utils";
 import { compareByTime } from "@/modules/lecture/lecture.rules";
 import type {
@@ -79,52 +78,22 @@ const CALENDAR_LIMIT = 1000;
 /** Teto da trilha lida de uma vez. */
 const AUDIT_LIMIT = 200;
 
-/**
- * ⚠️ REDE DE SEGURANÇA PARA A ORDEM DEPLOY × MIGRATION — a mesma de
- * `services/admin.ts`, pelo mesmo motivo.
+/*
+ * ⚠️ AQUI MORAVA UMA REDE DE SEGURANÇA, e ela cumpriu o papel dela.
  *
- * `lecture_speakers` nasce em 20260905000000_lecture_speakers.sql, e o embed
- * `speakerCatalog:...` só existe depois que ela roda. Se este código subir antes,
- * o PostgREST devolve PGRST200 ("could not find a relationship") e o módulo
- * INTEIRO de Palestras para de abrir — grid, calendário e detalhe —, porque
- * todos passam por estas colunas.
+ * `lecture_speakers` nasceu em 20260905000000_lecture_speakers.sql, e o embed
+ * `speakerCatalog:...` só existe depois que a migration roda. Como o código sobe
+ * antes, havia uma janela em que o PostgREST responderia PGRST200 ("could not
+ * find a relationship") e o módulo INTEIRO de Palestras pararia de abrir — grid,
+ * calendário e detalhe passam todos por estas colunas.
  *
- * Com o fallback, o que acontece no intervalo é bem menor: o palestrante externo
- * aparece como "não definido" até a migration rodar. Um campo vazio por algumas
- * horas contra uma tela fora do ar não é uma escolha difícil.
+ * O fallback trocava esse desastre por um inconveniente: o palestrante externo
+ * aparecia como "não definido" até a migration rodar.
  *
- * A flag é de módulo (por processo): depois da primeira falha, as consultas
- * seguintes já partem da versão sem o embed, em vez de errar e repetir a cada
- * requisição.
- *
- * REMOVER junto com `src/lib/supabase/untyped.ts`, quando a migration estiver
- * aplicada em produção.
+ * A migration está aplicada em produção e os tipos foram regenerados contra o
+ * banco (`pnpm db:types`, 30/08). A janela fechou, e um andaime que sobrevive à
+ * própria razão de existir vira código que ninguém entende por que está lá.
  */
-const SEM_RELACAO = "PGRST200";
-let catalogoIndisponivel = false;
-
-const CATALOGO_EMBED =
-  "speakerCatalog:lecture_speakers!lectures_speaker_catalog_id_fkey (id, name)";
-
-function semCatalogo(columns: string): string {
-  return columns.replace(`${CATALOGO_EMBED}, `, "").replace(`, ${CATALOGO_EMBED}`, "");
-}
-
-async function consultar<T extends { error: { code?: string } | null }>(
-  executar: (columns: string) => PromiseLike<T>,
-  columns: string,
-): Promise<T> {
-  if (catalogoIndisponivel) return executar(semCatalogo(columns));
-
-  const resultado = await executar(columns);
-  if (resultado.error?.code !== SEM_RELACAO) return resultado;
-
-  console.warn(
-    "[lectures] catálogo de palestrantes ainda não existe no banco — rode a migration 20260905000000_lecture_speakers.sql.",
-  );
-  catalogoIndisponivel = true;
-  return executar(semCatalogo(columns));
-}
 
 interface ProfileRow {
   id: string;
@@ -346,22 +315,18 @@ export async function listLectures(
 
   const from = (page - 1) * pageSize;
 
-  const { data, error, count } = await consultar(
-    (columns) =>
-      applyFilters(
-        supabase
-          .from("lectures")
-          .select(columns, { count: "exact" })
-          .order(SORT_COLUMNS[sort.field], { ascending: sort.ascending })
-          // Desempate ESTÁVEL. Sem ele, duas palestras com a mesma data podem
-          // trocar de lugar entre uma página e outra — e uma delas some da
-          // listagem sem nunca aparecer.
-          .order("id", { ascending: true })
-          .range(from, from + pageSize - 1),
-        filters,
-      ).returns<LectureRow[]>(),
-    LECTURE_COLUMNS,
-  );
+  const { data, error, count } = await applyFilters(
+    supabase
+      .from("lectures")
+      .select(LECTURE_COLUMNS, { count: "exact" })
+      .order(SORT_COLUMNS[sort.field], { ascending: sort.ascending })
+      // Desempate ESTÁVEL. Sem ele, duas palestras com a mesma data podem
+      // trocar de lugar entre uma página e outra — e uma delas some da
+      // listagem sem nunca aparecer.
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1),
+    filters,
+  ).returns<LectureRow[]>();
 
   if (error) {
     // ⚠️ PGRST103 = "pedi a partir da linha 50, mas só existem 12".
@@ -418,16 +383,12 @@ async function countLectures(filters: LectureFilters): Promise<number> {
 export async function getLecture(lectureId: string): Promise<Lecture | null> {
   const supabase = await createClient();
 
-  const { data, error } = await consultar(
-    (columns) =>
-      supabase
-        .from("lectures")
-        .select(columns)
-        .eq("id", lectureId)
-        .returns<LectureRow[]>()
-        .maybeSingle(),
-    LECTURE_COLUMNS,
-  );
+  const { data, error } = await supabase
+    .from("lectures")
+    .select(LECTURE_COLUMNS)
+    .eq("id", lectureId)
+    .returns<LectureRow[]>()
+    .maybeSingle();
 
   if (error) {
     console.error(`[lectures] getLecture falhou: ${error.message}`);
@@ -447,16 +408,12 @@ export async function getLecture(lectureId: string): Promise<Lecture | null> {
 export async function getLectureByProtocol(protocol: string): Promise<Lecture | null> {
   const supabase = await createClient();
 
-  const { data, error } = await consultar(
-    (columns) =>
-      supabase
-        .from("lectures")
-        .select(columns)
-        .eq("protocol", protocol)
-        .returns<LectureRow[]>()
-        .maybeSingle(),
-    LECTURE_COLUMNS,
-  );
+  const { data, error } = await supabase
+    .from("lectures")
+    .select(LECTURE_COLUMNS)
+    .eq("protocol", protocol)
+    .returns<LectureRow[]>()
+    .maybeSingle();
 
   if (error) {
     console.error(`[lectures] getLectureByProtocol falhou: ${error.message}`);
@@ -484,23 +441,19 @@ export async function listLecturesInRange(
 ): Promise<Lecture[]> {
   const supabase = await createClient();
 
-  const { data, error } = await consultar(
-    (columns) =>
-      // O recorte de período já está aplicado abaixo; passar `from`/`to` para
-      // `applyFilters` criaria duas fontes para a mesma restrição.
-      applyFilters(
-        supabase
-          .from("lectures")
-          .select(columns)
-          .gte("event_date", startDate)
-          .lte("event_date", endDate)
-          .order("event_date", { ascending: true })
-          .order("start_time", { ascending: true, nullsFirst: false })
-          .limit(CALENDAR_LIMIT),
-        { ...EMPTY_LECTURE_FILTERS, ...filters, from: "", to: "" },
-      ).returns<LectureRow[]>(),
-    CALENDAR_COLUMNS,
-  );
+  // O recorte de período já está aplicado abaixo; passar `from`/`to` para
+  // `applyFilters` criaria duas fontes para a mesma restrição.
+  const { data, error } = await applyFilters(
+    supabase
+      .from("lectures")
+      .select(CALENDAR_COLUMNS)
+      .gte("event_date", startDate)
+      .lte("event_date", endDate)
+      .order("event_date", { ascending: true })
+      .order("start_time", { ascending: true, nullsFirst: false })
+      .limit(CALENDAR_LIMIT),
+    { ...EMPTY_LECTURE_FILTERS, ...filters, from: "", to: "" },
+  ).returns<LectureRow[]>();
 
   if (error) {
     console.error(`[lectures] listLecturesInRange falhou: ${error.message}`);
@@ -643,10 +596,7 @@ export async function listLectureSpeakers(): Promise<LectureSpeaker[]> {
   try {
     const supabase = await createClient();
 
-    // `untyped`: `lecture_speakers` nasceu em
-    // 20260905000000_lecture_speakers.sql e ainda não está em
-    // src/types/database.ts. Ver src/lib/supabase/untyped.ts.
-    const { data, error } = await untyped(supabase)
+    const { data, error } = await supabase
       .from("lecture_speakers")
       .select("id, name")
       .eq("active", true)
@@ -753,16 +703,12 @@ export async function findLectureConflicts(
   //
   // A alternativa seria a função devolver os nomes, e aí a semântica de
   // sobreposição passaria a carregar junto uma decisão de apresentação.
-  const { data: full, error: fullError } = await consultar(
-    (columns) =>
-      supabase
-        .from("lectures")
-        .select(columns)
-        .in("id", ids)
-        .order("start_time", { ascending: true, nullsFirst: false })
-        .returns<LectureRow[]>(),
-    LECTURE_COLUMNS,
-  );
+  const { data: full, error: fullError } = await supabase
+    .from("lectures")
+    .select(LECTURE_COLUMNS)
+    .in("id", ids)
+    .order("start_time", { ascending: true, nullsFirst: false })
+    .returns<LectureRow[]>();
 
   if (fullError) {
     console.error(`[lectures] detalhe do conflito falhou: ${fullError.message}`);
