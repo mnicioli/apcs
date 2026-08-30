@@ -88,16 +88,35 @@ comment on function public.notification_phone_key(text) is
 -- ⚠️ A CHECAGEM DE 20260909000000 PASSOU E O RECURSO NÃO FUNCIONAVA. Ela rodava
 -- `estimate_audience_criteria` como DONO da migration — que pode executar tudo.
 -- A pergunta que ela fazia ("o número bate?") era boa; o usuário com que ela
--- perguntava era o errado.
+-- perguntava era o errado. É a mesma lição do grant de coluna de
+-- `events.description`: um privilégio só falha para quem NÃO é dono — ou seja,
+-- nunca no psql de quem roda a migration, sempre no navegador de quem usa.
 --
--- Esta seção pergunta como `authenticated`, que é quem clica no botão. É a mesma
--- lição do grant de coluna de `events.description`: um privilégio só falha para
--- quem NÃO é dono da tabela — ou seja, nunca no psql de quem roda a migration,
--- sempre no navegador de quem usa o sistema.
+-- ⚠️ E DUAS TENTATIVAS DE CONSERTAR ISSO AQUI FALHARAM, o que vale registrar
+-- para ninguém tentar a terceira:
+--
+--   1ª — `set local role authenticated` DENTRO de um bloco PL/pgSQL. O `perform`
+--        rodou, a NOTICE saiu, e o `reset role` seguinte não devolveu o papel.
+--   2ª — os mesmos comandos em primeiro nível. O `supabase db push` executa em
+--        AUTOCOMMIT: cada statement é sua própria transação, e o Postgres avisa
+--        `25P01: SET LOCAL can only be used in transaction blocks` e IGNORA o
+--        comando. A troca de papel nunca aconteceu — e a NOTICE "sem erro de
+--        privilégio" saiu de uma execução feita como dono. Teatro.
+--
+-- Uma migration não é o lugar para trocar de papel. O que sobrou aqui é a
+-- pergunta que o catálogo responde direito, sem encenação: `authenticated` pode
+-- executar cada função da cadeia? Quem testa a EXECUÇÃO de ponta a ponta, com o
+-- papel certo, é `src/test/sql-function-grants.test.ts`, que percorre o grafo de
+-- chamadas das migrations e roda no CI.
+--
+-- O diagnóstico de alcance ("quantos associados o disparo alcança?") saiu daqui
+-- pelo mesmo motivo: ele lê `public.members`, e o papel que o `db push` usa não
+-- tem privilégio para isso — a migration abortava num relatório. Ele virou
+-- `supabase/diagnostico-alcance-enquetes.sql`, para rodar no SQL Editor.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1. Todas as funções da cadeia estão executáveis por quem usa o sistema
+-- Todas as funções da cadeia estão executáveis por quem usa o sistema
 -- ----------------------------------------------------------------------------
 do $privilegios$
 declare
@@ -126,160 +145,6 @@ begin
   raise notice 'Privilegios: as 6 funcoes da cadeia de publico estao executaveis por authenticated.';
 end;
 $privilegios$;
-
--- ----------------------------------------------------------------------------
--- 2. A estimativa roda mesmo, com o papel de quem clica
--- ----------------------------------------------------------------------------
--- ⚠️ TROCA O PAPEL DE VERDADE. Conferir o catálogo de privilégios (seção 1) diz
--- que o grant existe; só executar diz que a cadeia inteira passa. Elas respondem
--- perguntas diferentes, e foi a segunda que faltou da última vez.
---
--- O NÚMERO devolvido aqui não importa e nem seria o certo: sem um JWT,
--- `auth.uid()` é nulo, `current_app_role()` também, e a RLS de `members` recusa
--- tudo. O que importa é o erro que NÃO acontece.
---
--- ⚠️ O `set role` É UM COMANDO DE PRIMEIRO NÍVEL, e não uma linha dentro do
--- bloco PL/pgSQL. A primeira versão desta migration fazia o contrário e falhou
--- na mão de quem a aplicou: o `perform` rodou e imprimiu o "sem erro de
--- privilegio", mas o `reset role` que vinha depois, DENTRO do bloco, não
--- devolveu o papel — e a seção 3 morreu com "permission denied for table
--- members", executando ainda como `authenticated`.
---
--- Aqui o `reset role` é um statement próprio: ele não depende da semântica de
--- `SET` dentro de PL/pgSQL, que é justamente onde a primeira versão escorregou.
--- E se o bloco levantar exceção, a transação inteira aborta — o papel não fica
--- pendurado de jeito nenhum.
-
--- O id do público-alvo é lido AGORA, como dono. Depois da troca de papel a RLS
--- de `event_segments` esconderia a linha, e a conferência viraria um "pulado"
--- que passa sem testar nada.
-do $preparo$
-begin
-  perform set_config(
-    'apcs.segmento_de_teste',
-    coalesce(
-      (
-        select s.id::text
-        from public.event_segments s
-        where s.active and public.profile_for_event_segment(s.slug) is not null
-        order by s.slug
-        limit 1
-      ),
-      ''
-    ),
-    true
-  );
-end;
-$preparo$;
-
-set local role authenticated;
-
-do $execucao$
-declare
-  v_segmento text := coalesce(current_setting('apcs.segmento_de_teste', true), '');
-  v_estado text;
-  v_mensagem text;
-begin
-  if v_segmento = '' then
-    raise notice 'Nenhum publico-alvo ativo — nada a exercitar.';
-    return;
-  end if;
-
-  begin
-    perform public.estimate_audience_criteria(
-      jsonb_build_array(
-        jsonb_build_object('dimension', 'segment', 'segmentId', v_segmento::uuid)
-      )
-    );
-  exception
-    when others then
-      get stacked diagnostics v_estado = returned_sqlstate, v_mensagem = message_text;
-      raise exception
-        'A estimativa de publico AINDA falha para quem usa o sistema. SQLSTATE % — %',
-        v_estado, v_mensagem;
-  end;
-
-  raise notice 'Estimativa de publico: executada como authenticated, sem erro de privilegio.';
-end;
-$execucao$;
-
-reset role;
-
--- ----------------------------------------------------------------------------
--- 3. E, já que estamos aqui: quantos associados o disparo alcança?
--- ----------------------------------------------------------------------------
--- ⚠️ ISTO NÃO É DECORAÇÃO. Corrigido o privilégio, a tela vai mostrar um número
--- — e se esse número for ZERO a causa é outra, do lado do CADASTRO. Estas linhas
--- dizem em qual filtro as pessoas somem, sem exigir uma segunda ida ao banco.
---
--- A ordem é a mesma de `resolve_audience_criteria`, de cima para baixo.
-do $diagnostico$
-declare
-  v_total integer;
-  v_ativos integer;
-  v_com_fone integer;
-  v_com_ponte integer;
-  v_com_perfil integer;
-  v_linha record;
-begin
-  -- ⚠️ A GUARDA QUE FALTOU NA PRIMEIRA VERSÃO. Se o papel da seção 2 vazar de
-  -- novo, o erro aqui seria "permission denied for table members" — que manda
-  -- procurar um grant faltando em `members`, quando o problema é o papel errado.
-  -- Uma mensagem que aponta para o lugar errado custa mais do que a falha.
-  if current_user = 'authenticated' then
-    raise exception
-      'O papel de teste da secao 2 nao foi desfeito: ainda rodando como authenticated. O `reset role` de primeiro nivel nao foi executado.';
-  end if;
-
-  select count(*) into v_total from public.members;
-
-  select count(*) into v_ativos
-  from public.members where status = 'active';
-
-  select count(*) into v_com_fone
-  from public.members
-  where status = 'active'
-    and length(public.notification_phone_key(whatsapp)) >= 10;
-
-  select count(*) into v_com_ponte
-  from public.members
-  where status = 'active'
-    and length(public.notification_phone_key(whatsapp)) >= 10
-    and contact_id is not null;
-
-  select count(distinct public.notification_phone_key(whatsapp)) into v_com_perfil
-  from public.members
-  where status = 'active'
-    and length(public.notification_phone_key(whatsapp)) >= 10
-    and contact_id is not null
-    and profile_type is not null;
-
-  raise notice '--- Alcance do disparo de Enquetes ---';
-  raise notice 'associados cadastrados ................ %', v_total;
-  raise notice 'com situacao ATIVA .................... %', v_ativos;
-  raise notice '  + WhatsApp utilizavel (>= 10 dig) ... %', v_com_fone;
-  raise notice '  + ligados a agenda (contact_id) ..... %', v_com_ponte;
-  raise notice '  + com perfil definido, por telefone .. %', v_com_perfil;
-
-  if v_com_perfil = 0 then
-    raise notice 'ATENCAO: nenhum associado alcancavel. O privilegio foi corrigido, mas o publico continuara zero ate o cadastro ter associados ATIVOS, com WhatsApp e com perfil.';
-  end if;
-
-  for v_linha in
-    select m.profile_type::text as perfil,
-           count(distinct public.notification_phone_key(m.whatsapp)) as quantos
-    from public.members m
-    where m.status = 'active'
-      and length(public.notification_phone_key(m.whatsapp)) >= 10
-      and m.contact_id is not null
-      and m.profile_type is not null
-    group by m.profile_type
-    order by m.profile_type::text
-  loop
-    raise notice '    perfil % ... %', v_linha.perfil, v_linha.quantos;
-  end loop;
-end;
-$diagnostico$;
 
 -- ============================================================================
 -- ROLLBACK (manual)
