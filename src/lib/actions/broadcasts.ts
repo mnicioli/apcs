@@ -107,24 +107,53 @@ export async function startBroadcastAction(
     const mensagem = broadcastWhatsAppMessage(alvo.subject);
 
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("start_broadcast", {
+
+    // O documento leva a mensagem; a imagem sai antes dele, sem texto. Quem
+    // decide se há um, dois ou nenhum é `resolveBroadcastSubject` — a partir do
+    // registro, não da tela.
+    const semImagem = {
       p_source: source,
       p_source_id: sourceId,
       p_title: alvo.subject.title,
       p_body: mensagem,
       p_segment_ids: segmentIds,
-      // O documento leva a mensagem; a imagem sai antes dele, sem texto. Quem
-      // decide se há um, dois ou nenhum é `resolveBroadcastSubject` — a partir
-      // do registro, não da tela.
       p_media_bucket: alvo.attachments.document?.bucket ?? null,
       p_media_path: alvo.attachments.document?.path ?? null,
       p_media_mime: alvo.attachments.document?.mime ?? null,
       p_media_filename: alvo.attachments.document?.filename ?? null,
+    };
+
+    let { data, error } = await supabase.rpc("start_broadcast", {
+      ...semImagem,
       p_image_bucket: alvo.attachments.image?.bucket ?? null,
       p_image_path: alvo.attachments.image?.path ?? null,
       p_image_mime: alvo.attachments.image?.mime ?? null,
       p_image_filename: alvo.attachments.image?.filename ?? null,
     } as never);
+
+    /**
+     * ⚠️ REDE DE SEGURANÇA PARA A JANELA ENTRE O DEPLOY E A MIGRATION.
+     *
+     * Os quatro `p_image_*` nasceram em 20260907000000_broadcast_image.sql. Do
+     * momento em que este código sobe até o momento em que a migration roda, o
+     * banco só conhece a versão de nove parâmetros — e o PostgREST responde
+     * "could not find the function" (PGRST202). Sem isto, o efeito seria
+     * DIVULGAÇÃO NENHUMA saindo, em nenhum dos quatro módulos, por um deploy que
+     * "só acrescentava uma imagem".
+     *
+     * A segunda tentativa manda exatamente o que a versão antiga espera, e o
+     * resultado é o comportamento de antes: a Bolsa sai só com o PDF. É a
+     * degradação certa — perder a imagem é um aborrecimento, não mandar o
+     * boletim é uma semana sem boletim.
+     *
+     * REMOVER quando a migration estiver aplicada em produção.
+     */
+    if (error?.code === "PGRST202" || error?.code === "42883") {
+      console.warn(
+        "[broadcast.start] o banco ainda não tem os parâmetros de imagem — rode a migration 20260907000000_broadcast_image.sql. Enviando só o documento.",
+      );
+      ({ data, error } = await supabase.rpc("start_broadcast", semImagem as never));
+    }
 
     if (error) return failFromPostgres("broadcast.start", error, { source, sourceId, segmentIds });
 
