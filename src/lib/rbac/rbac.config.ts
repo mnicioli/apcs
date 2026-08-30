@@ -146,6 +146,23 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "members.read": ["admin", "comercial"],
   "members.write": ["admin"],
 
+  // Base de Conhecimento — as respostas escritas que o chatbot dá em nome da APCS.
+  // Mesmo recorte dos outros módulos de conteúdo, e pelo mesmo motivo: o
+  // ATENDENTE (`comercial`) precisa CONSULTAR a resposta oficial para repetir a
+  // mesma coisa que o bot diz — nada é pior para a associação do que o robô e a
+  // pessoa darem respostas diferentes para a mesma pergunta. Mas ESCREVER o que
+  // a APCS responde automaticamente é decisão de quem responde pela associação.
+  //
+  // Chave própria (e não `documents.*`) mesmo com a mesma lista de papéis: são
+  // coisas diferentes. Documentos publica ARQUIVO com versão e vigência; aqui é
+  // texto que o bot repete palavra por palavra. Um dia restringir quem escreve
+  // a resposta do robô não pode mexer em quem publica normativa.
+  //
+  // Deve bater com as policies de `knowledge_entries` / `knowledge_categories`
+  // em supabase/migrations/20260913000100_knowledge.sql.
+  "knowledge.read": ["admin", "comercial"],
+  "knowledge.write": ["admin"],
+
   // Módulo 01 — Clientes
   "clients.read": ["admin", "comercial"],
   "clients.write": ["admin", "comercial"],

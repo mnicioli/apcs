@@ -89,6 +89,9 @@ export type Permission =
   // Associados — solicitações do formulário público e o registro definitivo
   | "members.read"
   | "members.write"
+  // Base de Conhecimento — as respostas escritas que o chatbot pode dar
+  | "knowledge.read"
+  | "knowledge.write"
   | "clients.read"
   | "clients.write"
   | "projects.read"

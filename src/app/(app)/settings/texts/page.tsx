@@ -5,7 +5,7 @@ import { SETTING_KEYS, SETTING_LABELS } from "@/modules/admin/admin.labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConsentPublisher } from "./consent-publisher";
-import { SettingEditor } from "./setting-editor";
+import { SettingEditor } from "../setting-editor";
 
 export const metadata: Metadata = { title: "Textos e LGPD — Configurações" };
 

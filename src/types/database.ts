@@ -1091,6 +1091,111 @@ export type Database = {
           },
         ];
       };
+      knowledge_categories: {
+        Row: {
+          active: boolean;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          name: string;
+          name_key: string | null;
+        };
+        Insert: {
+          active?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          name: string;
+          name_key?: string | null;
+        };
+        Update: {
+          active?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          name?: string;
+          name_key?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_categories_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      knowledge_entries: {
+        Row: {
+          available_for_chatbot: boolean;
+          category_id: string;
+          content: string;
+          created_at: string;
+          created_by: string | null;
+          ends_at: string | null;
+          id: string;
+          keywords: string[];
+          starts_at: string | null;
+          status: Database["public"]["Enums"]["knowledge_status"];
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          available_for_chatbot?: boolean;
+          category_id: string;
+          content: string;
+          created_at?: string;
+          created_by?: string | null;
+          ends_at?: string | null;
+          id?: string;
+          keywords?: string[];
+          starts_at?: string | null;
+          status?: Database["public"]["Enums"]["knowledge_status"];
+          title: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          available_for_chatbot?: boolean;
+          category_id?: string;
+          content?: string;
+          created_at?: string;
+          created_by?: string | null;
+          ends_at?: string | null;
+          id?: string;
+          keywords?: string[];
+          starts_at?: string | null;
+          status?: Database["public"]["Enums"]["knowledge_status"];
+          title?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_entries_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "knowledge_categories";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "knowledge_entries_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "knowledge_entries_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       lecture_audit_logs: {
         Row: {
           action: Database["public"]["Enums"]["lecture_audit_action"];
@@ -1132,6 +1237,30 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      lecture_cities: {
+        Row: {
+          active: boolean;
+          created_at: string;
+          id: string;
+          name: string;
+          name_key: string | null;
+        };
+        Insert: {
+          active?: boolean;
+          created_at?: string;
+          id?: string;
+          name: string;
+          name_key?: string | null;
+        };
+        Update: {
+          active?: boolean;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          name_key?: string | null;
+        };
+        Relationships: [];
       };
       lecture_speakers: {
         Row: {
@@ -4200,6 +4329,7 @@ export type Database = {
           phone: string;
         }[];
       };
+      resolve_lecture_city: { Args: { p_city: string }; Returns: string };
       resolve_lecture_speaker: { Args: { p_name: string }; Returns: string };
       resolve_survey_audience: {
         Args: { p_survey_id: string };
@@ -4274,6 +4404,16 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      search_knowledge: {
+        Args: { p_limit?: number; p_query: string };
+        Returns: {
+          category: string;
+          content: string;
+          id: string;
+          score: number;
+          title: string;
+        }[];
       };
       set_app_setting: {
         Args: { p_key: string; p_value: string };
@@ -5105,7 +5245,11 @@ export type Database = {
         | "user_password_reset"
         | "role_created"
         | "role_updated"
-        | "role_deleted";
+        | "role_deleted"
+        | "knowledge_created"
+        | "knowledge_updated"
+        | "knowledge_activated"
+        | "knowledge_deactivated";
       app_role: "admin" | "ceo" | "pm" | "tech_lead" | "comercial" | "financeiro" | "viewer";
       broadcast_recipient_status: "pending" | "sending" | "sent" | "error" | "blocked";
       broadcast_source: "normative" | "communication" | "market_bulletin" | "lecture";
@@ -5152,6 +5296,7 @@ export type Database = {
         | "error"
         | "blocked";
       event_status: "active" | "inactive";
+      knowledge_status: "active" | "inactive";
       lead_status: "new" | "in_contact" | "qualified" | "discarded";
       lecture_audit_action:
         | "lecture_created"
@@ -5403,6 +5548,10 @@ export const Constants = {
         "role_created",
         "role_updated",
         "role_deleted",
+        "knowledge_created",
+        "knowledge_updated",
+        "knowledge_activated",
+        "knowledge_deactivated",
       ],
       app_role: ["admin", "ceo", "pm", "tech_lead", "comercial", "financeiro", "viewer"],
       broadcast_recipient_status: ["pending", "sending", "sent", "error", "blocked"],
@@ -5454,6 +5603,7 @@ export const Constants = {
         "blocked",
       ],
       event_status: ["active", "inactive"],
+      knowledge_status: ["active", "inactive"],
       lead_status: ["new", "in_contact", "qualified", "discarded"],
       lecture_audit_action: [
         "lecture_created",

@@ -68,6 +68,9 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "members.read": "Ver associados e solicitações",
   "members.write": "Aprovar, recusar e editar cadastros",
 
+  "knowledge.read": "Consultar as respostas do chatbot",
+  "knowledge.write": "Escrever o que o chatbot responde",
+
   "analytics.read": "Abrir relatórios e indicadores",
 
   "users.manage": "Convidar, editar papéis e inativar contas",
@@ -105,6 +108,15 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
   { title: "Palestras", status: "live", permissions: ["lectures.read", "lectures.write"] },
   { title: "Enquetes", status: "live", permissions: ["surveys.read", "surveys.write"] },
   { title: "Associados", status: "live", permissions: ["members.read", "members.write"] },
+  // Grupo próprio, e não uma linha dentro de "Inteligência" abaixo: aquele
+  // continua sendo roadmap (Analytics, Relatórios), e este JÁ EXISTE. Misturar
+  // os dois faria a matriz oferecer uma caixa em construção ao lado de uma que
+  // abre uma tela de verdade, com o mesmo aspecto.
+  {
+    title: "Base de Conhecimento",
+    status: "live",
+    permissions: ["knowledge.read", "knowledge.write"],
+  },
   { title: "Administração", status: "live", permissions: ["users.manage", "settings.manage"] },
   { title: "Inteligência", status: "roadmap", permissions: ["analytics.read"] },
   {

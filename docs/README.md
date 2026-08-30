@@ -26,6 +26,8 @@ gerais) e pelo [SETUP.md](../SETUP.md) (como rodar).
 | Mexer na caixa de entrada do WhatsApp         | [WHATSAPP.md](./WHATSAPP.md)                             |
 | Configurar a Z-API / o webhook                | [WHATSAPP.md](./WHATSAPP.md) — seções 4 e 10             |
 | Entender por que o webhook não tem assinatura | [WHATSAPP.md](./WHATSAPP.md) — seção 4                   |
+| Mexer no que o chatbot responde               | [INTELIGENCIA.md](./INTELIGENCIA.md)                     |
+| Entender por que o robô "não encontrou" algo  | [INTELIGENCIA.md](./INTELIGENCIA.md) — seções 3 e 4      |
 | Mexer no banco (tabelas, RLS)                 | [SUPABASE.md](./SUPABASE.md)                             |
 | Saber as convenções de código                 | [CONVENTIONS.md](./CONVENTIONS.md)                       |
 | Escrever testes                               | [TESTING.md](./TESTING.md)                               |

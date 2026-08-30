@@ -37,6 +37,14 @@ export const ADMIN_AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
   role_created: "Cargo criado",
   role_updated: "Cargo alterado",
   role_deleted: "Cargo excluído",
+  // ⚠️ ATIVAR E DESATIVAR TÊM RÓTULO PRÓPRIO, e não são "Conhecimento
+  // alterado". A pergunta que se faz à trilha é "desde quando o chatbot passou
+  // a dizer isso?" — e ela só é respondível filtrando a lista se o verbo
+  // aparecer nela.
+  knowledge_created: "Item de conhecimento criado",
+  knowledge_updated: "Item de conhecimento editado",
+  knowledge_activated: "Item de conhecimento ativado",
+  knowledge_deactivated: "Item de conhecimento inativado",
 };
 
 /*
@@ -63,6 +71,20 @@ export const ADMIN_AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
  */
 export const SETTING_KEYS = {
   optOutConfirmed: "whatsapp.opt_out_confirmed",
+  // ⚠️ AS CINCO FRASES DO CHATBOT, e nenhuma delas é constante no código.
+  //
+  // O §8 do escopo pede isso e a razão é prática: são os textos que mudam com
+  // mais frequência de todo o sistema — muda o horário, muda o tom, muda quem
+  // atende — e cada mudança viraria deploy. Ficam em `app_settings`, que já tem
+  // RLS, já tem `set_app_setting` com auditoria e já tem tela.
+  //
+  // A cópia de emergência está em `SETTING_FALLBACKS` (src/lib/services/admin.ts):
+  // se a linha sumir do banco, o bot continua tendo o que dizer.
+  chatbotWelcome: "chatbot.welcome",
+  chatbotFallback: "chatbot.fallback",
+  chatbotNoResult: "chatbot.no_result",
+  chatbotError: "chatbot.error",
+  chatbotHumanHandoff: "chatbot.human_handoff",
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -71,6 +93,26 @@ export const SETTING_LABELS: Record<SettingKey, { title: string; help: string }>
   [SETTING_KEYS.optOutConfirmed]: {
     title: "Confirmação de saída",
     help: "A resposta automática de quem manda SAIR. É a ÚLTIMA mensagem que essa pessoa recebe — sem ela, ninguém sabe se funcionou, e a saída restante seria bloquear o número da APCS.",
+  },
+  [SETTING_KEYS.chatbotWelcome]: {
+    title: "Boas-vindas",
+    help: "A primeira coisa que o associado lê ao mandar “oi”. É onde ele descobre o que dá para pedir — uma saudação que não lista os assuntos deixa a pessoa adivinhando.",
+  },
+  [SETTING_KEYS.chatbotFallback]: {
+    title: "Não entendi",
+    help: "Quando o robô não identifica o pedido. Diga o que ELE sabe fazer e ofereça um atendente: “não entendi” sozinho encerra a conversa sem saída.",
+  },
+  [SETTING_KEYS.chatbotNoResult]: {
+    title: "Nada publicado",
+    help: "Quando o pedido foi entendido e não há publicação vigente — Bolsa sem boletim ativo, normativa sem versão liberada. NÃO é erro: é a APCS não tendo o que enviar agora.",
+  },
+  [SETTING_KEYS.chatbotError]: {
+    title: "Falha na consulta",
+    help: "Quando a consulta falha de verdade. Existe separada da anterior porque o robô nunca deve inventar resposta no lugar de uma falha — e porque as duas pedem coisas diferentes de quem atende depois.",
+  },
+  [SETTING_KEYS.chatbotHumanHandoff]: {
+    title: "Encaminhado para atendente",
+    help: "O que o associado lê ao pedir uma pessoa. É a mensagem que define a expectativa de quando alguém vai responder — vale citar o horário de atendimento.",
   },
 };
 
@@ -83,4 +125,10 @@ export const SETTINGS_TABS = [
   { href: "/settings/segments", label: "Públicos-alvo" },
   { href: "/settings/notifications", label: "Bloqueios" },
   { href: "/settings/texts", label: "Textos e LGPD" },
+  // Aba própria, e não mais campos em "Textos e LGPD". Aquela tela guarda duas
+  // coisas com regras opostas — uma configuração que se sobrescreve e um
+  // histórico de consentimento que não se sobrescreve —, e o comentário no topo
+  // dela existe justamente para explicar a diferença. Cinco frases de robô no
+  // meio disso apagariam a explicação.
+  { href: "/settings/chatbot", label: "Chatbot" },
 ] as const;

@@ -311,11 +311,16 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Inteligência",
     items: [
       {
+        // ⚠️ PERMISSÃO PRÓPRIA, e não mais `analytics.read`. Enquanto era item
+        // de roadmap, a chave analítica servia de espaço reservado; agora que a
+        // tela existe, quem a abre é quem cuida do que o chatbot responde — que
+        // não é a mesma pessoa que lê indicadores. Ver `knowledge.read` em
+        // rbac.config.ts e a RLS de `knowledge_entries`.
         title: "Base de Conhecimento",
         href: "/knowledge",
         icon: BookOpen,
-        permission: "analytics.read",
-        available: false,
+        permission: "knowledge.read",
+        available: true,
       },
       {
         title: "Prompts",

@@ -75,6 +75,10 @@ export type ActionErrorCode =
   // Reativar notificações. Código próprio porque a frase precisa dizer que o
   // que falta não é "um campo": é o registro de quem autorizou.
   | "membershipConsentRequired"
+  // Base de Conhecimento. `uniqueViolation` diria "já existe um registro com
+  // esses dados" num formulário de oito campos — e o campo que colidiu é sempre
+  // o título, dentro daquela categoria. Dizer qual é economiza a caçada.
+  | "knowledgeTitleTaken"
   // Administração. Códigos próprios porque, nestes quatro, a solução NÃO está
   // no sistema nem no formulário: convite que não sai é SMTP do Supabase, e
   // "erro inesperado" mandaria a pessoa tentar de novo para sempre.
@@ -243,6 +247,8 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
     "Esta versão já existe e não pode ser reescrita — uma autorização vale só para o texto que a pessoa leu. Publique com uma versão nova.",
   membershipConsentRequired:
     "Registre quem pediu para voltar a receber e por onde — é esse registro que autoriza a APCS a mandar mensagem de novo.",
+  knowledgeTitleTaken:
+    "Já existe um item com este título nesta categoria. Edite o que existe em vez de criar um segundo: o chatbot responderia sempre pelo primeiro, e o outro ficaria invisível.",
   // WhatsApp. A primeira é para quem cuida do sistema; as outras duas, para
   // quem está com a mensagem escrita e o dedo no botão.
   whatsappNotConfigured:

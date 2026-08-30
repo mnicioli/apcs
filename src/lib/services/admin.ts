@@ -324,6 +324,29 @@ export const SETTING_FALLBACKS: Record<SettingKey, string> = {
   [SETTING_KEYS.optOutConfirmed]:
     "Pronto. Você não receberá mais mensagens da APCS. " +
     "Se mudar de ideia, é só falar com a associação.",
+
+  // ⚠️ AS CINCO DO CHATBOT SÃO IGUAIS AO SEED de 20260913000100_knowledge.sql, e
+  // a duplicação é deliberada — é exatamente a rede de segurança descrita
+  // acima. O banco é quem manda; isto é o que sobra se a linha não existir.
+  //
+  // Um bot sem frase de erro não fica calado: fica mandando string vazia, que
+  // no WhatsApp é uma mensagem que nem chega a ser enviada. A pessoa vê a
+  // própria pergunta e nenhuma resposta, e conclui que ninguém leu.
+  [SETTING_KEYS.chatbotWelcome]:
+    "Olá! 👋 Sou o assistente virtual da APCS.\n\n" +
+    "Posso ajudar com Bolsa de Suínos, normativas, comunicados, eventos e palestras. O que você precisa?",
+  [SETTING_KEYS.chatbotFallback]:
+    "Não consegui entender sua solicitação. Posso ajudar com informações sobre Bolsa, " +
+    "Normativas, Comunicação, Eventos ou Palestras.\n\n" +
+    "Se preferir, posso encaminhar você para um atendente.",
+  [SETTING_KEYS.chatbotNoResult]:
+    "No momento, não encontramos uma publicação disponível para consulta. " +
+    "Posso encaminhar você para um atendente?",
+  [SETTING_KEYS.chatbotError]:
+    "Não consegui consultar essa informação agora. Posso encaminhar você para um atendente?",
+  [SETTING_KEYS.chatbotHumanHandoff]:
+    "Certo! Já avisei a equipe da APCS. Alguém vai falar com você por aqui mesmo, " +
+    "no horário de atendimento.",
 };
 
 export function readSetting(settings: Map<string, string>, key: SettingKey): string {
