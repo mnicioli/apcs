@@ -130,3 +130,54 @@ describe("42501: papel recusado x privilégio do banco", () => {
     ).toEqual({ code: "dbPrivilege" });
   });
 });
+
+/**
+ * ⚠️ "TENTE NOVAMENTE" É A PIOR ORIENTAÇÃO POSSÍVEL QUANDO O BANCO ESTÁ ATRÁS
+ * DO CÓDIGO — e era exatamente o que a tela dizia.
+ *
+ * Relatado de /users: editar o nome de uma pessoa devolvia "Ocorreu um erro
+ * inesperado. Tente novamente.". Insistir nunca ia funcionar: faltava aplicar
+ * uma migration. Um código sem tradução vira `unexpected`, e `unexpected` pede
+ * a única coisa garantidamente inútil.
+ */
+describe("o banco atrás do código não pede para tentar de novo", () => {
+  it("valor de enum que o banco não conhece é `dbOutdated`", () => {
+    const erro = {
+      code: "22P02",
+      message: 'invalid input value for enum admin_audit_action: "user_updated"',
+    };
+
+    expect(mapPostgresError(erro)).toEqual({ code: "dbOutdated" });
+    expect(ACTION_ERROR_MESSAGES.dbOutdated).not.toMatch(/tente novamente/i);
+    expect(ACTION_ERROR_MESSAGES.dbOutdated).toMatch(/migration/i);
+  });
+
+  /**
+   * O mesmo 22P02 também é "uuid malformado", que é culpa da ENTRADA e não do
+   * deploy. Colapsar os dois mandaria alguém procurar migration por causa de um
+   * campo digitado errado.
+   */
+  it("mas um uuid malformado continua sendo dado inválido", () => {
+    expect(
+      mapPostgresError({
+        code: "22P02",
+        message: 'invalid input syntax for type uuid: "abc"',
+      }),
+    ).toEqual({ code: "invalidInput" });
+  });
+
+  it("função que o PostgREST não encontra é `dbOutdated`", () => {
+    expect(mapPostgresError({ code: "PGRST202", message: "Could not find the function" })).toEqual({
+      code: "dbOutdated",
+    });
+    expect(
+      mapPostgresError({ code: "42883", message: "function public.foo(uuid) does not exist" }),
+    ).toEqual({ code: "dbOutdated" });
+  });
+
+  it("coluna fora do cache de schema também", () => {
+    expect(mapPostgresError({ code: "PGRST204", message: "column not found" })).toEqual({
+      code: "dbOutdated",
+    });
+  });
+});

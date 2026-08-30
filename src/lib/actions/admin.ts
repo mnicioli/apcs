@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/errors";
+import { fail, failFromPostgres, ok, type ActionResult } from "@/lib/actions/errors";
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -194,7 +194,8 @@ export async function updateUserAction(input: UpdateUserInput): Promise<ActionRe
       .maybeSingle()
       .returns<{ email: string } | null>();
 
-    if (erroLeitura) return fail(mapPostgresError(erroLeitura).code);
+    if (erroLeitura)
+      return failFromPostgres("admin.updateUser", erroLeitura, { userId, etapa: "leitura" });
     if (!atual) return fail("notFound");
 
     if (atual.email !== email) {
@@ -217,7 +218,7 @@ export async function updateUserAction(input: UpdateUserInput): Promise<ActionRe
       p_email: email,
     } as never);
 
-    if (error) return fail(mapPostgresError(error).code);
+    if (error) return failFromPostgres("admin.updateUser", error, { userId });
 
     revalidateAdmin();
     return ok(null);
@@ -242,7 +243,11 @@ export async function setUserActiveAction(input: SetUserActiveInput): Promise<Ac
       p_active: parsed.data.active,
     } as never);
 
-    if (error) return fail(mapPostgresError(error).code);
+    if (error)
+      return failFromPostgres("admin.setUserActive", error, {
+        userId: parsed.data.userId,
+        active: parsed.data.active,
+      });
 
     revalidateAdmin();
     return ok(null);
@@ -294,7 +299,10 @@ export async function resetUserPasswordAction(
       .maybeSingle()
       .returns<{ email: string } | null>();
 
-    if (erroLeitura) return fail(mapPostgresError(erroLeitura).code);
+    if (erroLeitura)
+      return failFromPostgres("admin.resetPassword", erroLeitura, {
+        userId: parsed.data.userId,
+      });
     if (!alvo) return fail("notFound");
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -352,7 +360,10 @@ export async function updateEventSegmentAction(
       p_active: parsed.data.active,
     } as never);
 
-    if (error) return fail(mapPostgresError(error).code);
+    if (error)
+      return failFromPostgres("admin.updateSegment", error, {
+        segmentId: parsed.data.segmentId,
+      });
 
     revalidateAdmin();
     // A grade de eventos mostra o nome do público em cada linha.
@@ -379,7 +390,7 @@ export async function setAppSettingAction(input: SetSettingInput): Promise<Actio
       p_value: parsed.data.value,
     } as never);
 
-    if (error) return fail(mapPostgresError(error).code);
+    if (error) return failFromPostgres("admin.setSetting", error, { chave: parsed.data.key });
 
     revalidateAdmin();
     return ok(null);
@@ -413,7 +424,8 @@ export async function publishConsentTextAction(
       p_body: parsed.data.body,
     } as never);
 
-    if (error) return fail(mapPostgresError(error).code);
+    if (error)
+      return failFromPostgres("admin.publishConsent", error, { versao: parsed.data.version });
 
     revalidateAdmin();
     // A landing pública mostra o texto vigente.
@@ -441,7 +453,8 @@ export async function resumeNotificationBlockAction(
       p_note: parsed.data.note,
     } as never);
 
-    if (error) return fail(mapPostgresError(error).code);
+    if (error)
+      return failFromPostgres("admin.resumeBlock", error, { blockId: parsed.data.blockId });
 
     revalidateAdmin();
     revalidatePath("/members", "page");

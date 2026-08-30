@@ -1,0 +1,70 @@
+-- ============================================================================
+-- Reafirma os verbos da trilha de administração
+-- ============================================================================
+--
+-- O SINTOMA: editar o NOME de uma pessoa em /users/[id] devolve
+-- "Ocorreu um erro inesperado. Tente novamente." — e tentar de novo nunca
+-- funciona.
+--
+-- ----------------------------------------------------------------------------
+-- A SUSPEITA, E POR QUE ELA CABE TÃO BEM
+-- ----------------------------------------------------------------------------
+-- `update_user_profile` (20260831000100_admin_users.sql) termina assim:
+--
+--     if cardinality(v_changed) > 0 then
+--       perform public.log_admin_action('user_updated'::public.admin_audit_action, ...);
+--     end if;
+--
+-- Os quatro verbos que ela e as vizinhas usam — `user_updated`,
+-- `user_deactivated`, `user_reactivated`, `user_password_reset` — não nascem com
+-- o enum: são acrescentados por `20260831000000_admin_user_enums.sql`, um
+-- arquivo de quatro linhas que existe separado porque o Postgres não deixa USAR
+-- um valor de enum na mesma transação em que ele foi criado.
+--
+-- ⚠️ SE ESSE ARQUIVO NÃO FOI APLICADO, NADA RECLAMA NA HORA. O `create function`
+-- passa: o PL/pgSQL planeja cada comando na PRIMEIRA VEZ que ele executa, não na
+-- criação. A função é criada, a tela abre, a lista carrega — e o cast só é
+-- planejado quando alguém edita um nome de verdade. Aí vem
+-- `22P02: invalid input value for enum admin_audit_action: "user_updated"`,
+-- que o mapa de erros não conhece e traduz para "erro inesperado".
+--
+-- É o mesmo mecanismo do 42702 de `start_broadcast`
+-- (20260906000000_fix_start_broadcast_ambiguity.sql): um caminho que nunca foi
+-- percorrido nunca foi analisado.
+--
+-- ⚠️ E O SINTOMA BATE NO DETALHE QUE IMPORTA: só falha quando algo MUDA. Abrir a
+-- tela funciona, salvar sem alterar funciona (o `perform` fica dentro do `if`),
+-- e editar o nome quebra. É exatamente o relato.
+--
+-- Como isso aconteceria: aplicar as migrations pelo SQL Editor do Dashboard e
+-- pular um arquivo de quatro linhas entre dois grandes. A migration da
+-- unificação de perfis (20260828194955) já documentou esse cenário acontecendo.
+--
+-- ----------------------------------------------------------------------------
+-- ESTE ARQUIVO É INÓCUO SE A SUSPEITA ESTIVER ERRADA
+-- ----------------------------------------------------------------------------
+-- `add value if not exists` num valor que já existe não faz nada. Quem decide se
+-- o problema era este é o arquivo SEGUINTE (20260910000100), que EXERCITA o
+-- caminho inteiro e desfaz — e, se falhar, mostra o SQLSTATE de verdade em vez
+-- de "inesperado".
+--
+-- ⚠️ POR QUE DOIS ARQUIVOS, DE NOVO. Pelo mesmo motivo que
+-- 20260831000000 existe sozinho: um valor acrescentado por `alter type` não pode
+-- ser USADO na mesma transação. A verificação precisa de outra migration —
+-- juntar os dois "para simplificar" faz a verificação falhar com
+-- "unsafe use of new value of enum type" mesmo quando está tudo certo.
+--
+-- DEPENDE DE: 20260830100000_admin_module.sql
+-- ============================================================================
+
+alter type public.admin_audit_action add value if not exists 'user_updated';
+alter type public.admin_audit_action add value if not exists 'user_deactivated';
+alter type public.admin_audit_action add value if not exists 'user_reactivated';
+alter type public.admin_audit_action add value if not exists 'user_password_reset';
+
+-- ============================================================================
+-- ROLLBACK
+-- ----------------------------------------------------------------------------
+-- Não existe. O Postgres não remove valor de enum, e não faria sentido remover:
+-- as funções que os citam continuariam citando.
+-- ============================================================================

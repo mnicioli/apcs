@@ -14,6 +14,7 @@ export type ActionErrorCode =
   | "invalidInput" // validação (Zod ou CHECK do banco)
   | "forbidden" // sem permissão (RBAC ou RLS bloqueou)
   | "dbPrivilege" // o BANCO recusou por privilégio de tabela/coluna — não é o papel de quem clicou
+  | "dbOutdated" // o banco está ATRÁS do código: falta aplicar uma migration
   | "notFound" // registro não encontrado
   // Upload de arquivo. São códigos próprios porque `invalidInput` não distingue
   // "mande um PDF" de "o arquivo está grande demais" de "tire a senha" — e a
@@ -131,6 +132,12 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   dbPrivilege:
     "O banco recusou esta gravação por configuração interna — não é o seu perfil. " +
     "Avise quem cuida do sistema: o log do servidor diz qual coluna faltou liberar.",
+  // ⚠️ ESTA MENSAGEM NÃO MANDA TENTAR DE NOVO, e é o ponto dela. Quando o banco
+  // está atrás do código, insistir é a única coisa garantidamente inútil — e era
+  // exatamente o que "Ocorreu um erro inesperado. Tente novamente." pedia.
+  dbOutdated:
+    "O banco de dados está desatualizado em relação ao sistema: falta aplicar uma migration. " +
+    "Avise quem cuida do deploy — tentar de novo não resolve.",
   notFound: "Registro não encontrado.",
   fileNotPdf: "Apenas arquivos PDF são permitidos.",
   fileTooLarge: "O arquivo não pode ultrapassar o tamanho máximo de 5 MB.",
@@ -344,6 +351,35 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       )
         ? { code: "dbPrivilege" }
         : { code: "forbidden" };
+    /**
+     * ⚠️ AS TRÊS FORMAS DE "O BANCO ESTÁ ATRÁS DO CÓDIGO".
+     *
+     * Nasceram de um relato: editar o nome de alguém em /users devolvia
+     * "Ocorreu um erro inesperado. Tente novamente." — e tentar de novo nunca
+     * ia funcionar, porque o que faltava era uma migration.
+     *
+     * `22P02` é `invalid_text_representation`, e serve a duas coisas bem
+     * diferentes: um uuid malformado (culpa da entrada) e um valor de enum que
+     * o banco não conhece (culpa do deploy). A distinção é pela mensagem, como
+     * no 42501 logo acima — e pelo mesmo motivo: o Postgres não dá códigos
+     * diferentes, mas as mensagens dele são em inglês e as nossas em português.
+     *
+     * ⚠️ POR QUE ISSO PASSA DESPERCEBIDO ATÉ ALGUÉM CLICAR: o PL/pgSQL planeja
+     * cada comando na PRIMEIRA VEZ que ele executa. Uma função que cita um valor
+     * de enum inexistente é criada sem reclamar, a tela abre, a lista carrega —
+     * e o erro só aparece no caminho que ninguém tinha percorrido.
+     */
+    case "22P02":
+      return /invalid input value for enum/i.test(e.message ?? "")
+        ? { code: "dbOutdated" }
+        : { code: "invalidInput" };
+    // A função não existe no schema que o PostgREST enxerga.
+    case "42883":
+    case "PGRST202":
+      return { code: "dbOutdated" };
+    // A coluna não existe no cache de schema do PostgREST.
+    case "PGRST204":
+      return { code: "dbOutdated" };
     case "PGRST116":
       return { code: "notFound" };
     // `no_data_found`, levantado pelas funções transacionais de documentos e de
