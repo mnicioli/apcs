@@ -19,6 +19,10 @@ const NUMERO = "5519991234567";
 const estado = {
   /** O que `whatsapp_bot_should_answer` responde. */
   podeFalar: true,
+  /** §39. O que `whatsapp_bot_rate_ok` responde. */
+  dentroDoLimite: true,
+  /** §83. O que a chave geral responde. */
+  ligado: true,
   /** Conversas caladas por `whatsapp_pause_bot`. */
   pausadas: [] as string[],
   /** O que `handleIncomingMessage` devolve. */
@@ -33,6 +37,7 @@ const estado = {
 
 vi.mock("./whatsapp-bot", () => ({
   botShouldAnswer: vi.fn(async () => estado.podeFalar),
+  botWithinRateLimit: vi.fn(async () => estado.dentroDoLimite),
   pauseBot: vi.fn(async (chatId: string) => {
     estado.pausadas.push(chatId);
   }),
@@ -61,6 +66,10 @@ vi.mock("@/lib/intelligence/engine", () => ({
       outcome: estado.handoff ? "handoff" : "message",
     };
   }),
+}));
+
+vi.mock("@/lib/intelligence/flags", () => ({
+  chatbotEnabled: vi.fn(async () => estado.ligado),
 }));
 
 vi.mock("@/lib/intelligence/deliver", () => ({
@@ -112,6 +121,8 @@ function mensagem(over: Partial<RecordedMessage> = {}): RecordedMessage {
 
 beforeEach(() => {
   estado.podeFalar = true;
+  estado.dentroDoLimite = true;
+  estado.ligado = true;
   estado.pausadas = [];
   estado.handoff = false;
   estado.turnos = [];
@@ -216,6 +227,51 @@ describe("A fila de precedência", () => {
 
     expect(estado.turnos).toEqual([]);
     expect(r.skipped).toBe(1);
+  });
+});
+
+describe("§39. Limite de uso", () => {
+  /**
+   * ⚠️ ESTOURAR É FICAR CALADO, e não avisar. Quem manda sete mensagens num
+   * minuto não está esperando resposta — e uma frase automática de repreensão a
+   * um associado é pior que o silêncio.
+   */
+  it("acima do limite, o robô não classifica nem responde", async () => {
+    estado.dentroDoLimite = false;
+
+    const r = await processar([mensagem()]);
+
+    expect(estado.turnos).toEqual([]);
+    expect(estado.entregas).toEqual([]);
+    expect(r.skipped).toBe(1);
+  });
+
+  /**
+   * ⚠️ O LIMITE VEM ANTES DO MODELO. Um limite consultado depois da
+   * classificação protegeria contra tudo menos contra a única coisa que ele
+   * existe para proteger: o custo.
+   */
+  it("o limite é conferido antes de gastar o modelo", async () => {
+    estado.dentroDoLimite = false;
+    await processar([mensagem()]);
+
+    expect(estado.turnos).toHaveLength(0);
+  });
+});
+
+describe("§83. A chave geral", () => {
+  it("desligado, nenhuma mensagem do lote é respondida", async () => {
+    estado.ligado = false;
+
+    const r = await processar([mensagem({ eventId: "a" }), mensagem({ eventId: "b" })]);
+
+    expect(estado.turnos).toEqual([]);
+    expect(r.skipped).toBe(2);
+  });
+
+  it("ligado, tudo segue normal", async () => {
+    const r = await processar([mensagem()]);
+    expect(r.answered).toBe(1);
   });
 });
 

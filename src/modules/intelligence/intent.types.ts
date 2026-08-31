@@ -9,6 +9,15 @@
  * passar a poder devolver "consultar bolsa" no meio de uma triagem.
  */
 
+// ⚠️ CICLO DE TIPO, e ele é intencional e inofensivo. `intelligence.types.ts`
+// importa `IntentName` daqui, e daqui se importa `ChatbotMessageKey` de lá.
+// Como as duas pontas são `import type`, o TypeScript apaga as duas na
+// compilação e não sobra ciclo nenhum em tempo de execução.
+//
+// A alternativa era um terceiro arquivo só para uma lista de seis palavras, ou
+// mover as mensagens para cá — e mensagem de chatbot não é intenção.
+import type { ChatbotMessageKey } from "./intelligence.types";
+
 export const APCS_INTENTS = [
   "saudacao",
   "consultar_bolsa",
@@ -20,6 +29,17 @@ export const APCS_INTENTS = [
   "falar_com_atendente",
   "consultar_conhecimento",
   "ajuda",
+  /**
+   * §51. "Obrigado", "era isso", "pode encerrar".
+   *
+   * ⚠️ ELA NASCEU DE UM DEFEITO DE EDUCAÇÃO. Sem esta intenção, um "obrigado"
+   * caía em `desconhecido` e o robô respondia "não entendi" — a última coisa
+   * que a pessoa lia na conversa era uma recusa.
+   *
+   * E ela é a prova do §11: acrescentá-la foram duas linhas (esta e a entrada
+   * no registro). O roteador não foi tocado.
+   */
+  "encerramento",
   "desconhecido",
 ] as const;
 
@@ -156,6 +176,18 @@ export interface IntentDefinition {
    * aqui.
    */
   handoff: boolean;
+  /**
+   * A frase configurada que responde esta intenção, quando não há ferramenta
+   * nem encaminhamento.
+   *
+   * ⚠️ CAMPO DO REGISTRO, PELO MESMO MOTIVO DE `handoff` — e este chegou tarde.
+   * Enquanto a escolha era `if (intent === "saudacao" || intent === "ajuda")`
+   * dentro do `router.ts`, cada intenção nova que respondesse com uma frase
+   * acrescentava uma perna àquela escada. `encerramento` seria a terceira.
+   *
+   * `null` cai em `fallback`, que é o certo para `desconhecido`.
+   */
+  message: ChatbotMessageKey | null;
   /** A execução deixa rastro fora do robô? Ver `CONFIDENCE_HIGH_SENSITIVE`. */
   sensitive: boolean;
   /**

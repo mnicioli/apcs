@@ -107,6 +107,47 @@ describe("a coerência do registro", () => {
     ).toEqual([]);
   });
 
+  /**
+   * ⚠️ MENSAGEM É A TERCEIRA EXCLUDENTE. `executar` testa `handoff`, depois
+   * `tool`, e só então usa `message`. Uma intenção com ferramenta E mensagem
+   * nunca mostraria a mensagem — silenciosamente, e quem escreveu a entrada não
+   * teria como saber disso lendo o registro.
+   *
+   * Este teste chegou junto com o campo `message`, que substituiu o
+   * `if (intent === "saudacao" || intent === "ajuda")` que morava no roteador.
+   */
+  it("nenhuma intenção tem mensagem E ferramenta/encaminhamento", () => {
+    const conflitantes = APCS_INTENTS.filter((intent) => {
+      const d = INTENT_REGISTRY[intent];
+      return d.message !== null && (d.tool !== null || d.handoff);
+    });
+
+    expect(
+      conflitantes,
+      `\n\n${conflitantes.join(", ")} declara mensagem E ferramenta/encaminhamento.\n\n` +
+        `O roteador confere handoff → tool → message, nessa ordem. A mensagem\n` +
+        `nunca apareceria. Escolha um dos dois.\n`,
+    ).toEqual([]);
+  });
+
+  /**
+   * ⚠️ A INTENÇÃO SEM SAÍDA NENHUMA CAI EM "NÃO ENTENDI". É o certo para
+   * `desconhecido` e é um defeito para qualquer outra: a pessoa pede algo que o
+   * robô sabe classificar e recebe uma recusa.
+   */
+  it("só `desconhecido` fica sem ferramenta, encaminhamento e mensagem", () => {
+    const mudas = APCS_INTENTS.filter((intent) => {
+      const d = INTENT_REGISTRY[intent];
+      return d.message === null && d.tool === null && !d.handoff;
+    });
+
+    expect(
+      mudas.sort(),
+      `\n\n${mudas.join(", ")} não tem saída nenhuma no registro.\n` +
+        `Toda uma delas responde "não entendi", inclusive quando foi bem classificada.\n`,
+    ).toEqual(["desconhecido"]);
+  });
+
   it("toda ferramenta declarada no registro existe de verdade", () => {
     const implementadas = new Set(allTools().map((tool) => tool.name));
     const declaradas = APCS_INTENTS.map((intent) => INTENT_REGISTRY[intent].tool).filter(
@@ -141,7 +182,7 @@ describe("a coerência do registro", () => {
   it("as intenções sem frase de confirmação são as esperadas", () => {
     const semFrase = APCS_INTENTS.filter((i) => INTENT_REGISTRY[i].confirmation === null);
     expect(semFrase.sort()).toEqual(
-      ["ajuda", "consultar_conhecimento", "desconhecido", "saudacao"].sort(),
+      ["ajuda", "consultar_conhecimento", "desconhecido", "encerramento", "saudacao"].sort(),
     );
   });
 

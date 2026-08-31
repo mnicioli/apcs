@@ -25,6 +25,16 @@ export const CHATBOT_MESSAGES = [
   "error",
   "humanHandoff",
   "unidentified",
+  /**
+   * §46. O menu numerado que substitui a IA quando ela está fora do ar.
+   *
+   * ⚠️ NUMERADO PORQUE A RESPOSTA A ELE É LIDA SEM MODELO. Um menu com opções
+   * em texto livre exigiria classificar a escolha — usando justamente o que
+   * caiu. O número é o único fallback que funciona quando a IA é o problema.
+   */
+  "menu",
+  /** §51. "Obrigado", "era isso". Ver a intenção `encerramento`. */
+  "closing",
 ] as const;
 export type ChatbotMessageKey = (typeof CHATBOT_MESSAGES)[number];
 
@@ -52,6 +62,16 @@ export interface RouterContext {
   /** A intenção esperando um "sim" ou "não". */
   pendingIntent: IntentName | null;
   pendingSubject: string | null;
+  /**
+   * §46. Quando o menu de emergência foi mostrado (ISO), ou `null`.
+   *
+   * ⚠️ É O QUE IMPEDE TODO NÚMERO DE VIRAR ESCOLHA DE MENU. Sem ele, um "2"
+   * escrito por qualquer razão receberia a Normativa do nada — e o pior caso
+   * não é o engano, é a pessoa concluir que o robô é aleatório e desistir.
+   *
+   * Vale enquanto o contexto valer: a validade é a mesma.
+   */
+  menuShownAt: string | null;
   /** ISO. Depois disto o contexto não conta mais. */
   expiresAt: string | null;
 }
@@ -61,6 +81,7 @@ export const EMPTY_CONTEXT: RouterContext = {
   currentSubject: null,
   pendingIntent: null,
   pendingSubject: null,
+  menuShownAt: null,
   expiresAt: null,
 };
 
@@ -92,6 +113,15 @@ export const CONTEXT_TTL_MINUTES = 30;
 export type RouterTurn =
   | { kind: "affirmation"; reply: "yes" | "no" }
   | { kind: "analysis"; analysis: IntentAnalysis }
+  /**
+   * §46. A pessoa escolheu um número do menu de emergência.
+   *
+   * ⚠️ TIPO PRÓPRIO, PELA MESMA RAZÃO DE `affirmation`: a leitura é
+   * DETERMINÍSTICA. Um menu cuja escolha precisasse do classificador seria
+   * inútil justamente na hora em que ele existe para servir — quando o
+   * classificador é o que caiu.
+   */
+  | { kind: "menuChoice"; intent: IntentName }
   /** O classificador falhou, recusou ou devolveu lixo. */
   | { kind: "unavailable" };
 
@@ -119,7 +149,27 @@ export interface RouterOutcome {
 /* O resultado de uma ferramenta                                              */
 /* -------------------------------------------------------------------------- */
 
-/** Um arquivo que acompanha a resposta. O envio é do PROMPT 2/3. */
+/**
+ * §17, §32, §33. DE ONDE SAIU A RESPOSTA.
+ *
+ * ⚠️ `tool` NÃO RESPONDE ESSA PERGUNTA. Ele diz que foi uma normativa; não diz
+ * QUAL. E é o "qual" que serve às duas perguntas que se faz depois: "qual
+ * documento o robô mandou para essa pessoa?" (auditoria) e "quais os mais
+ * pedidos?" (§76).
+ *
+ * Vem preenchido só quando há um registro identificável atrás da resposta. Uma
+ * frase de boas-vindas não tem origem, e forçar uma seria inventá-la.
+ */
+export const TOOL_SOURCE_TYPES = ["knowledge", "document", "market_bulletin", "event"] as const;
+export type ToolSourceType = (typeof TOOL_SOURCE_TYPES)[number];
+
+export interface ToolSource {
+  type: ToolSourceType;
+  /** O id no módulo de origem. Ver o CHECK `_source_pair` na migration. */
+  id: string;
+}
+
+/** Um arquivo que acompanha a resposta. */
 export interface ToolAttachment {
   kind: "image" | "document";
   /** URL assinada, de vida curta. Ver `OutboundDocumentMessage`. */
@@ -141,7 +191,7 @@ export interface ToolAttachment {
  * texto só para os dois faria a equipe atender sem saber qual dos dois deu.
  */
 export type ToolResult =
-  | { status: "ok"; body: string; attachments: ToolAttachment[] }
+  | { status: "ok"; body: string; attachments: ToolAttachment[]; source: ToolSource | null }
   | { status: "empty" }
   | { status: "error" }
   /**

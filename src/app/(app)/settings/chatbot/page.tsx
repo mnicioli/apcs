@@ -3,6 +3,12 @@ import Link from "next/link";
 import { getAppSettings, readSetting } from "@/lib/services/admin";
 import { SETTING_KEYS, SETTING_LABELS } from "@/modules/admin/admin.labels";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  getIntelligenceDailyMetrics,
+  getIntelligenceIntentTotals,
+  getUnknownQuestions,
+} from "@/lib/services/intelligence-metrics";
+import { ChatbotMetrics } from "./chatbot-metrics";
 import { SettingEditor } from "../setting-editor";
 
 export const metadata: Metadata = { title: "Chatbot — Configurações" };
@@ -13,20 +19,26 @@ export const metadata: Metadata = { title: "Chatbot — Configurações" };
  * ⚠️ O QUE **NÃO** ESTÁ AQUI É O PONTO DA TELA. Nenhuma resposta de conteúdo se
  * escreve nesta página: o valor da Bolsa vem do boletim ativo, a normativa vem
  * da versão publicada, e as respostas escritas ("qual o horário de atendimento?")
- * vêm da Base de Conhecimento. Aqui ficam só as cinco frases de ENQUADRAMENTO —
- * a saudação e os quatro desfechos em que não há conteúdo a entregar.
+ * vêm da Base de Conhecimento. Aqui ficam só as frases de ENQUADRAMENTO — a
+ * saudação, os desfechos em que não há conteúdo a entregar, a despedida e o
+ * menu de emergência —, mais a chave geral e o painel de acompanhamento.
  *
  * A divisão importa porque é ela que impede o caminho fácil e errado: colar a
  * resposta do momento numa dessas caixas. Um texto colado aqui não tem versão,
  * não tem vigência, não tem trilha de quem publicou — e ninguém nunca mais o
  * revisa, porque ele não aparece em lista nenhuma de conteúdo.
  *
- * As cinco vêm de `app_settings`, a mesma tabela da confirmação de saída: RLS,
+ * Todas vêm de `app_settings`, a mesma tabela da confirmação de saída: RLS,
  * `set_app_setting` com auditoria e um padrão escrito no código para o caso de
  * a linha não existir (`SETTING_FALLBACKS`).
  */
 export default async function SettingsChatbotPage() {
-  const settings = await getAppSettings();
+  const [settings, dias, intencoes, perguntas] = await Promise.all([
+    getAppSettings(),
+    getIntelligenceDailyMetrics(),
+    getIntelligenceIntentTotals(),
+    getUnknownQuestions(),
+  ]);
 
   const campo = (key: (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]) => (
     <SettingEditor
@@ -40,6 +52,18 @@ export default async function SettingsChatbotPage() {
 
   return (
     <div className="space-y-6">
+      {/* ⚠️ O PAINEL VEM PRIMEIRO, e a ordem é uma escolha. Quem abre esta tela
+          quase sempre vem consertar alguma coisa — e o que dizer ao robô só faz
+          sentido depois de ver o que as pessoas estão perguntando. */}
+      <ChatbotMetrics dias={dias} intencoes={intencoes} perguntas={perguntas} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Operação</CardTitle>
+        </CardHeader>
+        <CardContent>{campo(SETTING_KEYS.chatbotEnabled)}</CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Abertura da conversa</CardTitle>
@@ -73,6 +97,16 @@ export default async function SettingsChatbotPage() {
           <CardTitle>Atendimento humano</CardTitle>
         </CardHeader>
         <CardContent>{campo(SETTING_KEYS.chatbotHumanHandoff)}</CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Despedida e emergência</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {campo(SETTING_KEYS.chatbotClosing)}
+          {campo(SETTING_KEYS.chatbotMenu)}
+        </CardContent>
       </Card>
 
       <Card>

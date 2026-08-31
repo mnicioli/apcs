@@ -1,6 +1,7 @@
 import "server-only";
 import { readAffirmation } from "./affirmation";
-import { classifyMessage, type ClassifyHistoryItem } from "./classify";
+import { aiProvider } from "./ai/registry";
+import { readMenuChoice } from "@/modules/intelligence/menu";
 import { loadContext, saveContext } from "./context";
 import { recordInteraction, type InteractionOutcome } from "./log";
 import { loadChatbotMessages } from "./messages";
@@ -13,7 +14,9 @@ import {
   type RouterTurn,
   type ToolAttachment,
   type ToolResult,
+  type ToolSource,
 } from "@/modules/intelligence/intelligence.types";
+import type { AIHistoryItem, AIUsage } from "./ai/ai.types";
 import type { IntentName, ToolName } from "@/modules/intelligence/intent.types";
 
 /**
@@ -45,7 +48,7 @@ export interface HandleMessageInput {
   phone: string | null;
   message: string;
   /** Falas anteriores, quando quem chama já as tem em mãos. */
-  history?: readonly ClassifyHistoryItem[];
+  history?: readonly AIHistoryItem[];
   /** §36. Viaja no log de ponta a ponta. */
   correlationId: string;
 }
@@ -56,6 +59,8 @@ interface Resposta {
   body: string;
   attachments: ToolAttachment[];
   handoff: boolean;
+  /** §17. De onde veio o conteúdo, quando veio de algum lugar. */
+  source: ToolSource | null;
 }
 
 /**
@@ -113,13 +118,32 @@ export async function handleIncomingMessage(input: HandleMessageInput): Promise<
    */
   let turno: RouterTurn;
   let confianca: number | null = null;
+  let uso: AIUsage | null = null;
 
   const afirmacao = contexto.pendingIntent ? readAffirmation(input.message) : "unknown";
 
+  /**
+   * ⚠️ §46 e §81. A ESCOLHA DE MENU TAMBÉM É LIDA SEM MODELO.
+   *
+   * As duas leituras determinísticas vêm antes por razões diferentes:
+   *
+   *   a confirmação  decide se uma AÇÃO acontece, e isso não pode depender de
+   *                  um classificador achar que "pode ser" era um sim;
+   *   o menu         existe justamente para quando o classificador está fora do
+   *                  ar — passar a escolha por ele seria pedir ao morto que
+   *                  atestasse o próprio óbito.
+   *
+   * E as duas servem ao §81 de graça: um "sim" ou um "2" resolvidos sem chamar
+   * o modelo são dois turnos que não custam nada.
+   */
+  const escolha = readMenuChoice(input.message, contexto.menuShownAt);
+
   if (afirmacao !== "unknown") {
     turno = { kind: "affirmation", reply: afirmacao };
+  } else if (escolha) {
+    turno = { kind: "menuChoice", intent: escolha };
   } else {
-    const leitura = await classifyMessage({
+    const leitura = await aiProvider().classifyIntent({
       message: input.message,
       history: input.history,
     });
@@ -127,6 +151,7 @@ export async function handleIncomingMessage(input: HandleMessageInput): Promise<
     if (leitura.ok) {
       turno = { kind: "analysis", analysis: leitura.analysis };
       confianca = leitura.analysis.confidence;
+      uso = leitura.usage;
     } else {
       turno = { kind: "unavailable" };
     }
@@ -155,6 +180,12 @@ export async function handleIncomingMessage(input: HandleMessageInput): Promise<
     subject: assuntoDe(decision),
     latencyMs: Date.now() - comecou,
     correlationId: input.correlationId,
+    // §17, §32, §33. De onde saiu a resposta — qual normativa, qual boletim,
+    // qual item da Base. `tool` sozinho diz que foi uma normativa, não QUAL.
+    source: reply.source,
+    // §78, §80. Nulos quando o turno não passou pelo modelo (um "sim", uma
+    // escolha de menu) — e nulo NÃO é zero: ver a view de métricas.
+    usage: uso,
   });
 
   return { ...reply, interactionId, intent, tool, outcome };
@@ -177,21 +208,26 @@ async function executar(
   switch (decision.kind) {
     case "message":
       return {
-        reply: { body: mensagens(decision.message), attachments: [], handoff: false },
+        reply: { body: mensagens(decision.message), attachments: [], handoff: false, source: null },
         outcome: "message",
         tool: null,
       };
 
     case "confirm":
       return {
-        reply: { body: confirmationBody(decision.question), attachments: [], handoff: false },
+        reply: {
+          body: confirmationBody(decision.question),
+          attachments: [],
+          handoff: false,
+          source: null,
+        },
         outcome: "confirmed",
         tool: null,
       };
 
     case "handoff":
       return {
-        reply: { body: mensagens("humanHandoff"), attachments: [], handoff: true },
+        reply: { body: mensagens("humanHandoff"), attachments: [], handoff: true, source: null },
         outcome: "handoff",
         tool: null,
       };
@@ -227,12 +263,21 @@ function respostaDaFerramenta(
 ): Resposta {
   switch (resultado.status) {
     case "ok":
-      return { body: resultado.body, attachments: resultado.attachments, handoff: false };
+      return {
+        body: resultado.body,
+        attachments: resultado.attachments,
+        handoff: false,
+        source: resultado.source,
+      };
+    // ⚠️ OS TRÊS SEM CONTEÚDO NÃO TÊM ORIGEM, e é o certo: `source` responde "de
+    // onde saiu o que foi entregue". Não tendo sido entregue nada, uma origem
+    // aqui seria a afirmação falsa de que um documento foi consultado com
+    // sucesso — e ela contaria como "documento mais pedido" no §76.
     case "empty":
-      return { body: mensagens("noResult"), attachments: [], handoff: false };
+      return { body: mensagens("noResult"), attachments: [], handoff: false, source: null };
     case "unidentified":
-      return { body: mensagens("unidentified"), attachments: [], handoff: false };
+      return { body: mensagens("unidentified"), attachments: [], handoff: false, source: null };
     case "error":
-      return { body: mensagens("error"), attachments: [], handoff: false };
+      return { body: mensagens("error"), attachments: [], handoff: false, source: null };
   }
 }

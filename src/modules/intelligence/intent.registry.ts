@@ -22,6 +22,9 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Saudação",
     tool: null,
     handoff: false,
+    // A frase de boas-vindas É, por construção, a lista do que o robô sabe
+    // fazer. Ver `ajuda`, que aponta para a mesma.
+    message: "welcome",
     sensitive: false,
     // Responder "oi" com "você quis dizer oi?" é o tipo de coisa que faz a
     // pessoa desistir do canal.
@@ -32,6 +35,7 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Consultar a Bolsa",
     tool: "getActiveBolsa",
     handoff: false,
+    message: null,
     sensitive: false,
     // ⚠️ É O EXEMPLO DO §24, PALAVRA POR PALAVRA. "Quero saber o valor" não pode
     // virar Bolsa sozinho: pode ser a anuidade, pode ser o preço de um evento.
@@ -42,6 +46,7 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Consultar normativa",
     tool: "getActiveNormativa",
     handoff: false,
+    message: null,
     sensitive: false,
     confirmation: "Você quer receber uma normativa da APCS?",
   },
@@ -50,6 +55,7 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Consultar comunicado",
     tool: "getActiveComunicacao",
     handoff: false,
+    message: null,
     sensitive: false,
     confirmation: "Você quer receber um material de comunicação da APCS?",
   },
@@ -58,6 +64,7 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Consultar eventos",
     tool: "getActiveEvents",
     handoff: false,
+    message: null,
     sensitive: false,
     confirmation: "Você quer saber quais eventos a APCS tem marcados?",
   },
@@ -78,6 +85,7 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Solicitar palestra",
     tool: null,
     handoff: true,
+    message: null,
     // Sensível mesmo encaminhando: colocar a conversa na fila de uma pessoa por
     // engano custa o tempo de quem atende.
     sensitive: true,
@@ -97,6 +105,7 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Responder enquete",
     tool: null,
     handoff: true,
+    message: null,
     sensitive: true,
     confirmation: "Você quer falar com a equipe sobre uma enquete da APCS?",
   },
@@ -105,6 +114,7 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Falar com atendente",
     tool: null,
     handoff: true,
+    message: null,
     // ⚠️ SENSÍVEL: coloca a conversa na fila de uma pessoa. Encaminhar por
     // engano custa o tempo de quem atende — e, do outro lado, faz o associado
     // esperar por alguém que não sabia que tinha sido chamado.
@@ -116,6 +126,7 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Consultar a base de conhecimento",
     tool: "getKnowledge",
     handoff: false,
+    message: null,
     sensitive: false,
     // Sem confirmação: a busca já é barata e já responde "não encontrei"
     // sozinha. Perguntar "você quer que eu procure?" antes de procurar é um
@@ -127,6 +138,32 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Pedir ajuda",
     tool: null,
     handoff: false,
+    // ⚠️ A MESMA FRASE DA SAUDAÇÃO, e é deliberado: a de boas-vindas já É a
+    // lista do que o robô faz, que é a resposta a "o que você sabe fazer?".
+    // Um texto de ajuda separado seria uma segunda cópia da mesma lista — e a
+    // segunda cópia é a que envelhece quando um módulo novo entra.
+    message: "welcome",
+    sensitive: false,
+    confirmation: null,
+  },
+
+  /**
+   * §51. "Obrigado", "era isso", "pode encerrar".
+   *
+   * ⚠️ ELA EXISTE PORQUE O ROBÔ ERA MAL-EDUCADO. Sem esta entrada, "obrigado"
+   * caía em `desconhecido` e a resposta era "não entendi" — a última coisa que
+   * a pessoa lia na conversa era uma recusa, depois de ter sido bem atendida.
+   *
+   * ⚠️ E ELA NÃO ENCERRA NADA. Não fecha conversa, não limpa contexto, não
+   * marca a conversa como resolvida: só responde. Encerrar de verdade seria
+   * apagar a memória de quem talvez escreva "ah, e a Setorial?" trinta segundos
+   * depois — e o "obrigado" viraria uma armadilha.
+   */
+  encerramento: {
+    label: "Encerrar a conversa",
+    tool: null,
+    handoff: false,
+    message: "closing",
     sensitive: false,
     confirmation: null,
   },
@@ -135,6 +172,9 @@ export const INTENT_REGISTRY: Record<IntentName, IntentDefinition> = {
     label: "Não identificado",
     tool: null,
     handoff: false,
+    // `null` cai em `fallback`, que é a frase de "não entendi". É o único lugar
+    // onde ela é a resposta certa.
+    message: null,
     sensitive: false,
     confirmation: null,
   },

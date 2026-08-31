@@ -350,6 +350,18 @@ export const SETTING_FALLBACKS: Record<SettingKey, string> = {
   [SETTING_KEYS.chatbotUnidentified]:
     "Não encontrei este número no cadastro de associados da APCS, e a agenda de eventos " +
     "depende disso. Posso encaminhar você para um atendente?",
+  // ⚠️ A ORDEM DAS OPÇÕES CASA COM `MENU_OPTIONS`, e as duas precisam continuar
+  // casando. Ver o aviso em `src/modules/intelligence/menu.ts`.
+  [SETTING_KEYS.chatbotMenu]:
+    "Estou com uma limitação no atendimento automático agora. Posso ajudar por aqui:\n\n" +
+    "1 - Bolsa de Suínos\n2 - Normativas\n3 - Comunicação (ISP, revista, calendário)\n" +
+    "4 - Eventos\n5 - Falar com um atendente\n\nResponda com o número.",
+  [SETTING_KEYS.chatbotClosing]: "De nada! Se precisar de mais alguma coisa, é só chamar. 👍",
+  // ⚠️ O PADRÃO É "LIGADO", e é a escolha certa para uma CHAVE GERAL: a ausência
+  // da configuração precisa significar o comportamento de antes de ela existir.
+  // Um padrão "off" faria o robô nascer mudo em qualquer base onde a linha
+  // sumisse — e o sintoma seria silêncio, que ninguém percebe.
+  [SETTING_KEYS.chatbotEnabled]: "on",
 };
 
 export function readSetting(settings: Map<string, string>, key: SettingKey): string {

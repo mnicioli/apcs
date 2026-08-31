@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CHATBOT_SIGNED_URL_TTL_SECONDS, MARKET_BUCKET } from "@/lib/market/storage";
+import { prepareNameLookup } from "@/modules/intelligence/lookup";
 import type { MarketBulletinChatbotView } from "@/modules/market/market.types";
 
 /**
@@ -190,12 +191,17 @@ export async function listChatbotBulletins(): Promise<{ id: string; name: string
 export async function getBulletinForChatbotByName(
   name: string,
 ): Promise<MarketBulletinChatbotView | null> {
+  // ⚠️ §61. Mesmo motivo de `getDocumentForChatbotByName`: o nome vem do texto
+  // que o associado escreveu, e `%` no ILIKE casa com tudo. Ver `lookup.ts`.
+  const termo = prepareNameLookup(name);
+  if (!termo) return null;
+
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("market_bulletins")
     .select("id")
-    .ilike("name", name.trim())
+    .ilike("name", termo)
     .returns<{ id: string }[]>()
     .maybeSingle();
 

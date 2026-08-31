@@ -46,6 +46,32 @@ export async function botShouldAnswer(chatId: string): Promise<boolean> {
 }
 
 /**
+ * §39. A conversa está dentro do limite de uso?
+ *
+ * Dois números, defendendo coisas diferentes: seis mensagens por minuto contra
+ * rajada, quarenta turnos por hora contra custo. Os dois moram na função do
+ * banco — ver a seção 4 da migration.
+ *
+ * ⚠️ FALHA VIRA `true`, E É O OPOSTO DE `botShouldAnswer`. Ali o seguro é calar
+ * (atravessar conversa humana é pior que ficar quieto); aqui o seguro é
+ * responder. Um limite de uso que não conseguiu ser consultado silenciaria o
+ * atendimento inteiro por um problema de infraestrutura — trocando um risco de
+ * custo por uma queda de serviço.
+ */
+export async function botWithinRateLimit(chatId: string): Promise<boolean> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase.rpc("whatsapp_bot_rate_ok", { p_chat_id: chatId });
+
+  if (error) {
+    console.error(`[whatsapp-bot] whatsapp_bot_rate_ok falhou: ${error.message}`);
+    return true;
+  }
+
+  return data !== false;
+}
+
+/**
  * Cala o robô nesta conversa.
  *
  * Chamado quando o PRÓPRIO robô encaminha para uma pessoa: entre o "vou te

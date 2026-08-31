@@ -32,6 +32,8 @@ const CHAVES: Record<ChatbotMessageKey, SettingKey> = {
   error: SETTING_KEYS.chatbotError,
   humanHandoff: SETTING_KEYS.chatbotHumanHandoff,
   unidentified: SETTING_KEYS.chatbotUnidentified,
+  menu: SETTING_KEYS.chatbotMenu,
+  closing: SETTING_KEYS.chatbotClosing,
 };
 
 /**

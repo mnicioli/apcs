@@ -3,13 +3,14 @@
 Documentação do menu **Inteligência**. Leia antes de mexer no que o chatbot
 responde, e antes de ligar um módulo novo ao robô.
 
-> **Etapa 1:** Base de Conhecimento + as mensagens configuráveis do chatbot.
-> **Etapa 2:** Intelligence Layer — Intent Router, Tool Registry, contexto da
-> conversa e o log de decisão.
+> **Etapa 1** — Base de Conhecimento + as mensagens configuráveis (seções 1–10).
+> **Etapa 2** — Intelligence Layer: roteador, ferramentas, contexto, trilha.
+> **Etapa 3** — o WhatsApp: envio, silêncio, mídia, idempotência (seções 11–13).
+> **Etapa 4** — governança, segurança, custo, métricas e runbook (seções 14–19).
 >
-> As duas estão entregues. O que **não** está é o envio pelo WhatsApp: o motor
-> devolve a resposta pronta (texto + anexos) e quem a coloca na conversa é o
-> webhook, que é o PROMPT 2/3.
+> As quatro estão entregues e no ar. O que **não** existe está dito onde deveria
+> estar: as duas ferramentas de escrita (seção 9), o RAG (seção 17) e as
+> pendências da seção 12.
 
 ---
 
@@ -566,3 +567,257 @@ anterior a este módulo — vale para a resposta do atendente também — e o co
 A última tem uma irmã na própria migration, que lê `pg_proc`. As duas existem
 porque a conferência do banco só roda no `db:push` — ou seja, depois de alguém
 decidir aplicar em produção.
+
+---
+
+## 14. Governança da IA (Etapa 4)
+
+### O que a IA pode e não pode
+
+| Pode                                                        | Não pode                                     |
+| ----------------------------------------------------------- | -------------------------------------------- |
+| ler a mensagem e devolver `{ intent, confidence, subject }` | escrever qualquer texto para o associado     |
+| escolher uma intenção de uma lista fechada                  | escolher documento, versão ou publicação     |
+| copiar o termo que a pessoa usou                            | consultar banco, executar SQL, chamar função |
+| —                                                           | alterar qualquer dado do CRM                 |
+
+**Isso não é uma política — é o formato da saída.** O modelo responde num
+JSON Schema com `intent` vindo de um enum. Não existe campo onde "mande a versão
+antiga" caberia. A prova está em [prompt-injection.test.ts](src/test/prompt-injection.test.ts),
+que varre todas as intenções × confianças × doze frases hostis e afirma que a
+decisão é sempre ferramenta, confirmação escrita no registro, chave de mensagem
+ou encaminhamento.
+
+⚠️ **O que derrubaria essa garantia**, para ficar escrito: acrescentar um campo
+de texto livre à saída do modelo, ou um `generateResponse()` ao `AIProvider`. A
+bateria continuaria verde e a proteção teria acabado. É por isso que
+[ai.types.ts](src/lib/intelligence/ai/ai.types.ts) explica, na própria interface,
+por que aquele método não existe.
+
+### A porta da IA (§79)
+
+```
+Intelligence → AIProvider → Anthropic
+```
+
+Uma operação só: `classifyIntent()`. As outras duas que o §79 sugere não
+existem, e não por falta de tempo:
+
+- **`extractEntities`** não é uma segunda chamada. O assunto volta junto da
+  classificação, no mesmo JSON — separá-lo seria o dobro do custo e da latência
+  para dividir uma leitura que é uma só.
+- **`generateResponse`** é a que não pode existir. Ver acima.
+
+### Versão do prompt (§78)
+
+`INTENT_PROMPT_VERSION` é o **hash do próprio texto**, não um número escrito à
+mão. Um `PROMPT_VERSION = "1.2"` mantido manualmente falha exatamente no caso
+que ele existe para cobrir: alguém ajusta uma frase e esquece de subir o número,
+e a trilha passa a dizer "1.2" para dois prompts diferentes.
+
+O hash cobre também o catálogo de intenções, que entra no prompt — acrescentar
+`encerramento` mudou a versão, e é o certo, porque o prompt de fato mudou.
+
+### Custo (§80)
+
+`model`, `prompt_version`, `input_tokens` e `output_tokens` ficam na linha do
+turno. **Nulos quando o turno não passou pelo modelo** — um "sim", uma escolha
+de menu — e nulo não é zero: a view conta `turnos_com_modelo` à parte, senão o
+custo por classificação sairia diluído pelos turnos que nunca custaram nada.
+
+O §81 (não chamar a IA à toa) é atendido pelas duas leituras determinísticas:
+confirmação e escolha de menu resolvem sem modelo.
+
+---
+
+## 15. Segurança (Etapa 4)
+
+### O furo que esta etapa fechou
+
+As portas de chatbot procuravam documento e boletim pelo nome:
+
+```ts
+.ilike("name", subject.trim())
+```
+
+E `subject` é o termo que o modelo **copia da mensagem** — texto de quem está do
+outro lado do WhatsApp. No `ILIKE`, `%` casa com qualquer coisa.
+
+> "me manda a normativa %"
+
+fazia a busca casar com **qualquer** documento. Havendo um só publicado, ele era
+entregue como se tivesse sido pedido pelo nome; havendo vários, o `maybeSingle()`
+estourava e a ferramenta devolvia erro em vez de perguntar qual.
+
+Não era injeção de SQL — o PostgREST parametriza, e o §61 já estava satisfeito
+por construção. Era pior de perceber: uma consulta legítima com um filtro
+escolhido por quem está de fora.
+
+O conserto é [lookup.ts](src/modules/intelligence/lookup.ts), que **escapa** em
+vez de remover: existe documento com `%` no nome ("Redução de 50% na taxa"), e
+remover o caractere impediria de achá-lo pelo nome certo.
+
+### Limite de uso (§39)
+
+Dois números, defendendo coisas diferentes:
+
+| Limite             | Contra o quê                                    |
+| ------------------ | ----------------------------------------------- |
+| 6 mensagens/minuto | rajada — alguém colando trinta mensagens        |
+| 40 turnos/hora     | custo — um laço com uma automação do outro lado |
+
+Um só não cobre: um limite por minuto generoso o bastante para uma conversa
+normal ainda permite 360 chamadas por hora.
+
+**Estourar é ficar calado**, e não responder "você está indo rápido demais".
+Quem manda sete mensagens num minuto não está esperando resposta, e uma frase
+automática de repreensão a um associado é pior que o silêncio. A conversa
+continua acesa na aba "Não lidas".
+
+A contagem é no banco, e não em memória — o app roda em serverless, e um
+contador local seria um limite por instância, ou seja, nenhum. É a mesma
+conclusão de `src/lib/chat/rate-limit.ts`.
+
+### LGPD (§30, §31)
+
+| Princípio   | Onde                                                                        |
+| ----------- | --------------------------------------------------------------------------- |
+| minimização | a trilha **não guarda o texto** da mensagem — só o raciocínio e um ponteiro |
+| finalidade  | o telefone é identificador de conversa; não é usado para mais nada          |
+| segurança   | RLS em tudo; as views são `security_invoker`                                |
+| retenção    | o texto vive num lugar só (`whatsapp_messages`), com uma política só        |
+
+No **log** nunca entram: o texto da pessoa, o telefone inteiro (só os quatro
+últimos dígitos), o nome, nem o `subject` — que é um pedaço literal do que ela
+escreveu. Log vai para serviço terceiro, fica retido por meses e é lido por
+gente sem papel no CRM.
+
+---
+
+## 16. A chave geral (§83)
+
+`chatbot.enabled` em `app_settings`. Escrever `off` na tela de Configurações →
+Chatbot faz o robô parar de responder **na hora**, sem deploy. As mensagens
+continuam sendo gravadas na caixa de entrada; só não recebem resposta automática.
+
+**É a única bandeira, e ela funciona.** O §83 sugere quatro; três delas
+descreveriam estados que este sistema não tem:
+
+- `ai_enabled` — desligar a IA sem desligar o robô é o §46, e ele já acontece
+  sozinho quando o modelo falha;
+- `rag_enabled` — não há RAG a ligar;
+- `human_handoff_enabled` — desligar o encaminhamento deixaria quem pede uma
+  pessoa sem saída nenhuma. Não é uma opção que alguém deva ter.
+
+Bandeira que não faz nada é pior que bandeira nenhuma: ela é lida como proteção
+existente.
+
+**Falha-aberto.** Valor incompreensível, linha ausente ou consulta que falhou
+mantêm o robô ligado. A assimetria: um robô que deveria estar mudo e responde é
+visível na hora; um que deveria responder e ficou mudo por um erro de digitação
+é invisível.
+
+---
+
+## 17. RAG — o que existe e o que não (§14, §15, §16)
+
+**Não há RAG, e a decisão não mudou nesta etapa.** O §14 é explícito: não
+introduzir vector database sem necessidade real no MVP.
+
+O que existe é `search_knowledge()`, que casa palavras-chave, título e (para
+perguntas curtas) conteúdo, com pontuação. É determinístico e explicável — a
+tela de teste mostra exatamente o que o robô veria.
+
+O §15 vale por construção: Bolsa, Normativas e Comunicação **nunca** passam por
+busca semântica nem por busca nenhuma de texto. A versão vigente sai das Tools
+oficiais, que impõem `status = ativo AND disponível_para_chatbot = true` no SQL.
+
+O §16 (RAG para conhecimento geral) é o único lugar onde ele caberia, e o
+caminho está pronto: uma coluna de embedding em `knowledge_entries` e um segundo
+termo no `order by` da mesma função. O contrato de saída
+(`id, title, content, category, score`) já é o de um recuperador — e `source`
+na trilha já registra qual entrada respondeu (§17).
+
+---
+
+## 18. Runbook (§90)
+
+### O robô parou de responder
+
+1. **Está ligado?** Configurações → Chatbot → "Robô ligado". Valor `off` é isto.
+2. **A integração está configurada?** A tela do WhatsApp diz quando falta
+   variável de ambiente.
+3. **A conversa está calada?** `whatsapp_chats.bot_paused_until` no futuro
+   significa que uma pessoa respondeu nos últimos 60 minutos — é o
+   comportamento correto.
+4. **Bateu o limite?** `whatsapp_bot_rate_ok(chat_id)` responde. Seis mensagens
+   por minuto ou quarenta turnos por hora.
+5. **Log:** filtre `scope: "intelligence"`, evento `bot.skipped`. O campo
+   `reason` diz qual dos casos acima.
+
+⚠️ **O caso que já mordeu:** "responde a primeira mensagem e ignora o resto" era
+o eco do próprio envio disparando a pausa. O desvio está em
+`whatsapp_pause_bot_on_human` e o teste que o fixa, em `whatsapp-bot-sql.test.ts`.
+
+### A IA está fora do ar
+
+Nada a fazer — o robô já caiu no menu numerado do §46 sozinho, e as escolhas são
+lidas sem modelo. Confirme no log: `bot.turn` com `outcome: "message"` e a
+mensagem `menu`.
+
+Se quiser calar o robô enquanto isso, use a chave geral.
+
+### Mensagens presas em `pending`
+
+Uma linha `whatsapp_messages` com `status = 'pending'` e mais de alguns minutos
+significa que a função morreu entre gravar e liquidar — quase sempre por timeout
+da rota. Não há cura automática para o robô (as campanhas têm a delas).
+
+```sql
+select id, chat_id, occurred_at, body
+from whatsapp_messages
+where origin = 'bot' and status = 'pending'
+  and occurred_at < now() - interval '10 minutes';
+```
+
+A mensagem **pode** ter saído. Antes de reenviar, olhe a conversa.
+
+### Aumento de encaminhamento (§36)
+
+Configurações → Chatbot → "Perguntas sem resposta". Cada linha ali é uma entrada
+possível na Base de Conhecimento. Muito `handoff` costuma ser **conhecimento
+faltando**, não defeito de classificação.
+
+### Aumento de `desconhecido` (§37)
+
+Mesma tela, mesma lista. Muito `desconhecido` costuma ser **intenção faltando**:
+gente pedindo coisas que o registro não cobre. Acrescentar uma intenção são duas
+linhas (`APCS_INTENTS` + a entrada no registro) — o roteador não é tocado.
+
+### Documento não encontrado
+
+O robô diz "não encontrei" quando não há versão **ativa e liberada para o
+chatbot**. Confira nas telas de Documentos ou Bolsa: as duas condições, não uma.
+`disponível_para_chatbot = false` numa versão ativa é o caso mais comum.
+
+### Erro de ferramenta
+
+`tool_error` na trilha (e no painel) é falha de consulta, não falta de conteúdo.
+Filtre o log por `scope: "intelligence"`, evento `bot.turn`, e use o
+`correlationId` para achar o evento do webhook que o originou.
+
+---
+
+## 19. As guardas da Etapa 4
+
+| Teste                                     | O que ele impede                                                             |
+| ----------------------------------------- | ---------------------------------------------------------------------------- |
+| `prompt-injection.test.ts`                | qualquer saída do modelo virar texto, documento ou ferramenta não registrada |
+| `lookup.test.ts`                          | o `subject` do associado voltar a valer como curinga de busca                |
+| `menu.test.ts`                            | todo número da conversa virar escolha de menu                                |
+| `intelligence-registry.test.ts` (2 novos) | intenção com mensagem **e** ferramenta; intenção sem saída nenhuma           |
+
+E um defeito que os testes desta etapa encontraram no meio do caminho:
+`currentIntent` guardava `encerramento`, então "obrigado" seguido de "ah, e a
+Setorial?" respondia a despedida duas vezes e perdia a pergunta. A regra agora é
+`fioDaConversa` — só intenções que aceitam um assunto entram na memória.

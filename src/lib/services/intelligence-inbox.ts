@@ -4,13 +4,15 @@ import { maskPhone } from "@/lib/messaging/phone";
 import { logIntelligenceEvent } from "@/lib/messaging/telemetry";
 import { deliverBotReply } from "@/lib/intelligence/deliver";
 import { handleIncomingMessage } from "@/lib/intelligence/engine";
+import { chatbotEnabled } from "@/lib/intelligence/flags";
 import {
   botShouldAnswer,
+  botWithinRateLimit,
   getBotChatTarget,
   linkInteractionReply,
   pauseBot,
 } from "@/lib/services/whatsapp-bot";
-import type { ClassifyHistoryItem } from "@/lib/intelligence/classify";
+import type { AIHistoryItem } from "@/lib/intelligence/ai/ai.types";
 import type { MessagingProvider } from "@/lib/messaging/messaging.types";
 import type { RecordedMessage } from "@/lib/services/whatsapp-inbox";
 
@@ -73,6 +75,27 @@ export async function processChatbotMessages(
       correlationId,
       provider: provider.name,
       reason: "fornecedor nao configurado",
+      count: messages.length,
+    });
+    return { ...resultado, skipped: messages.length };
+  }
+
+  /**
+   * §83. A CHAVE GERAL, e ela é consultada UMA VEZ POR LOTE.
+   *
+   * Não por mensagem: um lote do webhook é um punhado de eventos do mesmo
+   * instante, e o estado do interruptor não muda no meio dele. Uma consulta por
+   * mensagem seria N idas ao banco para ler a mesma linha.
+   *
+   * ⚠️ E ELA VEM ANTES DE TUDO. Desligado, o robô não classifica, não consulta e
+   * não responde — mas as mensagens JÁ ESTÃO no livro-razão, gravadas antes de
+   * qualquer consumidor. Desligar o robô não perde nada: perde a resposta
+   * automática, que é exatamente o que se quis desligar.
+   */
+  if (!(await chatbotEnabled())) {
+    logIntelligenceEvent("info", "bot.skipped", {
+      correlationId,
+      reason: "robo desligado na configuracao",
       count: messages.length,
     });
     return { ...resultado, skipped: messages.length };
@@ -176,6 +199,33 @@ async function responder(
     return "skipped";
   }
 
+  /**
+   * §39. O LIMITE DE USO — e ele vem DEPOIS de "devo falar?" e ANTES do modelo.
+   *
+   * Depois porque calar por atendimento humano é uma decisão de produto, e
+   * estourar o limite é uma anomalia: contá-la junto embaralharia as duas na
+   * hora de ler o log.
+   *
+   * Antes porque é o modelo que custa. Um limite consultado depois da
+   * classificação protegeria contra tudo menos contra a única coisa que ele
+   * existe para proteger.
+   *
+   * ⚠️ ESTOURAR É FICAR CALADO, e não avisar. Quem manda sete mensagens num
+   * minuto não está esperando resposta — e uma frase automática de repreensão a
+   * um associado é pior que o silêncio. A conversa continua acesa na aba "Não
+   * lidas", que é onde uma PESSOA a vê.
+   */
+  if (!(await botWithinRateLimit(mensagem.chatId))) {
+    logIntelligenceEvent("info", "bot.skipped", {
+      correlationId,
+      chatId: mensagem.chatId,
+      messageId: mensagem.messageId,
+      reason: "limite de uso",
+      phone: maskPhone(mensagem.phone),
+    });
+    return "skipped";
+  }
+
   // §32. O destino sai do banco, e não do payload. Ver `getBotChatTarget`.
   const alvo = await getBotChatTarget(mensagem.chatId);
   if (!alvo) {
@@ -259,7 +309,7 @@ async function responder(
 async function carregarHistorico(
   chatId: string,
   exceptMessageId: string,
-): Promise<ClassifyHistoryItem[]> {
+): Promise<AIHistoryItem[]> {
   try {
     const supabase = createAdminClient();
 

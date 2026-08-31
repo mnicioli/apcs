@@ -74,6 +74,7 @@ function resposta(over: Partial<BotReply> = {}): BotReply {
     body: "Esta é a publicação vigente da Bolsa de Suínos.",
     attachments: [],
     handoff: false,
+    source: null,
     interactionId: 1,
     intent: "consultar_bolsa",
     tool: "getActiveBolsa",

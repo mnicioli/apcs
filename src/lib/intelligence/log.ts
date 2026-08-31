@@ -1,6 +1,8 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { AIUsage } from "./ai/ai.types";
 import type { IntentName, ToolName } from "@/modules/intelligence/intent.types";
+import type { ToolSource } from "@/modules/intelligence/intelligence.types";
 
 /**
  * A TRILHA DE DECISÃO (§26, §34, §36).
@@ -44,6 +46,22 @@ export interface InteractionRecord {
   subject: string | null;
   latencyMs: number | null;
   correlationId: string;
+  /**
+   * §17, §32, §33. De onde saiu o conteúdo entregue, quando saiu de algum lugar.
+   *
+   * `null` quando não houve entrega — e é o certo: marcar origem numa resposta
+   * vazia contaria o documento como "consultado com sucesso" no §76.
+   */
+  source: ToolSource | null;
+  /**
+   * §78, §80. Modelo, versão do prompt e tokens.
+   *
+   * ⚠️ `null` QUANDO O TURNO NÃO PASSOU PELO MODELO — um "sim", uma escolha de
+   * menu. E nulo não é zero: as views de métrica contam só os turnos com
+   * modelo, senão o custo médio por classificação sairia diluído pelos turnos
+   * que nunca custaram nada.
+   */
+  usage: AIUsage | null;
 }
 
 /**
@@ -76,6 +94,12 @@ export async function recordInteraction(record: InteractionRecord): Promise<numb
         subject: record.subject ? record.subject.slice(0, 200) : null,
         latency_ms: record.latencyMs,
         correlation_id: record.correlationId,
+        source_type: record.source?.type ?? null,
+        source_id: record.source?.id ?? null,
+        model: record.usage?.model ?? null,
+        prompt_version: record.usage?.promptVersion ?? null,
+        input_tokens: record.usage?.inputTokens ?? null,
+        output_tokens: record.usage?.outputTokens ?? null,
       } as never)
       .select("id")
       .returns<{ id: number }[]>()

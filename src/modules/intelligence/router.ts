@@ -36,6 +36,29 @@ function expiraEm(agora: Date): string {
   return new Date(agora.getTime() + CONTEXT_TTL_MINUTES * 60_000).toISOString();
 }
 
+/**
+ * A intenção que fica na memória como "o assunto da conversa".
+ *
+ * ⚠️ SÓ AS QUE ACEITAM UM ASSUNTO ENTRAM AQUI, e a razão é o uso: `currentIntent`
+ * existe para ser HERDADA por uma frase sem verbo ("e a Câmara Setorial?").
+ * Herdar uma intenção que não tem o que fazer com um assunto novo não ajuda —
+ * e numa delas chega a fazer mal.
+ *
+ * ⚠️ O CASO QUE MOSTROU ISSO FOI `encerramento`. Guardando-a, a sequência
+ *
+ *     "obrigado"            → "de nada!"     (currentIntent = encerramento)
+ *     "ah, e a Setorial?"   → herda encerramento → "de nada!" de novo
+ *
+ * respondia a despedida duas vezes, e a pergunta de verdade se perdia. Valia
+ * também para `saudacao`: um "oi" no meio da conversa apagaria o fio.
+ *
+ * Preservar a anterior é o certo — "oi" e "obrigado" não mudam de assunto, só
+ * pontuam a conversa.
+ */
+function fioDaConversa(intent: IntentName, anterior: IntentName | null): IntentName | null {
+  return intentDefinition(intent).tool ? intent : anterior;
+}
+
 /** O que fazer com uma intenção já decidida — sem mais nenhuma dúvida. */
 function executar(intent: IntentName, subject: string | null): RouterDecision {
   const definicao = intentDefinition(intent);
@@ -46,15 +69,12 @@ function executar(intent: IntentName, subject: string | null): RouterDecision {
   if (definicao.handoff) return { kind: "handoff", intent };
   if (definicao.tool) return { kind: "tool", intent, tool: definicao.tool, subject };
 
-  // ⚠️ SAUDAÇÃO E AJUDA COMPARTILHAM A MENSAGEM DE BOAS-VINDAS, e é deliberado.
-  // A frase de boas-vindas É, por construção, a lista do que o robô sabe fazer
-  // — que é exatamente a resposta a "o que você faz?". Um texto de ajuda
-  // separado seria uma segunda cópia da mesma lista, e a segunda cópia é a que
-  // envelhece: alguém liga um módulo novo, atualiza a saudação e esquece a
-  // ajuda.
-  if (intent === "saudacao" || intent === "ajuda") return { kind: "message", message: "welcome" };
-
-  return { kind: "message", message: "fallback" };
+  // ⚠️ A FRASE TAMBÉM VEM DO REGISTRO. Isto era
+  // `if (intent === "saudacao" || intent === "ajuda")`, e cada intenção nova que
+  // respondesse com uma frase acrescentava uma perna àquela escada —
+  // `encerramento` seria a terceira. Com o campo no registro, o roteador deixou
+  // de ter qualquer `if` por NOME de intenção. É o §11 de verdade.
+  return { kind: "message", message: definicao.message ?? "fallback" };
 }
 
 export function routeTurn(
@@ -72,9 +92,43 @@ export function routeTurn(
     // é a pessoa mudando de assunto: apagar a pergunta pendente aqui faria o
     // "sim" seguinte cair no vazio, e ela teria de recomeçar por causa de um
     // problema que não foi dela.
+    //
+    // ⚠️ §46. A RESPOSTA É O MENU, E NÃO "TIVEMOS UM ERRO". Sem interpretação de
+    // linguagem, o robô ainda sabe fazer tudo o que fazia — falta só saber o que
+    // a pessoa quer. Um menu numerado devolve essa informação por um caminho que
+    // não passa pelo modelo, e é o único fallback que funciona quando o modelo é
+    // justamente o que caiu.
+    //
+    // `menuShownAt` é o que autoriza a leitura do número no turno seguinte.
     return {
-      decision: { kind: "message", message: "error" },
-      context: { ...context, expiresAt: expiraEm(agora) },
+      decision: { kind: "message", message: "menu" },
+      context: {
+        ...context,
+        menuShownAt: agora.toISOString(),
+        expiresAt: expiraEm(agora),
+      },
+    };
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* §46. A escolha de um número do menu                                     */
+  /* ---------------------------------------------------------------------- */
+  if (turn.kind === "menuChoice") {
+    // Sem dúvida a resolver: a pessoa apontou. Executa direto, sem confirmar —
+    // pedir confirmação de uma escolha explícita de menu é insultuoso, e o menu
+    // só existe porque o caminho normal está indisponível.
+    return {
+      decision: executar(turn.intent, null),
+      context: {
+        currentIntent: fioDaConversa(turn.intent, context.currentIntent),
+        currentSubject: null,
+        pendingIntent: null,
+        pendingSubject: null,
+        // ⚠️ O MENU SAI DE CENA depois de usado. Mantê-lo aceso faria o próximo
+        // número da conversa ("são 2 sacas") virar uma segunda escolha.
+        menuShownAt: null,
+        expiresAt: expiraEm(agora),
+      },
     };
   }
 
@@ -113,10 +167,12 @@ export function routeTurn(
     return {
       decision: executar(intent, subject),
       context: {
-        currentIntent: intent,
+        currentIntent: fioDaConversa(intent, context.currentIntent),
         currentSubject: subject,
         pendingIntent: null,
         pendingSubject: null,
+        // Houve interpretação: o menu de emergência não está mais em cena.
+        menuShownAt: null,
         expiresAt: expiraEm(agora),
       },
     };
@@ -158,10 +214,12 @@ export function routeTurn(
     return {
       decision: executar(intent, subject),
       context: {
-        currentIntent: intent,
+        currentIntent: fioDaConversa(intent, context.currentIntent),
         currentSubject: subject ?? context.currentSubject,
         pendingIntent: null,
         pendingSubject: null,
+        // O classificador respondeu: o menu de emergência não está mais em cena.
+        menuShownAt: null,
         expiresAt: expiraEm(agora),
       },
     };

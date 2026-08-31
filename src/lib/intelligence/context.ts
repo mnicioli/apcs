@@ -22,6 +22,7 @@ interface ContextRow {
   current_subject: string | null;
   pending_intent: string | null;
   pending_subject: string | null;
+  menu_shown_at: string | null;
   expires_at: string | null;
 }
 
@@ -46,7 +47,9 @@ export async function loadContext(chatId: string): Promise<RouterContext> {
 
     const { data, error } = await supabase
       .from("conversation_context")
-      .select("current_intent, current_subject, pending_intent, pending_subject, expires_at")
+      .select(
+        "current_intent, current_subject, pending_intent, pending_subject, menu_shown_at, expires_at",
+      )
       .eq("whatsapp_chat_id", chatId)
       // Hint de tipo (descompasso de generics ssr/supabase-js). Ver CONVENTIONS.md.
       .returns<ContextRow[]>()
@@ -64,6 +67,7 @@ export async function loadContext(chatId: string): Promise<RouterContext> {
       currentSubject: currentIntent ? data.current_subject : null,
       pendingIntent,
       pendingSubject: pendingIntent ? data.pending_subject : null,
+      menuShownAt: data.menu_shown_at,
       expiresAt: data.expires_at,
     };
   } catch (erro) {
@@ -98,6 +102,7 @@ export async function saveContext(chatId: string, context: RouterContext): Promi
         // sem intenção pendente. Garantir aqui evita que um estado inconsistente
         // do roteador vire um erro de banco no meio do webhook.
         pending_subject: context.pendingIntent ? context.pendingSubject : null,
+        menu_shown_at: context.menuShownAt,
         expires_at: context.expiresAt,
       } as never,
       { onConflict: "whatsapp_chat_id" },

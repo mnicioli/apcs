@@ -91,6 +91,19 @@ export const SETTING_KEYS = {
   // afirmação falsa sobre a agenda — e é por isso que não dá para reaproveitar
   // `chatbot.no_result`.
   chatbotUnidentified: "chatbot.unidentified",
+  // ⚠️ O MENU DE EMERGÊNCIA (§46). A ordem das opções aqui TEM de casar com
+  // `MENU_OPTIONS` (src/modules/intelligence/menu.ts), que é o mapa número →
+  // intenção. Nada no sistema garante isso: quem editar esta frase precisa
+  // olhar aquele arquivo. É a fraqueza conhecida do desenho, aceita para a
+  // APCS poder escrever o próprio texto (§50).
+  chatbotMenu: "chatbot.menu",
+  // §51. A despedida.
+  chatbotClosing: "chatbot.closing",
+  // ⚠️ NÃO É UMA FRASE — é a CHAVE GERAL do robô (§83). Fica junto das outras
+  // porque `app_settings` é o mecanismo de configuração deste projeto, e um
+  // segundo lugar para guardar um interruptor seria um lugar a mais onde
+  // procurar no dia em que ele precisar ser desligado às pressas.
+  chatbotEnabled: "chatbot.enabled",
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -123,6 +136,18 @@ export const SETTING_LABELS: Record<SettingKey, { title: string; help: string }>
   [SETTING_KEYS.chatbotUnidentified]: {
     title: "Telefone não reconhecido",
     help: "Quando a resposta depende de saber quem está perguntando (a agenda de eventos é por público) e o telefone não está no cadastro. Diga como se identificar ou como se associar — “não há eventos” seria mentira sobre a agenda.",
+  },
+  [SETTING_KEYS.chatbotMenu]: {
+    title: "Menu de emergência",
+    help: "O que o robô oferece quando a interpretação de linguagem está fora do ar. ⚠️ A ORDEM DAS OPÇÕES É FIXA — 1 Bolsa, 2 Normativas, 3 Comunicação, 4 Eventos, 5 Atendente. Você pode reescrever o texto; trocar a ordem faria o número levar ao lugar errado.",
+  },
+  [SETTING_KEYS.chatbotClosing]: {
+    title: "Despedida",
+    help: "A resposta a “obrigado”, “era isso”, “pode encerrar”. Ela não encerra nada — a conversa continua aberta e a pessoa pode voltar a perguntar na mesma hora.",
+  },
+  [SETTING_KEYS.chatbotEnabled]: {
+    title: "Robô ligado",
+    help: "Escreva “off” para o robô parar de responder no WhatsApp AGORA, sem deploy. Qualquer outro valor mantém ligado. As mensagens que chegarem continuam sendo gravadas na caixa de entrada — só não recebem resposta automática.",
   },
 };
 

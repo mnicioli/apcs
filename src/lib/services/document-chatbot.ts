@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CHATBOT_SIGNED_URL_TTL_SECONDS, DOCUMENTS_BUCKET } from "@/lib/documents/storage";
+import { prepareNameLookup } from "@/modules/intelligence/lookup";
 import type { DocumentCategory, DocumentChatbotView } from "@/modules/document/document.types";
 
 /**
@@ -122,13 +123,19 @@ export async function getDocumentForChatbotByName(
   category: DocumentCategory,
   name: string,
 ): Promise<DocumentChatbotView | null> {
+  // ⚠️ §61. O NOME VEM DE FORA — é o `subject` que o modelo copiou da mensagem
+  // do associado. `%` e `_` são curingas no ILIKE, e sem escapá-los alguém
+  // pedindo "a normativa %" casaria com QUALQUER documento. Ver `lookup.ts`.
+  const termo = prepareNameLookup(name);
+  if (!termo) return null;
+
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("documents")
     .select("id")
     .eq("category", category)
-    .ilike("name", name.trim())
+    .ilike("name", termo)
     .returns<{ id: string }[]>()
     .maybeSingle();
 

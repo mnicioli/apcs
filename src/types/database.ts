@@ -547,6 +547,7 @@ export type Database = {
           current_intent: string | null;
           current_subject: string | null;
           expires_at: string | null;
+          menu_shown_at: string | null;
           pending_intent: string | null;
           pending_subject: string | null;
           updated_at: string;
@@ -556,6 +557,7 @@ export type Database = {
           current_intent?: string | null;
           current_subject?: string | null;
           expires_at?: string | null;
+          menu_shown_at?: string | null;
           pending_intent?: string | null;
           pending_subject?: string | null;
           updated_at?: string;
@@ -565,6 +567,7 @@ export type Database = {
           current_intent?: string | null;
           current_subject?: string | null;
           expires_at?: string | null;
+          menu_shown_at?: string | null;
           pending_intent?: string | null;
           pending_subject?: string | null;
           updated_at?: string;
@@ -1135,10 +1138,16 @@ export type Database = {
           correlation_id: string | null;
           created_at: string;
           id: number;
+          input_tokens: number | null;
           intent: string;
           latency_ms: number | null;
+          model: string | null;
           outcome: Database["public"]["Enums"]["intelligence_outcome"];
+          output_tokens: number | null;
+          prompt_version: string | null;
           reply_message_id: string | null;
+          source_id: string | null;
+          source_type: string | null;
           subject: string | null;
           tool: string | null;
           whatsapp_chat_id: string | null;
@@ -1149,10 +1158,16 @@ export type Database = {
           correlation_id?: string | null;
           created_at?: string;
           id?: never;
+          input_tokens?: number | null;
           intent: string;
           latency_ms?: number | null;
+          model?: string | null;
           outcome: Database["public"]["Enums"]["intelligence_outcome"];
+          output_tokens?: number | null;
+          prompt_version?: string | null;
           reply_message_id?: string | null;
+          source_id?: string | null;
+          source_type?: string | null;
           subject?: string | null;
           tool?: string | null;
           whatsapp_chat_id?: string | null;
@@ -1163,10 +1178,16 @@ export type Database = {
           correlation_id?: string | null;
           created_at?: string;
           id?: never;
+          input_tokens?: number | null;
           intent?: string;
           latency_ms?: number | null;
+          model?: string | null;
           outcome?: Database["public"]["Enums"]["intelligence_outcome"];
+          output_tokens?: number | null;
+          prompt_version?: string | null;
           reply_message_id?: string | null;
+          source_id?: string | null;
+          source_type?: string | null;
           subject?: string | null;
           tool?: string | null;
           whatsapp_chat_id?: string | null;
@@ -2964,7 +2985,55 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      intelligence_daily_metrics: {
+        Row: {
+          confianca_media: number | null;
+          confirmacoes: number | null;
+          conversas: number | null;
+          desconhecidos: number | null;
+          dia: string | null;
+          encaminhamentos: number | null;
+          entregas: number | null;
+          erros: number | null;
+          latencia_media_ms: number | null;
+          sem_conteudo: number | null;
+          tokens_entrada: number | null;
+          tokens_saida: number | null;
+          turnos: number | null;
+          turnos_com_modelo: number | null;
+        };
+        Relationships: [];
+      };
+      intelligence_intent_totals: {
+        Row: {
+          confianca_media: number | null;
+          entregas: number | null;
+          erros: number | null;
+          intent: string | null;
+          sem_conteudo: number | null;
+          turnos: number | null;
+        };
+        Relationships: [];
+      };
+      intelligence_unknown_questions: {
+        Row: {
+          confidence: number | null;
+          created_at: string | null;
+          id: number | null;
+          outcome: Database["public"]["Enums"]["intelligence_outcome"] | null;
+          pergunta: string | null;
+          whatsapp_chat_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "intelligence_interactions_whatsapp_chat_id_fkey";
+            columns: ["whatsapp_chat_id"];
+            isOneToOne: false;
+            referencedRelation: "whatsapp_chats";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Functions: {
       activate_document_version: {
@@ -5265,6 +5334,7 @@ export type Database = {
         };
       };
       whatsapp_bot_pause_minutes: { Args: never; Returns: number };
+      whatsapp_bot_rate_ok: { Args: { p_chat_id: string }; Returns: boolean };
       whatsapp_bot_should_answer: {
         Args: { p_chat_id: string };
         Returns: boolean;

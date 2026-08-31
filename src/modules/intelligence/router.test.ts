@@ -191,7 +191,30 @@ describe("a confirmação", () => {
 
     expect(decision).toEqual({ kind: "handoff", intent: "solicitar_palestra" });
     expect(context.pendingIntent).toBeNull();
-    expect(context.currentIntent).toBe("solicitar_palestra");
+  });
+
+  /**
+   * ⚠️ UM ENCAMINHAMENTO NÃO VIRA "O ASSUNTO DA CONVERSA". `currentIntent` existe
+   * para ser herdada por uma frase sem verbo, e não há o que fazer com um
+   * assunto novo aplicado a "chamar uma pessoa". Ver `fioDaConversa`.
+   *
+   * Na prática o motor zera o contexto inteiro no encaminhamento (§32); esta
+   * regra é a mesma conclusão vista do lado do roteador, que é puro e não sabe
+   * disso.
+   */
+  it("confirmar um encaminhamento não vira o fio da conversa", () => {
+    const { context } = routeTurn(pendente, { kind: "affirmation", reply: "yes" }, AGORA);
+    expect(context.currentIntent).toBeNull();
+  });
+
+  it("confirmar uma CONSULTA vira o fio — ela aceita um assunto novo depois", () => {
+    const aguardando = contexto({
+      pendingIntent: "consultar_normativa",
+      pendingSubject: "Câmara Ambiental",
+    });
+    const { context } = routeTurn(aguardando, { kind: "affirmation", reply: "yes" }, AGORA);
+
+    expect(context.currentIntent).toBe("consultar_normativa");
   });
 
   it("“sim” a uma consulta executa a ferramenta, com o assunto guardado", () => {
@@ -311,15 +334,102 @@ describe("expiração do contexto (§30)", () => {
   });
 });
 
-describe("o classificador fora do ar (§40)", () => {
-  it("devolve a frase de falha e PRESERVA a pergunta pendente", () => {
-    const pendente = contexto({ pendingIntent: "consultar_bolsa", pendingSubject: null });
-    const { decision, context } = routeTurn(pendente, { kind: "unavailable" }, AGORA);
+describe("o classificador fora do ar (§46)", () => {
+  /**
+   * ⚠️ A RESPOSTA É O MENU, E NÃO "TIVEMOS UM ERRO".
+   *
+   * Sem interpretação de linguagem o robô ainda sabe fazer tudo o que fazia —
+   * falta só descobrir o que a pessoa quer. Um menu numerado obtém essa
+   * informação por um caminho que não passa pelo modelo, que é o único tipo de
+   * fallback que funciona quando o modelo é justamente o que caiu.
+   */
+  it("oferece o menu numerado", () => {
+    const { decision } = routeTurn(EMPTY_CONTEXT, { kind: "unavailable" }, AGORA);
+    expect(decision).toEqual({ kind: "message", message: "menu" });
+  });
 
-    expect(decision).toEqual({ kind: "message", message: "error" });
+  it("marca quando o menu foi mostrado — é o que autoriza ler o número depois", () => {
+    const { context } = routeTurn(EMPTY_CONTEXT, { kind: "unavailable" }, AGORA);
+    expect(context.menuShownAt).toBe(AGORA.toISOString());
+  });
+
+  it("PRESERVA a pergunta pendente", () => {
+    const pendente = contexto({ pendingIntent: "consultar_bolsa", pendingSubject: null });
+    const { context } = routeTurn(pendente, { kind: "unavailable" }, AGORA);
+
     // Um soluço do modelo não é a pessoa mudando de assunto: apagar o pendente
     // faria o "sim" seguinte cair no vazio.
     expect(context.pendingIntent).toBe("consultar_bolsa");
+  });
+});
+
+describe("§46. A escolha do menu", () => {
+  it("executa direto, sem pedir confirmação", () => {
+    // A pessoa apontou. Confirmar uma escolha explícita de menu é insultuoso —
+    // e o menu só existe porque o caminho normal está indisponível.
+    const { decision } = routeTurn(
+      EMPTY_CONTEXT,
+      { kind: "menuChoice", intent: "consultar_bolsa" },
+      AGORA,
+    );
+
+    expect(decision).toEqual({
+      kind: "tool",
+      intent: "consultar_bolsa",
+      tool: "getActiveBolsa",
+      subject: null,
+    });
+  });
+
+  /**
+   * ⚠️ SEM ISTO, O PRÓXIMO NÚMERO DA CONVERSA SERIA UMA SEGUNDA ESCOLHA. Alguém
+   * que escolhe "1" e depois escreve "2 caminhões" receberia a Normativa.
+   */
+  it("o menu sai de cena depois de usado", () => {
+    const comMenu = contexto({ menuShownAt: AGORA.toISOString() });
+    const { context } = routeTurn(
+      comMenu,
+      { kind: "menuChoice", intent: "consultar_bolsa" },
+      AGORA,
+    );
+
+    expect(context.menuShownAt).toBeNull();
+  });
+});
+
+describe("§51. Encerramento", () => {
+  /**
+   * ⚠️ ELA EXISTE PORQUE O ROBÔ ERA MAL-EDUCADO: sem esta intenção, "obrigado"
+   * caía em `desconhecido` e a resposta era "não entendi" — a última coisa que
+   * a pessoa lia era uma recusa.
+   */
+  it("responde com a despedida, e não com o fallback", () => {
+    const { decision } = routeTurn(
+      EMPTY_CONTEXT,
+      analise({ intent: "encerramento", confidence: 0.95 }),
+      AGORA,
+    );
+
+    expect(decision).toEqual({ kind: "message", message: "closing" });
+  });
+
+  /**
+   * ⚠️ ENCERRAR NÃO APAGA A MEMÓRIA. Quem diz "obrigado" e trinta segundos
+   * depois escreve "ah, e a Setorial?" perderia o fio — e o "obrigado" viraria
+   * uma armadilha.
+   */
+  it("não zera o contexto da conversa", () => {
+    const comFio = contexto({
+      currentIntent: "consultar_normativa",
+      currentSubject: "Câmara Ambiental",
+    });
+    const { context } = routeTurn(
+      comFio,
+      analise({ intent: "encerramento", confidence: 0.95 }),
+      AGORA,
+    );
+
+    expect(context.currentIntent).toBe("consultar_normativa");
   });
 });
 

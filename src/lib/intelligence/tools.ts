@@ -110,6 +110,9 @@ async function resolverCatalogo<T>(params: {
       params.substantivo,
     ),
     attachments: [],
+    // Perguntar qual não é entregar nenhum. Marcar uma origem aqui contaria a
+    // pergunta como consulta de um documento que ninguém escolheu.
+    source: null,
   };
 }
 
@@ -134,6 +137,10 @@ function ferramentaDocumental(
             status: "ok",
             body: documentCaption(doc.name, doc.version, doc.effectiveDate),
             attachments: [{ kind: "document", url: doc.pdfUrl, fileName: doc.fileName }],
+            // §17. O id do DOCUMENTO, e não o da versão: a pergunta que a
+            // auditoria faz é "qual normativa foi mandada", e a versão certa é
+            // sempre a ativa do dia. Ver `intelligence_interactions.source_id`.
+            source: { type: "document", id: doc.documentId },
           }),
           substantivo,
         }),
@@ -171,6 +178,7 @@ const TOOLS: Record<ToolName, ToolDefinition> = {
                 fileName: `${bolsa.versionName}.pdf`,
               },
             ],
+            source: { type: "market_bulletin", id: bolsa.bulletinId },
           }),
           substantivo: CHOICE_NOUNS.bolsa,
         }),
@@ -222,6 +230,10 @@ const TOOLS: Record<ToolName, ToolDefinition> = {
             })),
           ),
           attachments: [],
+          // A agenda é uma LISTA, e não um evento. Um `source` aqui teria de
+          // escolher um dos eventos para representar todos — e a escolha seria
+          // arbitrária.
+          source: null,
         };
       }),
   },
@@ -249,7 +261,12 @@ const TOOLS: Record<ToolName, ToolDefinition> = {
 
         // ⚠️ O TEXTO SAI COMO ESTÁ ESCRITO. Nada aqui resume, reescreve ou
         // combina dois itens: o §2 é que a resposta oficial é a da APCS.
-        return { status: "ok", body: primeiro.content, attachments: [] };
+        return {
+          status: "ok",
+          body: primeiro.content,
+          attachments: [],
+          source: { type: "knowledge", id: primeiro.id },
+        };
       }),
   },
 };
