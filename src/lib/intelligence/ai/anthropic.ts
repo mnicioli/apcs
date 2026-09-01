@@ -25,11 +25,15 @@ import type { AIClassifyResult, AIHistoryItem, AIProvider, ClassifyRequest } fro
  */
 
 /**
- * Modelo padrão: o mesmo do chat da web, e configurável por env pelo mesmo
- * motivo — dá para trocar por um mais barato depois de medir a qualidade da
- * classificação no uso real, sem mexer em código.
+ * Modelo padrão: o mesmo do chat da web (Claude Sonnet 5), e configurável por
+ * env pelo mesmo motivo — dá para SUBIR de modelo se a qualidade da
+ * classificação no uso real não se sustentar, sem mexer em código.
+ *
+ * ⚠️ É OUTRA VARIÁVEL, e as duas precisam ser trocadas juntas. Mexer só no
+ * `APCS_CHAT_MODEL` deixa esta camada no padrão daqui, e os dois lados do
+ * atendimento passam a rodar em modelos diferentes sem ninguém perceber.
  */
-const MODEL = envOrFallback(process.env.APCS_INTELLIGENCE_MODEL, "claude-opus-5");
+const MODEL = envOrFallback(process.env.APCS_INTELLIGENCE_MODEL, "claude-sonnet-5");
 
 /** Teto de mensagens anteriores enviadas como contexto ao modelo. */
 const HISTORY_LIMIT = 6;
@@ -50,14 +54,28 @@ const CLASSIFY_TIMEOUT_MS = 12_000;
  * Schema da resposta (structured outputs). Escrito à mão em JSON Schema — e não
  * gerado do Zod — pelo mesmo motivo de `chat/llm.ts`: o helper do SDK exige
  * `zod/v4` e o projeto usa a API clássica.
+ *
+ * ⚠️ `confidence` NÃO DECLARA FAIXA, e isso não é esquecimento. A API RECUSA
+ * `minimum`/`maximum` em `number` e `integer` — HTTP 400, "For 'number' type,
+ * properties maximum, minimum are not supported". Declará-los derrubava TODA
+ * classificação, e de um jeito especialmente traiçoeiro: o 400 caía no `catch`
+ * lá embaixo, virava `unavailable` e o robô servia o menu do §46 como se não
+ * tivesse entendido a pessoa. Uma pane muda, com cara de falta de jeito.
+ *
+ * A faixa continua garantida onde sempre esteve: `parseAnalysis` zera qualquer
+ * valor fora de 0..1. É a segunda barreira fazendo o trabalho — o schema fecha
+ * o FORMATO, o código valida o CONTEÚDO.
+ *
+ * Exportado e guardado por `src/test/llm-output-schema.test.ts`, que reprova
+ * qualquer palavra-chave que a API recuse — nos dois schemas do projeto.
  */
-const ANALYSIS_JSON_SCHEMA: Record<string, unknown> = {
+export const ANALYSIS_JSON_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
   required: ["intent", "confidence"],
   properties: {
     intent: { type: "string", enum: [...APCS_INTENTS] },
-    confidence: { type: "number", minimum: 0, maximum: 1 },
+    confidence: { type: "number" },
     subject: { type: "string" },
   },
 };

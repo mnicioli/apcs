@@ -110,15 +110,16 @@ sinal de que a abstração do fluxo está apertada — vale rever antes de codar
 
 Todas server-side (ver `.env.example`):
 
-| Variável                      | Para quê                                                      |
-| ----------------------------- | ------------------------------------------------------------- |
-| `SUPABASE_SERVICE_ROLE_KEY`   | Escrita do chat. **Obrigatória.** Nunca `NEXT_PUBLIC_`.       |
-| `ANTHROPIC_API_KEY`           | Interpretação das mensagens.                                  |
-| `APCS_IP_HASH_SECRET`         | HMAC que anonimiza o IP do rate limit.                        |
-| `APCS_PRIVACY_POLICY_URL`     | Link mostrado no pedido de consentimento.                     |
-| `APCS_PRIVACY_POLICY_VERSION` | Versão registrada junto com o aceite.                         |
-| `APCS_CSP_MATERIAL_URL`       | Material oficial que o bot envia.                             |
-| `APCS_CHAT_MODEL`             | Opcional — modelo usado na extração (padrão `claude-opus-5`). |
+| Variável                      | Para quê                                                                                                              |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `SUPABASE_SERVICE_ROLE_KEY`   | Escrita do chat. **Obrigatória.** Nunca `NEXT_PUBLIC_`.                                                               |
+| `ANTHROPIC_API_KEY`           | Interpretação das mensagens.                                                                                          |
+| `APCS_IP_HASH_SECRET`         | HMAC que anonimiza o IP do rate limit.                                                                                |
+| `APCS_PRIVACY_POLICY_URL`     | Link mostrado no pedido de consentimento.                                                                             |
+| `APCS_PRIVACY_POLICY_VERSION` | Versão registrada junto com o aceite.                                                                                 |
+| `APCS_CSP_MATERIAL_URL`       | Material oficial que o bot envia.                                                                                     |
+| `APCS_CHAT_MODEL`             | Opcional — modelo usado na extração do chat da web (padrão `claude-sonnet-5`).                                        |
+| `APCS_INTELLIGENCE_MODEL`     | Opcional — modelo da classificação de intenções do WhatsApp (padrão `claude-sonnet-5`). Variável separada da de cima. |
 
 O fusível de custo definitivo não é nenhuma dessas: é o **limite de gasto da
 organização no console da Anthropic**. Um endpoint público que chama LLM precisa

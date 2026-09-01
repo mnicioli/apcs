@@ -29,11 +29,16 @@ import { CSP_CONTENT } from "@/modules/chat/flows/csp.content";
  */
 
 /**
- * Modelo padrão: o mais capaz da Anthropic, para extração confiável em PT-BR
- * informal. Configurável por env para o time poder trocar por um mais barato
- * depois de medir a qualidade da extração no uso real — sem mexer em código.
+ * Modelo padrão: Claude Sonnet 5 — escolhido por CUSTO. É bem mais barato que o
+ * Opus 5, que era o padrão antes, e dá conta do que se pede dele aqui: ler a
+ * mensagem e devolver campos. Ele nunca escreve texto para a pessoa — quem
+ * escolhe a frase é o motor, a partir do catálogo aprovado — então o risco de
+ * um modelo menor é errar uma extração, e não soltar uma resposta ruim no ar.
+ *
+ * Configurável por env para dar para SUBIR de modelo sem mexer em código, se a
+ * qualidade da extração no uso real não se sustentar.
  */
-const MODEL = envOrFallback(process.env.APCS_CHAT_MODEL, "claude-opus-5");
+const MODEL = envOrFallback(process.env.APCS_CHAT_MODEL, "claude-sonnet-5");
 
 export interface LlmMeta {
   model: string;
@@ -52,8 +57,12 @@ export type LlmTurnResult =
  * não gerado do Zod — porque o helper do SDK exige `zod/v4` e o projeto usa a
  * API clássica do Zod. O `chatTurnAnalysisSchema` valida a saída depois, então
  * temos as duas barreiras.
+ *
+ * Exportado para `src/test/llm-output-schema.test.ts`, que reprova palavra-chave
+ * que a API recuse (faixa em `number`, tamanho em `array`). Ver o aviso longo em
+ * `intelligence/ai/anthropic.ts`: já derrubou a classificação inteira uma vez.
  */
-const ANALYSIS_JSON_SCHEMA: Record<string, unknown> = {
+export const ANALYSIS_JSON_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
   required: ["intent", "slots"],
