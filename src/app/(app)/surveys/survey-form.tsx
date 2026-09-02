@@ -17,7 +17,7 @@ import { SURVEY_ANSWER_TYPE_LABELS } from "@/modules/survey/survey.labels";
 import { surveyHref } from "@/modules/survey/survey.routes";
 import { surveyCoreSchema, type SurveyFormInput } from "@/modules/survey/survey.schema";
 import type { SurveyAudienceCriterion, SurveyWithQuestion } from "@/modules/survey/survey.types";
-import { TIME_STEP_SECONDS } from "@/lib/time/step";
+import { TimeSelect } from "@/components/ui/time-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -87,7 +87,6 @@ export function SurveyForm({
   const descriptionId = useId();
   const questionId = useId();
   const answerTypeId = useId();
-  const startsId = useId();
   const endsId = useId();
   const scheduledId = useId();
   const anonId = useId();
@@ -108,7 +107,7 @@ export function SurveyForm({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors, isDirty },
+    formState: { errors, isDirty, isSubmitted },
   } = useForm<SurveyFormInput>({
     resolver: zodResolver(surveyCoreSchema),
     defaultValues: {
@@ -415,54 +414,55 @@ export function SurveyForm({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          {/* §32. A data e a hora do ENVIO ficam aqui, e não só no diálogo de
-              confirmação: quem está montando a campanha decide o horário junto
-              com o resto, e o diálogo (§73) confirma o que já foi decidido em
-              vez de pedir um dado novo na última tela. */}
+          {/* ⚠️ UM CAMPO PARA DOIS INSTANTES — envio e abertura andam juntos.
+              O banco continua guardando `scheduled_at` e `starts_at` separados,
+              e o schema continua exigindo envio >= início; o que sumiu foi a
+              PERGUNTA, não a capacidade. Eram dois campos que na prática
+              recebiam sempre o mesmo valor, e a diferença entre eles só
+              aparecia como um erro em vermelho quando alguém errava a ordem.
+
+              Consequência a conhecer: deixou de ser possível abrir a enquete
+              para respostas às 08:00 e só mandar a mensagem às 09:00. Se isso
+              voltar a ser preciso, é separar os dois campos de novo — nada no
+              banco impede. */}
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor={scheduledId}>Data e hora do envio</Label>
-            <Input
+            <DateTimeField
               id={scheduledId}
-              type="datetime-local"
-              step={TIME_STEP_SECONDS}
+              label="Data e hora do envio"
+              value={watch("scheduledAt") ?? ""}
               disabled={bloqueado}
-              aria-invalid={Boolean(errors.scheduledAt)}
-              {...register("scheduledAt")}
+              invalid={Boolean(errors.scheduledAt ?? errors.startsAt)}
+              onChange={(valor) => {
+                // Revalidar só depois da primeira tentativa de envio: cobrar
+                // ordem de datas enquanto a pessoa ainda escolhe é ruído.
+                const opcoes = { shouldDirty: true, shouldValidate: isSubmitted } as const;
+                setValue("scheduledAt", valor, opcoes);
+                // A abertura acompanha o envio: é a fusão dos dois campos.
+                setValue("startsAt", valor, opcoes);
+              }}
             />
-            {errors.scheduledAt && (
+            {(errors.scheduledAt ?? errors.startsAt) && (
               <p role="alert" className="text-destructive text-sm">
-                {errors.scheduledAt.message}
+                {(errors.scheduledAt ?? errors.startsAt)?.message}
               </p>
             )}
             <p className="text-muted-foreground text-xs">
-              Quando a mensagem sai. Pode ser depois da abertura, nunca antes.
+              A mensagem sai neste instante, e a enquete passa a aceitar respostas.
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor={startsId}>Início</Label>
-            <Input
-              id={startsId}
-              type="datetime-local"
-              step={TIME_STEP_SECONDS}
-              disabled={bloqueado}
-              aria-invalid={Boolean(errors.startsAt)}
-              {...register("startsAt")}
-            />
-            <p className="text-muted-foreground text-xs">
-              A partir daqui a enquete aceita respostas.
-            </p>
-          </div>
-
-          <div className="space-y-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor={endsId}>Encerramento</Label>
-            <Input
+            <DateTimeField
               id={endsId}
-              type="datetime-local"
-              step={TIME_STEP_SECONDS}
+              label="Encerramento"
+              value={watch("endsAt") ?? ""}
               disabled={bloqueado}
-              aria-invalid={Boolean(errors.endsAt)}
-              {...register("endsAt")}
+              invalid={Boolean(errors.endsAt)}
+              onChange={(valor) =>
+                setValue("endsAt", valor, { shouldDirty: true, shouldValidate: isSubmitted })
+              }
             />
             {errors.endsAt && (
               <p role="alert" className="text-destructive text-sm">
@@ -656,6 +656,65 @@ function toLocalInput(instant: string | null | undefined): string {
   const data = new Date(instant);
   if (Number.isNaN(data.getTime())) return "";
   return data.toLocaleString("sv-SE", { hour12: false }).slice(0, 16).replace(" ", "T");
+}
+
+/**
+ * DATA + HORA, com a hora vindo do `TimeSelect` de 5 em 5 minutos.
+ *
+ * ⚠️ POR QUE NÃO O `<input type="datetime-local">` COM `step`. Era o que estava
+ * aqui, e é a mesma armadilha que `ui/time-select.tsx` descreve: o `step` vale
+ * para a VALIDAÇÃO do navegador, não para a lista que ele desenha. O seletor
+ * oferecia 12:07, o Zod recusava com "escolha de 5 em 5 minutos", e a pessoa
+ * levava um erro por ter escolhido o que a própria tela ofereceu.
+ *
+ * ⚠️ PARA FORA CONTINUA SENDO "AAAA-MM-DDTHH:MM" — exatamente o que o campo
+ * nativo produzia. `toLocalInput`, `fromLocalInput`, o schema e a action não
+ * sabem que algo mudou.
+ */
+function DateTimeField({
+  id,
+  label,
+  value,
+  onChange,
+  disabled,
+  invalid,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  invalid: boolean;
+}) {
+  const [data = "", hora = ""] = value ? value.split("T") : ["", ""];
+
+  // ⚠️ METADE NÃO É VALOR. Sem os dois pedaços o campo vale "", pelo mesmo
+  // motivo do `TimeSelect`: completar o que falta seria o sistema inventando um
+  // instante que ninguém escolheu.
+  const juntar = (d: string, h: string) => (d && h ? `${d}T${h}` : "");
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        id={id}
+        type="date"
+        className="w-44"
+        value={data}
+        disabled={disabled}
+        aria-invalid={invalid || undefined}
+        aria-label={`${label} — data`}
+        onChange={(evento) => onChange(juntar(evento.target.value, hora))}
+      />
+      <TimeSelect
+        id={`${id}-hora`}
+        label={label}
+        value={hora}
+        disabled={disabled}
+        invalid={invalid}
+        onChange={(novaHora) => onChange(juntar(data, novaHora))}
+      />
+    </div>
+  );
 }
 
 /** E a volta: o que a pessoa digitou (hora local) vira instante absoluto. */
