@@ -78,22 +78,34 @@ export function DateTimeSelect({
    * coluna de 290px do diálogo de agendamento. O resultado era a data numa linha
    * e o horário na de baixo, parecendo dois campos sem relação.
    *
-   * `min-w-0` no campo de data é o par obrigatório do `flex-1`: sem ele, a
-   * largura mínima intrínseca do `<input type="date">` (o "dd/mm/aaaa" mais o
-   * ícone) impede o encolhimento e a quebra volta.
+   * ⚠️ A CONTA QUE ESTE ARQUIVO PRECISA RESPEITAR, e que já foi errada duas
+   * vezes em direções opostas:
    *
-   * ⚠️ E O TETO É O PAR DO `flex-1`. Sem `max-w`, o mesmo `flex-1` que salva a
-   * coluna estreita estica a data por um cartão inteiro na coluna larga — um
-   * campo de dez caracteres ocupando 600px, com o horário jogado na outra ponta
-   * da tela. O teto de 10rem é o que faz as três caixas continuarem parecendo
-   * UM campo, em qualquer largura.
+   *   data ~136px  +  hora 72px  +  minuto 72px  +  espaços 12px  ≈  296px
+   *
+   * Abaixo disso não cabe, e não existe truque de CSS que resolva. A primeira
+   * tentativa (larguras fixas) QUEBROU o horário para a linha de baixo na
+   * coluna estreita do diálogo. A segunda (`min-w-0`, sem piso) parou de quebrar
+   * e passou a CORTAR a data: "02/09," no lugar de "02/09/2026".
+   *
+   * Agora os três limites trabalham juntos, e cada um cobre um caso:
+   *
+   *   `min-w-[8.5rem]`  a data nunca encolhe abaixo do legível — sem piso, o
+   *                     navegador corta o texto e a pessoa não vê o ano;
+   *   `max-w-[10rem]`   nem estica por um cartão inteiro na coluna larga;
+   *   `flex-wrap`       se ainda assim não couber, quebra a linha em vez de
+   *                     cortar. É feio e é LEGÍVEL — o modo de falhar certo
+   *                     para um campo que a pessoa precisa conferir.
+   *
+   * Quem chama é responsável por dar os ~296px. O diálogo de agendamento tem
+   * `max-w-3xl` por causa desta conta.
    */
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       <Input
         id={id}
         type="date"
-        className="max-w-[10rem] min-w-0 flex-1"
+        className="max-w-[10rem] min-w-[8.5rem] flex-1"
         value={data}
         disabled={disabled}
         aria-invalid={invalid || undefined}

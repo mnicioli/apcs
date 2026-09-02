@@ -139,7 +139,17 @@ export function SurveyScheduleDialog({
             mostrar aqui um "Início das respostas" que lá não existe mais faria
             a confirmação parecer pedir um dado novo — e faria a pessoa duvidar
             do que preencheu. Envio e abertura continuam andando juntos. */}
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/* ⚠️ UMA COLUNA, E É ARITMÉTICA. O `Dialog` tem largura base
+            `w-[min(92vw,32rem)]` — 512px, e o `max-w-2xl` daqui nunca chegou a
+            valer nada porque a largura já está travada antes dele. Em duas
+            colunas sobram ~224px para cada campo, e o par data+hora precisa de
+            ~310px: NUNCA COUBE.
+
+            Foi essa conta que produziu os dois defeitos seguidos — o horário
+            quebrando para a linha de baixo, e depois a data cortada em "02/09,"
+            quando tirei o piso de largura para impedir a quebra. Empilhar dá
+            464px a cada campo, com folga de sobra. */}
+        <div className="grid gap-4">
           <div className="space-y-2">
             <Label htmlFor={sendId}>
               Data e hora do envio <span aria-hidden="true">*</span>

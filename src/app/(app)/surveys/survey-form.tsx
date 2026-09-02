@@ -410,10 +410,17 @@ export function SurveyForm({
           "quando sai", "como sai" e "o que chega". Empilhados, decidir o horário
           exigia rolar para cima e para baixo para reler a prévia.
 
-          ⚠️ SÓ A PARTIR DE `xl`. Abaixo disso a coluna fica estreita demais para
-          o par data+hora, e a economia de espaço viraria três cartões apertados
-          — pior que os três empilhados, que pelo menos se leem. */}
-      <div className="grid gap-6 xl:grid-cols-3">
+          ⚠️ `2xl` E NÃO `xl`, E A CONTA É ESTA — com o menu lateral de 256px:
+
+            xl  (1280px)  →  coluna ~304px  →  ~256px úteis dentro do cartão
+            2xl (1536px)  →  coluna ~389px  →  ~341px úteis
+
+          O par data+hora precisa de ~310px. Em `xl` ele NÃO CABE, e a economia
+          de espaço viraria o campo de data quebrando de linha dentro de um
+          cartão apertado — pior que os três empilhados, que pelo menos se leem.
+
+          Abaixo de `2xl` eles voltam a empilhar de propósito. */}
+      <div className="grid gap-6 2xl:grid-cols-3">
         {/* ============ 5. Agendamento (§20, §32, §35) ============ */}
         <Card>
           <CardHeader>
