@@ -403,12 +403,10 @@ function rowMatchesSegments(row: EventRow, segmentSlugs: readonly string[]): boo
  * que as regras de ativação usam. Se o corte fosse feito aqui em cima com o
  * relógio do processo, a Vercel (que roda em UTC) mudaria o dia às 21h.
  *
- * Ainda NÃO está ligada ao motor do chat: hoje todo texto do bot sai do catálogo
- * aprovado em `src/modules/chat/flows/csp.content.ts`, sem etapa de consulta a
- * eventos. Quando essa etapa existir, ela roda ANÔNIMA — `/api/chat` é público
- * e a RLS de `events` exige papel autenticado —, então precisará de
- * `service_role` no servidor e tem de passar por esta mesma função, para as
- * duas entradas não divergirem no dia em que a regra mudar.
+ * Quem já a usa é a ferramenta de agenda do robô do WhatsApp, que roda ANÔNIMA
+ * — a RLS de `events` exige papel autenticado —, e por isso passa por aqui com
+ * `service_role` no servidor. Qualquer entrada nova tem de passar por esta
+ * mesma função, para as duas não divergirem no dia em que a regra mudar.
  *
  * `segmentSlugs` restringe aos eventos de QUALQUER um dos públicos (OU — nunca
  * E). Passar uma lista VAZIA devolve zero eventos, e não "todos": ler ausência

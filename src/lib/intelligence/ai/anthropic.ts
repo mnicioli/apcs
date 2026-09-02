@@ -29,9 +29,6 @@ import type { AIClassifyResult, AIHistoryItem, AIProvider, ClassifyRequest } fro
  * env pelo mesmo motivo — dá para SUBIR de modelo se a qualidade da
  * classificação no uso real não se sustentar, sem mexer em código.
  *
- * ⚠️ É OUTRA VARIÁVEL, e as duas precisam ser trocadas juntas. Mexer só no
- * `APCS_CHAT_MODEL` deixa esta camada no padrão daqui, e os dois lados do
- * atendimento passam a rodar em modelos diferentes sem ninguém perceber.
  */
 const MODEL = envOrFallback(process.env.APCS_INTELLIGENCE_MODEL, "claude-sonnet-5");
 
@@ -67,7 +64,7 @@ const CLASSIFY_TIMEOUT_MS = 12_000;
  * o FORMATO, o código valida o CONTEÚDO.
  *
  * Exportado e guardado por `src/test/llm-output-schema.test.ts`, que reprova
- * qualquer palavra-chave que a API recuse — nos dois schemas do projeto.
+ * qualquer palavra-chave que a API recuse.
  */
 export const ANALYSIS_JSON_SCHEMA: Record<string, unknown> = {
   type: "object",

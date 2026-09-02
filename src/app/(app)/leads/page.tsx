@@ -40,7 +40,8 @@ export default async function LeadsPage() {
           <CardHeader>
             <CardTitle className="text-base">Nenhum lead ainda</CardTitle>
             <CardDescription>
-              Assim que alguém concluir a triagem em <code>/chat</code>, o contato aparece aqui.
+              O chat do site foi removido em 01/09/2026, então não entram contatos novos por aqui.
+              Os registros existentes continuam disponíveis.
             </CardDescription>
           </CardHeader>
         </Card>

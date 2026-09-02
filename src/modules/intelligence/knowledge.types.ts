@@ -61,8 +61,7 @@ export interface KnowledgeEntry {
   /**
    * ⚠️ O TEXTO EXATO QUE O ASSOCIADO LÊ. Não é insumo para um modelo reescrever:
    * o §2 do escopo é que a IA interpreta e o CRM responde. Sai daqui para o
-   * WhatsApp sem passar por geração — mesmo contrato do catálogo aprovado do
-   * chat web (`csp.content.ts`).
+   * WhatsApp sem passar por geração.
    */
   content: string;
   /**

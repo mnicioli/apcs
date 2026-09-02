@@ -16,7 +16,7 @@ import {
  * FAZER. Não tem I/O, não chama LLM, não toca no banco: dá para testar cada
  * regra isoladamente.
  *
- * ⚠️ É O MESMO DESENHO DE `src/lib/chat/decide.ts`, e a razão é a mesma. O §2 do
+ * ⚠️ A DECISÃO SAI DAQUI SEM TEXTO GERADO, e é o ponto inteiro. O §2 do
  * escopo diz que a IA interpreta e o CRM responde; a única forma de isso ser
  * VERDADE, e não uma intenção, é a decisão sair de um lugar onde texto gerado
  * não entra. `RouterDecision` não tem campo de texto livre: ou é uma chave de

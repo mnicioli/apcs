@@ -70,9 +70,11 @@ export interface CspCollected {
 }
 
 /**
- * Intenção detectada pelo LLM em cada turno. É a ÚNICA decisão que o modelo
- * toma sobre o rumo da conversa — qual texto enviar é decisão do motor, a
- * partir do catálogo aprovado. Ver `src/lib/chat/engine.ts`.
+ * Intenção detectada pelo LLM em cada turno do chat do site.
+ *
+ * ⚠️ AQUELE ROBÔ FOI REMOVIDO em 01/09/2026 — era um mockup, com texto que a
+ * APCS nunca aprovou. Esta lista sobreviveu porque as conversas que ele gravou
+ * continuam no banco, e `/attendances` as lê. Nada a produz mais.
  */
 export const CHAT_INTENTS = [
   "answering", // respondeu a uma pergunta da triagem

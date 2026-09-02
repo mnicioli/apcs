@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { ANALYSIS_JSON_SCHEMA as SCHEMA_CHAT } from "@/lib/chat/llm";
 import { ANALYSIS_JSON_SCHEMA as SCHEMA_INTENCOES } from "@/lib/intelligence/ai/anthropic";
 
 /**
@@ -63,7 +62,7 @@ function violacoes(no: unknown, caminho = "raiz"): string[] {
 describe("schemas de saída estruturada", () => {
   /**
    * ⚠️ A AUTOCHECAGEM, e ela não é decoração. Um detector quebrado devolveria
-   * lista vazia para tudo e os dois testes de baixo passariam para sempre,
+   * lista vazia para tudo e o teste de baixo passaria para sempre,
    * verdes e inúteis. Este prova que ele enxerga — usando a forma EXATA que
    * derrubou a produção.
    */
@@ -77,10 +76,6 @@ describe("schemas de saída estruturada", () => {
       'raiz.properties.confidence: "minimum" em number',
       'raiz.properties.confidence: "maximum" em number',
     ]);
-  });
-
-  it("o schema do chat da web só usa o que a API aceita", () => {
-    expect(violacoes(SCHEMA_CHAT)).toEqual([]);
   });
 
   it("o schema da classificação de intenções só usa o que a API aceita", () => {

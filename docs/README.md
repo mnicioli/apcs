@@ -13,7 +13,6 @@ gerais) e pelo [SETUP.md](../SETUP.md) (como rodar).
 | Entender a arquitetura                        | [ARCHITECTURE.md](./ARCHITECTURE.md)                     |
 | Criar um módulo novo (passo a passo)          | [HOW-TO-CREATE-A-MODULE.md](./HOW-TO-CREATE-A-MODULE.md) |
 | Entender leitura vs escrita                   | [SERVICE-ACTION-PATTERN.md](./SERVICE-ACTION-PATTERN.md) |
-| Mexer no chat / criar um fluxo novo           | [CHAT.md](./CHAT.md)                                     |
 | Mexer nas normativas / documentos             | [DOCUMENTS.md](./DOCUMENTS.md)                           |
 | Mexer nos eventos / segmentação               | [EVENTS.md](./EVENTS.md)                                 |
 | Mexer na Bolsa / boletins de preço            | [BOLSA.md](./BOLSA.md)                                   |

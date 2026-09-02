@@ -5,9 +5,9 @@ import type { IntentName } from "./intent.types";
  * O CATÁLOGO DE TEXTO DA CAMADA DE INTELIGÊNCIA.
  *
  * ⚠️ TODA FRASE QUE O ASSOCIADO LÊ SAI DAQUI OU DE `app_settings`, e nunca de
- * uma interpolação escrita no meio de uma ferramenta. É a mesma regra do
- * `csp.content.ts`: se o texto pudesse nascer em qualquer lugar, "a IA nunca
- * escreve para o usuário" viraria uma promessa que ninguém consegue verificar.
+ * uma interpolação escrita no meio de uma ferramenta. Se o texto pudesse nascer
+ * em qualquer lugar, "a IA nunca escreve para o usuário" viraria uma promessa
+ * que ninguém consegue verificar.
  *
  * O que existe aqui são MOLDES: uma frase fixa mais dados oficiais do CRM (o
  * nome da publicação, a data de vigência, o título do evento). Nenhum molde

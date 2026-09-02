@@ -5,9 +5,7 @@ import {
   isCspTriageComplete,
   mergeCollected,
   nextCspSlot,
-  CSP_SLOTS,
 } from "./csp.flow";
-import { CSP_CONTENT, renderCspContent } from "./csp.content";
 import type { CspCollected } from "../chat.types";
 
 describe("ordem da triagem", () => {
@@ -60,12 +58,6 @@ describe("ordem da triagem", () => {
     expect(isCspTriageComplete(collected)).toBe(true);
     expect(nextCspSlot(collected)).toBeNull();
   });
-
-  it("toda pergunta do fluxo existe no catálogo aprovado", () => {
-    for (const slot of CSP_SLOTS) {
-      expect(CSP_CONTENT).toHaveProperty(slot.askKey);
-    }
-  });
 });
 
 describe("applyCspDefaults", () => {
@@ -97,29 +89,6 @@ describe("mergeCollected", () => {
   it("deixa o dado mais recente vencer quando a pessoa se corrige", () => {
     const merged = mergeCollected({ city: "Piracicaba" }, { city: "Campinas" });
     expect(merged.city).toBe("Campinas");
-  });
-});
-
-describe("renderCspContent", () => {
-  it("substitui só os placeholders conhecidos", () => {
-    const text = renderCspContent("consentRequest", { policyUrl: "https://apcs.org.br/lgpd" });
-    expect(text).toContain("https://apcs.org.br/lgpd");
-    expect(text).not.toContain("{{policyUrl}}");
-  });
-
-  it("deixa o placeholder visível quando o valor não foi passado", () => {
-    // Melhor aparecer na revisão do que sumir silenciosamente.
-    expect(renderCspContent("consentRequest")).toContain("{{policyUrl}}");
-  });
-
-  it("dado do usuário não consegue injetar outro placeholder", () => {
-    // `summary` é substituído por último exatamente por isso.
-    const text = renderCspContent("completed", {
-      summary: "Nome: {{policyUrl}}",
-      policyUrl: "https://apcs.org.br/lgpd",
-    });
-    expect(text).toContain("Nome: {{policyUrl}}");
-    expect(text).not.toContain("https://apcs.org.br/lgpd");
   });
 });
 

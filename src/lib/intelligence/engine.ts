@@ -26,8 +26,7 @@ import type { IntentName, ToolName } from "@/modules/intelligence/intent.types";
  * ⚠️ ELE NÃO ENVIA NADA, e continua não enviando. Devolve a resposta pronta;
  * quem a coloca no WhatsApp é `deliver.ts`, chamado por
  * `intelligence-inbox.ts`. A separação não é burocracia: assim toda a conversa
- * é testável sem fornecedor, sem rede e sem número de telefone, do mesmo jeito
- * que `src/lib/chat/engine.ts` já é.
+ * é testável sem fornecedor, sem rede e sem número de telefone.
  *
  * ⚠️ E ELE NÃO DECIDE NADA. Quem decide é `router.ts`, que é puro. Este arquivo
  * só executa a decisão e cuida do que tem I/O: ler o contexto, chamar o modelo,

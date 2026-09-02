@@ -14,7 +14,6 @@ import {
   INTEREST_LABELS,
   VOLUME_RANGE_LABELS,
 } from "../chat.labels";
-import type { CspContentKey } from "./csp.content";
 
 /**
  * Definição do fluxo CSP: quais campos preencher, em que ordem, com qual
@@ -53,10 +52,18 @@ export const CSP_SLOT_LABELS: Record<CspSlotKey, string> = {
   preferredTime: "Melhor horário",
 };
 
+/**
+ * ⚠️ O SLOT NÃO TEM MAIS `askKey`. Ele apontava para a pergunta que o chat do
+ * site fazia, e aquele robô foi removido em 01/09/2026 — era um mockup, com
+ * texto que a APCS nunca aprovou.
+ *
+ * O que sobrou aqui é o que o CRM usa: a ORDEM dos campos da triagem e o que
+ * conta como preenchido. `/attendances` lê isso para mostrar o que já foi
+ * coletado numa conversa. Um catálogo de perguntas sem ninguém para fazê-las
+ * seria texto morto — e texto morto de rascunho é o pior tipo.
+ */
 export interface CspSlot {
   key: CspSlotKey;
-  /** Pergunta aprovada usada para preencher este campo. */
-  askKey: CspContentKey;
   /** Já temos o dado? */
   isFilled: (collected: CspCollected) => boolean;
   /** Precisamos deste dado para este contato? */
@@ -75,33 +82,28 @@ function toOptions<T extends string>(
 export const CSP_SLOTS: readonly CspSlot[] = [
   {
     key: "fullName",
-    askKey: "askFullName",
     isFilled: (c) => Boolean(c.fullName),
     isRequired: () => true,
   },
   {
     key: "location",
-    askKey: "askLocation",
     isFilled: (c) => Boolean(c.city && c.state),
     isRequired: () => true,
   },
   {
     key: "contactProfile",
-    askKey: "askContactProfile",
     isFilled: (c) => Boolean(c.contactProfile),
     isRequired: () => true,
     options: () => toOptions(CHAT_CONTACT_PROFILES, CONTACT_PROFILE_LABELS),
   },
   {
     key: "interest",
-    askKey: "askInterest",
     isFilled: (c) => Boolean(c.interest),
     isRequired: () => true,
     options: () => toOptions(CSP_INTERESTS, INTEREST_LABELS),
   },
   {
     key: "volumeRange",
-    askKey: "askVolumeRange",
     isFilled: (c) => Boolean(c.volumeRange),
     // Fornecedor não tem granja — não faz sentido perguntar o porte.
     isRequired: (c) => c.contactProfile !== "supplier",
@@ -113,21 +115,18 @@ export const CSP_SLOTS: readonly CspSlot[] = [
   },
   {
     key: "contactChannel",
-    askKey: "askContactChannel",
     isFilled: (c) => Boolean(c.preferredChannel),
     isRequired: () => true,
     options: () => toOptions(CHAT_CONTACT_CHANNELS, CONTACT_CHANNEL_LABELS),
   },
   {
     key: "contactValue",
-    askKey: "askContactValue",
     isFilled: (c) => (c.preferredChannel === "email" ? Boolean(c.email) : Boolean(c.phone)),
     // Só dá para pedir o dado depois de saber o canal.
     isRequired: (c) => Boolean(c.preferredChannel),
   },
   {
     key: "preferredTime",
-    askKey: "askPreferredTime",
     isFilled: (c) => Boolean(c.preferredTime),
     // Horário só importa para contato por voz/mensagem, não para e-mail.
     isRequired: (c) => c.preferredChannel !== "email",
