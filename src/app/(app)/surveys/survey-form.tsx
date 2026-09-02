@@ -17,7 +17,7 @@ import { SURVEY_ANSWER_TYPE_LABELS } from "@/modules/survey/survey.labels";
 import { surveyHref } from "@/modules/survey/survey.routes";
 import { surveyCoreSchema, type SurveyFormInput } from "@/modules/survey/survey.schema";
 import type { SurveyAudienceCriterion, SurveyWithQuestion } from "@/modules/survey/survey.types";
-import { TimeSelect } from "@/components/ui/time-select";
+import { DateTimeSelect } from "@/components/ui/date-time-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -427,7 +427,7 @@ export function SurveyForm({
               banco impede. */}
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor={scheduledId}>Data e hora do envio</Label>
-            <DateTimeField
+            <DateTimeSelect
               id={scheduledId}
               label="Data e hora do envio"
               value={watch("scheduledAt") ?? ""}
@@ -454,7 +454,7 @@ export function SurveyForm({
 
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor={endsId}>Encerramento</Label>
-            <DateTimeField
+            <DateTimeSelect
               id={endsId}
               label="Encerramento"
               value={watch("endsAt") ?? ""}
@@ -668,65 +668,6 @@ function toLocalInput(instant: string | null | undefined): string {
   const data = new Date(instant);
   if (Number.isNaN(data.getTime())) return "";
   return data.toLocaleString("sv-SE", { hour12: false }).slice(0, 16).replace(" ", "T");
-}
-
-/**
- * DATA + HORA, com a hora vindo do `TimeSelect` de 5 em 5 minutos.
- *
- * ⚠️ POR QUE NÃO O `<input type="datetime-local">` COM `step`. Era o que estava
- * aqui, e é a mesma armadilha que `ui/time-select.tsx` descreve: o `step` vale
- * para a VALIDAÇÃO do navegador, não para a lista que ele desenha. O seletor
- * oferecia 12:07, o Zod recusava com "escolha de 5 em 5 minutos", e a pessoa
- * levava um erro por ter escolhido o que a própria tela ofereceu.
- *
- * ⚠️ PARA FORA CONTINUA SENDO "AAAA-MM-DDTHH:MM" — exatamente o que o campo
- * nativo produzia. `toLocalInput`, `fromLocalInput`, o schema e a action não
- * sabem que algo mudou.
- */
-function DateTimeField({
-  id,
-  label,
-  value,
-  onChange,
-  disabled,
-  invalid,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  disabled: boolean;
-  invalid: boolean;
-}) {
-  const [data = "", hora = ""] = value ? value.split("T") : ["", ""];
-
-  // ⚠️ METADE NÃO É VALOR. Sem os dois pedaços o campo vale "", pelo mesmo
-  // motivo do `TimeSelect`: completar o que falta seria o sistema inventando um
-  // instante que ninguém escolheu.
-  const juntar = (d: string, h: string) => (d && h ? `${d}T${h}` : "");
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Input
-        id={id}
-        type="date"
-        className="w-44"
-        value={data}
-        disabled={disabled}
-        aria-invalid={invalid || undefined}
-        aria-label={`${label} — data`}
-        onChange={(evento) => onChange(juntar(evento.target.value, hora))}
-      />
-      <TimeSelect
-        id={`${id}-hora`}
-        label={label}
-        value={hora}
-        disabled={disabled}
-        invalid={invalid}
-        onChange={(novaHora) => onChange(juntar(data, novaHora))}
-      />
-    </div>
-  );
 }
 
 /** E a volta: o que a pessoa digitou (hora local) vira instante absoluto. */

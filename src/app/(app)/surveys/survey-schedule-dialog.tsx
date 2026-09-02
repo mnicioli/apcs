@@ -7,10 +7,9 @@ import { ACTION_ERROR_MESSAGES, type ActionResult } from "@/lib/actions/errors";
 import { audienceSummary } from "@/modules/survey/survey.labels";
 import type { SurveyScheduleInput } from "@/modules/survey/survey.schema";
 import type { SurveyAudienceCriterion, SurveyWithQuestion } from "@/modules/survey/survey.types";
-import { TIME_STEP_SECONDS } from "@/lib/time/step";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { DateTimeSelect } from "@/components/ui/date-time-select";
 import { Label } from "@/components/ui/label";
 import { SurveyAudienceSummary } from "./survey-audience-summary";
 
@@ -73,7 +72,6 @@ export function SurveyScheduleDialog({
   const [isEstimating, startEstimate] = useTransition();
 
   const sendId = useId();
-  const startId = useId();
   const endId = useId();
 
   const chave = JSON.stringify(criteria);
@@ -136,33 +134,31 @@ export function SurveyScheduleDialog({
       className="max-w-2xl"
     >
       <div className="space-y-5">
+        {/* ⚠️ OS MESMOS DOIS CAMPOS DO FORMULÁRIO, e a simetria não é estética.
+            Este diálogo CONFIRMA o que já foi decidido na tela de trás (§73);
+            mostrar aqui um "Início das respostas" que lá não existe mais faria
+            a confirmação parecer pedir um dado novo — e faria a pessoa duvidar
+            do que preencheu. Envio e abertura continuam andando juntos. */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor={sendId}>
               Data e hora do envio <span aria-hidden="true">*</span>
               <span className="sr-only">(obrigatório)</span>
             </Label>
-            <Input
+            <DateTimeSelect
               id={sendId}
-              type="datetime-local"
-              step={TIME_STEP_SECONDS}
+              label="Data e hora do envio"
               value={scheduledAt}
               disabled={isPending}
-              aria-invalid={noPassado || envioAntesDoInicio}
-              onChange={(event) => setScheduledAt(event.target.value)}
+              invalid={noPassado || envioAntesDoInicio}
+              onChange={(valor) => {
+                setScheduledAt(valor);
+                setStartsAt(valor);
+              }}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor={startId}>Início das respostas</Label>
-            <Input
-              id={startId}
-              type="datetime-local"
-              step={TIME_STEP_SECONDS}
-              value={startsAt}
-              disabled={isPending}
-              onChange={(event) => setStartsAt(event.target.value)}
-            />
+            <p className="text-muted-foreground text-xs">
+              A mensagem sai neste instante, e a enquete passa a aceitar respostas.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -170,15 +166,17 @@ export function SurveyScheduleDialog({
               Encerramento <span aria-hidden="true">*</span>
               <span className="sr-only">(obrigatório)</span>
             </Label>
-            <Input
+            <DateTimeSelect
               id={endId}
-              type="datetime-local"
-              step={TIME_STEP_SECONDS}
+              label="Encerramento"
               value={endsAt}
               disabled={isPending}
-              aria-invalid={janelaInvalida}
-              onChange={(event) => setEndsAt(event.target.value)}
+              invalid={janelaInvalida}
+              onChange={setEndsAt}
             />
+            <p className="text-muted-foreground text-xs">
+              Depois deste instante nenhuma resposta é aceita.
+            </p>
           </div>
         </div>
 
