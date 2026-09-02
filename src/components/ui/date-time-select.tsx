@@ -72,12 +72,22 @@ export function DateTimeSelect({
     onChange(novaData && novaHora ? `${novaData}T${novaHora}` : "");
   }
 
+  /**
+   * ⚠️ AS LARGURAS SÃO O QUE IMPEDE A QUEBRA FEIA. Com o campo de data em `w-44`
+   * e os dois seletores em `w-24`, o conjunto pedia ~310px — mais do que a
+   * coluna de 290px do diálogo de agendamento. O resultado era a data numa linha
+   * e o horário na de baixo, parecendo dois campos sem relação.
+   *
+   * `min-w-0` no campo de data é o par obrigatório do `flex-1`: sem ele, a
+   * largura mínima intrínseca do `<input type="date">` (o "dd/mm/aaaa" mais o
+   * ícone) impede o encolhimento e a quebra volta.
+   */
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <Input
         id={id}
         type="date"
-        className="w-44"
+        className="min-w-0 flex-1"
         value={data}
         disabled={disabled}
         aria-invalid={invalid || undefined}

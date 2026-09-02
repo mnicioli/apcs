@@ -425,7 +425,7 @@ export function SurveyForm({
               para respostas às 08:00 e só mandar a mensagem às 09:00. Se isso
               voltar a ser preciso, é separar os dois campos de novo — nada no
               banco impede. */}
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-2">
             <Label htmlFor={scheduledId}>Data e hora do envio</Label>
             <DateTimeSelect
               id={scheduledId}
@@ -452,7 +452,7 @@ export function SurveyForm({
             </p>
           </div>
 
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-2">
             <Label htmlFor={endsId}>Encerramento</Label>
             <DateTimeSelect
               id={endsId}

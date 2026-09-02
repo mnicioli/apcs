@@ -45,21 +45,47 @@ export function SurveyPreview({
 
   return (
     <div className={className}>
+      {/* ⚠️ O PALCO EXISTE PARA A BOLHA PARECER UMA MENSAGEM RECEBIDA, e não um
+          cartão do formulário. Sem um fundo atrás dela, a prévia se confunde com
+          os campos ao redor e a pessoa deixa de lê-la como "isto é o que vai
+          chegar no celular de alguém" — que é a única razão de ela existir.
+
+          O padrão é desenhado com `radial-gradient` sobre tokens de cor: nada de
+          imagem para carregar, e ele acompanha o tema claro/escuro sozinho. */}
       <div
-        className="border-border bg-muted/30 mx-auto max-w-sm rounded-lg border p-4"
+        className="border-border bg-muted/40 relative mx-auto max-w-sm overflow-hidden rounded-xl border p-5"
         // O preview é uma REPRESENTAÇÃO do que vai ser enviado; para o leitor de
         // tela ele é anunciado como um bloco só, com o rótulo dizendo o que é.
         role="group"
         aria-label="Prévia da mensagem que o associado receberá"
       >
-        {/* A bolha, no formato de uma mensagem recebida. */}
-        <div className="bg-background border-border space-y-3 rounded-lg border px-4 py-3 shadow-sm">
+        {/* ⚠️ O PADRÃO VIVE NUMA CAMADA PRÓPRIA, com `text-border` nela mesma.
+            `currentColor` resolve para a cor de texto DO ELEMENTO que declara o
+            gradiente — posto no contêiner de fora, ele herdaria a cor do texto e
+            o fundo viraria uma tela de pontos escuros por cima do formulário. */}
+        <div
+          className="text-border pointer-events-none absolute inset-0"
+          aria-hidden="true"
+          style={{
+            backgroundImage:
+              "radial-gradient(currentColor 0.5px, transparent 0.5px), radial-gradient(currentColor 0.5px, transparent 0.5px)",
+            backgroundSize: "18px 18px",
+            backgroundPosition: "0 0, 9px 9px",
+          }}
+        />
+
+        {/* ⚠️ O CANTO SUPERIOR ESQUERDO É RETO. É a forma que o WhatsApp dá a uma
+            mensagem RECEBIDA — o detalhe que faz o olho reconhecer a bolha antes
+            de ler qualquer palavra. */}
+        <div className="bg-background border-border relative space-y-3 rounded-lg rounded-tl-none border px-4 py-3 shadow-sm">
           <p className="text-primary-strong text-xs font-semibold">
             APCS — Associação Paulista de Criadores de Suínos
           </p>
 
           <div className="space-y-1">
-            <p className="text-sm font-semibold">
+            {/* Negrito porque no WhatsApp ele sai entre asteriscos. A prévia
+                mostra o RESULTADO, não a marcação. */}
+            <p className="text-sm leading-snug font-semibold">
               {titulo || <span className="text-muted-foreground">O título aparecerá aqui.</span>}
             </p>
             {descricao && (
@@ -72,7 +98,7 @@ export function SurveyPreview({
           </p>
 
           {validas.length > 0 ? (
-            <ul className="space-y-1">
+            <ul className="space-y-1.5">
               {validas.map((option, indice) => (
                 <li key={indice} className="flex items-start gap-2 text-sm">
                   <span aria-hidden="true">{numberEmoji(indice + 1)}</span>
@@ -91,6 +117,12 @@ export function SurveyPreview({
           <p className="text-muted-foreground text-xs">Responda com o número da opção escolhida.</p>
 
           {prazo && <p className="text-muted-foreground text-xs italic">{prazo}</p>}
+
+          {/* A hora da bolha: some para leitor de tela (é cenário, não conteúdo)
+              e é o detalhe que fecha a ilusão de mensagem recebida. */}
+          <p className="text-muted-foreground/70 pt-0.5 text-right text-[10px]" aria-hidden="true">
+            agora
+          </p>
         </div>
       </div>
 

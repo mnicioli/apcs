@@ -87,7 +87,10 @@ export function TimeSelect({
         value={hora}
         disabled={disabled}
         onChange={(evento) => trocarHora(evento.target.value)}
-        className="w-24"
+        // ⚠️ ESTREITO PORQUE O CONTEÚDO É DE DOIS DÍGITOS. `w-24` sobrava aqui e
+        // fazia o conjunto data+hora estourar a coluna do diálogo de
+        // agendamento, quebrando o horário para a linha de baixo.
+        className="w-[4.5rem]"
       >
         {!required && <option value="">--</option>}
         {/* Obrigatório e ainda vazio: a opção em branco existe até alguém
@@ -112,7 +115,7 @@ export function TimeSelect({
         value={minuto}
         disabled={disabled}
         onChange={(evento) => trocarMinuto(evento.target.value)}
-        className="w-24"
+        className="w-[4.5rem]"
       >
         {!required && <option value="">--</option>}
         {required && minuto === "" && <option value="">--</option>}
