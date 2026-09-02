@@ -81,13 +81,19 @@ export function DateTimeSelect({
    * `min-w-0` no campo de data é o par obrigatório do `flex-1`: sem ele, a
    * largura mínima intrínseca do `<input type="date">` (o "dd/mm/aaaa" mais o
    * ícone) impede o encolhimento e a quebra volta.
+   *
+   * ⚠️ E O TETO É O PAR DO `flex-1`. Sem `max-w`, o mesmo `flex-1` que salva a
+   * coluna estreita estica a data por um cartão inteiro na coluna larga — um
+   * campo de dez caracteres ocupando 600px, com o horário jogado na outra ponta
+   * da tela. O teto de 10rem é o que faz as três caixas continuarem parecendo
+   * UM campo, em qualquer largura.
    */
   return (
     <div className="flex items-center gap-1.5">
       <Input
         id={id}
         type="date"
-        className="min-w-0 flex-1"
+        className="max-w-[10rem] min-w-0 flex-1"
         value={data}
         disabled={disabled}
         aria-invalid={invalid || undefined}

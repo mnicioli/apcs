@@ -405,16 +405,25 @@ export function SurveyForm({
         </CardContent>
       </Card>
 
-      {/* ============ 5. Agendamento (§20, §32, §35) ============ */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Agendamento do envio</CardTitle>
-          <CardDescription>
-            Quando a enquete abre, quando fecha e quando a mensagem sai.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          {/* ⚠️ UM CAMPO PARA DOIS INSTANTES — envio e abertura andam juntos.
+      {/* ⚠️ OS TRÊS ÚLTIMOS CARTÕES DIVIDEM UMA LINHA, e não é só economia de
+          rolagem: são os três que a pessoa confere JUNTOS antes de agendar —
+          "quando sai", "como sai" e "o que chega". Empilhados, decidir o horário
+          exigia rolar para cima e para baixo para reler a prévia.
+
+          ⚠️ SÓ A PARTIR DE `xl`. Abaixo disso a coluna fica estreita demais para
+          o par data+hora, e a economia de espaço viraria três cartões apertados
+          — pior que os três empilhados, que pelo menos se leem. */}
+      <div className="grid gap-6 xl:grid-cols-3">
+        {/* ============ 5. Agendamento (§20, §32, §35) ============ */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Agendamento do envio</CardTitle>
+            <CardDescription>
+              Quando a enquete abre, quando fecha e quando a mensagem sai.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            {/* ⚠️ UM CAMPO PARA DOIS INSTANTES — envio e abertura andam juntos.
               O banco continua guardando `scheduled_at` e `starts_at` separados,
               e o schema continua exigindo envio >= início; o que sumiu foi a
               PERGUNTA, não a capacidade. Eram dois campos que na prática
@@ -425,112 +434,113 @@ export function SurveyForm({
               para respostas às 08:00 e só mandar a mensagem às 09:00. Se isso
               voltar a ser preciso, é separar os dois campos de novo — nada no
               banco impede. */}
-          <div className="space-y-2">
-            <Label htmlFor={scheduledId}>Data e hora do envio</Label>
-            <DateTimeSelect
-              id={scheduledId}
-              label="Data e hora do envio"
-              value={watch("scheduledAt") ?? ""}
-              disabled={bloqueado}
-              invalid={Boolean(errors.scheduledAt ?? errors.startsAt)}
-              onChange={(valor) => {
-                // Revalidar só depois da primeira tentativa de envio: cobrar
-                // ordem de datas enquanto a pessoa ainda escolhe é ruído.
-                const opcoes = { shouldDirty: true, shouldValidate: isSubmitted } as const;
-                setValue("scheduledAt", valor, opcoes);
-                // A abertura acompanha o envio: é a fusão dos dois campos.
-                setValue("startsAt", valor, opcoes);
-              }}
-            />
-            {(errors.scheduledAt ?? errors.startsAt) && (
-              <p role="alert" className="text-destructive text-sm">
-                {(errors.scheduledAt ?? errors.startsAt)?.message}
+            <div className="space-y-2">
+              <Label htmlFor={scheduledId}>Data e hora do envio</Label>
+              <DateTimeSelect
+                id={scheduledId}
+                label="Data e hora do envio"
+                value={watch("scheduledAt") ?? ""}
+                disabled={bloqueado}
+                invalid={Boolean(errors.scheduledAt ?? errors.startsAt)}
+                onChange={(valor) => {
+                  // Revalidar só depois da primeira tentativa de envio: cobrar
+                  // ordem de datas enquanto a pessoa ainda escolhe é ruído.
+                  const opcoes = { shouldDirty: true, shouldValidate: isSubmitted } as const;
+                  setValue("scheduledAt", valor, opcoes);
+                  // A abertura acompanha o envio: é a fusão dos dois campos.
+                  setValue("startsAt", valor, opcoes);
+                }}
+              />
+              {(errors.scheduledAt ?? errors.startsAt) && (
+                <p role="alert" className="text-destructive text-sm">
+                  {(errors.scheduledAt ?? errors.startsAt)?.message}
+                </p>
+              )}
+              <p className="text-muted-foreground text-xs">
+                A mensagem sai neste instante, e a enquete passa a aceitar respostas.
               </p>
-            )}
-            <p className="text-muted-foreground text-xs">
-              A mensagem sai neste instante, e a enquete passa a aceitar respostas.
-            </p>
-          </div>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor={endsId}>Encerramento</Label>
-            <DateTimeSelect
-              id={endsId}
-              label="Encerramento"
-              value={watch("endsAt") ?? ""}
-              disabled={bloqueado}
-              invalid={Boolean(errors.endsAt)}
-              onChange={(valor) =>
-                setValue("endsAt", valor, { shouldDirty: true, shouldValidate: isSubmitted })
-              }
-            />
-            {errors.endsAt && (
-              <p role="alert" className="text-destructive text-sm">
-                {errors.endsAt.message}
+            <div className="space-y-2">
+              <Label htmlFor={endsId}>Encerramento</Label>
+              <DateTimeSelect
+                id={endsId}
+                label="Encerramento"
+                value={watch("endsAt") ?? ""}
+                disabled={bloqueado}
+                invalid={Boolean(errors.endsAt)}
+                onChange={(valor) =>
+                  setValue("endsAt", valor, { shouldDirty: true, shouldValidate: isSubmitted })
+                }
+              />
+              {errors.endsAt && (
+                <p role="alert" className="text-destructive text-sm">
+                  {errors.endsAt.message}
+                </p>
+              )}
+              <p className="text-muted-foreground text-xs">
+                Depois deste instante nenhuma resposta é aceita.
               </p>
-            )}
-            <p className="text-muted-foreground text-xs">
-              Depois deste instante nenhuma resposta é aceita.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* ============ 6. Configurações (§21) ============ */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Configurações</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <label className="hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 transition-colors">
-            <input
-              id={anonId}
-              type="checkbox"
-              disabled={bloqueado || hasResponses}
-              className="accent-primary mt-0.5 h-4 w-4 shrink-0 cursor-pointer"
-              {...register("isAnonymous")}
-            />
-            <span className="min-w-0">
-              <span className="block text-sm font-medium">Respostas anônimas</span>
-              {/* §21. O texto do escopo, palavra por palavra: é ele que impede
+        {/* ============ 6. Configurações (§21) ============ */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Configurações</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <label className="hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 transition-colors">
+              <input
+                id={anonId}
+                type="checkbox"
+                disabled={bloqueado || hasResponses}
+                className="accent-primary mt-0.5 h-4 w-4 shrink-0 cursor-pointer"
+                {...register("isAnonymous")}
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Respostas anônimas</span>
+                {/* §21. O texto do escopo, palavra por palavra: é ele que impede
                   alguém de achar que "anônimo" significa que a pessoa pode
                   responder duas vezes. */}
-              <span className="text-muted-foreground block text-sm">
-                A resposta continuará sendo controlada internamente para impedir participação
-                duplicada, mas os resultados individuais não serão exibidos.
-              </span>
-              {hasResponses && (
-                <span className="text-muted-foreground mt-1 block text-xs">
-                  Esta enquete já recebeu respostas: o anonimato não pode mais ser alterado.
+                <span className="text-muted-foreground block text-sm">
+                  A resposta continuará sendo controlada internamente para impedir participação
+                  duplicada, mas os resultados individuais não serão exibidos.
                 </span>
-              )}
-            </span>
-          </label>
-        </CardContent>
-      </Card>
+                {hasResponses && (
+                  <span className="text-muted-foreground mt-1 block text-xs">
+                    Esta enquete já recebeu respostas: o anonimato não pode mais ser alterado.
+                  </span>
+                )}
+              </span>
+            </label>
+          </CardContent>
+        </Card>
 
-      {/* ============ 7. Preview (§19, §70) ============ */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Prévia</CardTitle>
-          <CardDescription>Aproximadamente o que o associado vai receber.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* ⚠️ AS DATAS PASSAM POR `fromLocalInput` ANTES DA PRÉVIA. O campo
+        {/* ============ 7. Preview (§19, §70) ============ */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Prévia</CardTitle>
+            <CardDescription>Aproximadamente o que o associado vai receber.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* ⚠️ AS DATAS PASSAM POR `fromLocalInput` ANTES DA PRÉVIA. O campo
               produz "AAAA-MM-DDTHH:MM" sem fuso, e `new Date()` leria isso como
               hora do NAVEGADOR — num computador fora de São Paulo a prévia
               mostraria um prazo diferente do que o WhatsApp vai mostrar. A
               conversão é a mesma que o envio do formulário já faz. */}
-          <SurveyPreview
-            title={titulo}
-            description={watch("description") ?? ""}
-            question={pergunta}
-            options={options}
-            startsAt={fromLocalInput(watch("startsAt"))}
-            endsAt={fromLocalInput(watch("endsAt"))}
-          />
-        </CardContent>
-      </Card>
+            <SurveyPreview
+              title={titulo}
+              description={watch("description") ?? ""}
+              question={pergunta}
+              options={options}
+              startsAt={fromLocalInput(watch("startsAt"))}
+              endsAt={fromLocalInput(watch("endsAt"))}
+            />
+          </CardContent>
+        </Card>
+      </div>
 
       {/* ⚠️ O CATCH-ALL DE VALIDAÇÃO. Se qualquer campo estiver inválido,
           `handleSubmit` não chama o handler — e sem esta mensagem o botão
