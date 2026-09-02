@@ -1,4 +1,4 @@
-import { numberEmoji } from "@/modules/survey/survey.labels";
+import { numberEmoji, surveyValidityLine } from "@/modules/survey/survey.labels";
 
 /**
  * O PREVIEW DA MENSAGEM (§19, §70).
@@ -16,15 +16,32 @@ import { numberEmoji } from "@/modules/survey/survey.labels";
  * Um `"use client"` aqui carregaria JavaScript para renderizar texto parado.
  */
 export function SurveyPreview({
+  title,
+  description,
   question,
   options,
+  startsAt,
+  endsAt,
   className,
 }: {
+  title?: string;
+  description?: string;
   question: string;
   options: readonly string[];
+  /** Instantes ISO, como `surveyWhatsAppMessage` recebe. */
+  startsAt?: string;
+  endsAt?: string;
   className?: string;
 }) {
   const validas = options.map((o) => o.trim()).filter((o) => o !== "");
+  const titulo = title?.trim();
+  const descricao = description?.trim();
+
+  // ⚠️ A MESMA FUNÇÃO QUE MONTA A FRASE ENVIADA. Escrever a data de novo aqui
+  // faria a prévia e o WhatsApp discordarem no dia em que uma das duas mudasse
+  // — e a prévia existe justamente para que ninguém precise mandar para
+  // descobrir como ficou.
+  const prazo = surveyValidityLine(startsAt, endsAt);
 
   return (
     <div className={className}>
@@ -40,6 +57,15 @@ export function SurveyPreview({
           <p className="text-primary-strong text-xs font-semibold">
             APCS — Associação Paulista de Criadores de Suínos
           </p>
+
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">
+              {titulo || <span className="text-muted-foreground">O título aparecerá aqui.</span>}
+            </p>
+            {descricao && (
+              <p className="text-sm leading-relaxed whitespace-pre-line">{descricao}</p>
+            )}
+          </div>
 
           <p className="text-sm leading-relaxed whitespace-pre-line">
             {question.trim() || "A pergunta da enquete aparecerá aqui."}
@@ -63,6 +89,8 @@ export function SurveyPreview({
           )}
 
           <p className="text-muted-foreground text-xs">Responda com o número da opção escolhida.</p>
+
+          {prazo && <p className="text-muted-foreground text-xs italic">{prazo}</p>}
         </div>
       </div>
 

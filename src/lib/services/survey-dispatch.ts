@@ -431,6 +431,7 @@ async function buildSurveyMessage(surveyId: string): Promise<string | null> {
   if (error || !data || (Array.isArray(data) && data.length === 0)) return null;
 
   const linhas = data as {
+    title: string;
     question: string;
     option_position: number;
     option_text: string;
@@ -439,10 +440,32 @@ async function buildSurveyMessage(surveyId: string): Promise<string | null> {
   const primeira = linhas[0];
   if (!primeira) return null;
 
-  return surveyWhatsAppMessage(
-    primeira.question,
-    linhas.map((l) => ({ position: l.option_position, text: l.option_text })),
-  );
+  /**
+   * ⚠️ SEGUNDA CONSULTA, e ela é deliberada. `get_survey_for_chatbot` devolve
+   * uma linha POR ALTERNATIVA e não traz descrição nem as datas; estendê-la
+   * exigiria migration e `pnpm db:types` para acrescentar três colunas que se
+   * repetiriam em cada linha.
+   *
+   * Aqui estamos no despachante, que já roda com `service_role` e já lê
+   * `survey_recipients` direto — ler a própria tabela do domínio não abre porta
+   * nenhuma que já não estivesse aberta. Se um dia o chatbot precisar dos mesmos
+   * campos, aí sim a função do banco é o lugar certo.
+   */
+  const { data: enquete } = await admin
+    .from("surveys")
+    .select("title, description, starts_at, ends_at")
+    .eq("id", surveyId)
+    .maybeSingle();
+
+  return surveyWhatsAppMessage({
+    // A função do banco já traz o título; a segunda consulta é a fonte do resto.
+    title: enquete?.title ?? primeira.title,
+    description: enquete?.description,
+    question: primeira.question,
+    options: linhas.map((l) => ({ position: l.option_position, text: l.option_text })),
+    startsAt: enquete?.starts_at,
+    endsAt: enquete?.ends_at,
+  });
 }
 
 function sleep(ms: number): Promise<void> {

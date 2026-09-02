@@ -35,6 +35,22 @@ const banco = {
   corridaFechada: false,
   optOutsBloqueados: 0,
   soltos: [] as string[],
+  /**
+   * A linha de `surveys` que a mensagem lê para montar título, descrição e
+   * prazo. `get_survey_for_chatbot` devolve uma linha por ALTERNATIVA e não traz
+   * esses campos; o despachante busca-os à parte.
+   */
+  enquete: {
+    title: "Expectativa da arroba",
+    description: "Sua resposta orienta a negociação da semana.",
+    starts_at: "2026-09-02T15:15:00.000Z",
+    ends_at: "2026-09-02T18:25:00.000Z",
+  } as {
+    title: string;
+    description: string | null;
+    starts_at: string | null;
+    ends_at: string | null;
+  },
 };
 
 function semear(quantos: number, telefone?: (i: number) => string) {
@@ -71,8 +87,18 @@ const rpc = vi.fn(async (nome: string, args: Record<string, unknown> = {}) => {
     case "get_survey_for_chatbot":
       return {
         data: [
-          { question: "Como ficará o valor da arroba?", option_position: 1, option_text: "Sobe" },
-          { question: "Como ficará o valor da arroba?", option_position: 2, option_text: "Desce" },
+          {
+            title: banco.enquete.title,
+            question: "Como ficará o valor da arroba?",
+            option_position: 1,
+            option_text: "Sobe",
+          },
+          {
+            title: banco.enquete.title,
+            question: "Como ficará o valor da arroba?",
+            option_position: 2,
+            option_text: "Desce",
+          },
         ],
         error: null,
       };
@@ -136,10 +162,13 @@ const rpc = vi.fn(async (nome: string, args: Record<string, unknown> = {}) => {
 const from = vi.fn(() => ({
   select: () => ({
     eq: () => ({
+      // `survey_recipients`: quantos ainda estão na fila.
       eq: () => ({
         count: banco.recipientes.filter((r) => r.status === "pending").length,
         error: null,
       }),
+      // `surveys`: os campos que a mensagem usa e que a função do banco não traz.
+      maybeSingle: () => ({ data: banco.enquete, error: null }),
     }),
   }),
 }));
@@ -194,6 +223,14 @@ describe("§61. Campanha com um e com vários", () => {
     expect(corpo).toContain("Sobe");
     expect(corpo).toContain("Desce");
     expect(corpo).toMatch(/responda com o número/i);
+
+    // ⚠️ TÍTULO, DESCRIÇÃO E PRAZO CHEGAM PELA SEGUNDA CONSULTA, não pela função
+    // do banco. Se ela deixar de ser feita, os três somem juntos e em silêncio —
+    // a mensagem continua saindo, só que pobre. Por isso são verificados aqui, no
+    // caminho real do despachante, e não só no teste de unidade do texto.
+    expect(corpo).toContain("*Expectativa da arroba*");
+    expect(corpo).toContain("Sua resposta orienta a negociação da semana.");
+    expect(corpo).toMatch(/_Você pode responder em .+_$/);
   });
 
   it("dez destinatários: dez mensagens, nenhuma repetida", async () => {

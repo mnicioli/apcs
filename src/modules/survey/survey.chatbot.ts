@@ -27,6 +27,10 @@ export interface ChatbotSurvey {
 export function toChatbotSurvey(input: {
   surveyId: string;
   title: string;
+  /** Opcionais: a mensagem os omite quando não vierem. */
+  description?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
   questionId: string;
   question: string;
   options: SurveyOption[];
@@ -41,7 +45,14 @@ export function toChatbotSurvey(input: {
     questionId: input.questionId,
     question: input.question,
     options: ativas,
-    message: surveyWhatsAppMessage(input.question, ativas),
+    message: surveyWhatsAppMessage({
+      title: input.title,
+      description: input.description,
+      question: input.question,
+      options: ativas,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+    }),
   };
 }
 

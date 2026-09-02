@@ -516,7 +516,19 @@ export function SurveyForm({
           <CardDescription>Aproximadamente o que o associado vai receber.</CardDescription>
         </CardHeader>
         <CardContent>
-          <SurveyPreview question={pergunta} options={options} />
+          {/* ⚠️ AS DATAS PASSAM POR `fromLocalInput` ANTES DA PRÉVIA. O campo
+              produz "AAAA-MM-DDTHH:MM" sem fuso, e `new Date()` leria isso como
+              hora do NAVEGADOR — num computador fora de São Paulo a prévia
+              mostraria um prazo diferente do que o WhatsApp vai mostrar. A
+              conversão é a mesma que o envio do formulário já faz. */}
+          <SurveyPreview
+            title={titulo}
+            description={watch("description") ?? ""}
+            question={pergunta}
+            options={options}
+            startsAt={fromLocalInput(watch("startsAt"))}
+            endsAt={fromLocalInput(watch("endsAt"))}
+          />
         </CardContent>
       </Card>
 
