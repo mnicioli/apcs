@@ -214,6 +214,20 @@ export type ToolResult =
  * conhecido tem de dizer isso no resultado, não presumir.
  */
 export interface ToolContext {
+  /**
+   * A mensagem, como a pessoa escreveu.
+   *
+   * ⚠️ ELA EXISTE POR CAUSA DA BASE DE CONHECIMENTO, e a ausência dela era um
+   * defeito: a busca casa PALAVRAS-CHAVE com o que a pessoa escreveu, e recebia
+   * só o `subject` extraído pelo modelo. Em "vocês abrem que horas?" — o exemplo
+   * canônico — o `subject` vinha nulo numa rodada e reescrito como "horário de
+   * funcionamento" em outra; nos dois casos a chave "horas" não casava, e o robô
+   * respondia "nada publicado" sem ter procurado.
+   *
+   * As outras ferramentas não a usam: catálogo se resolve pelo nome, e o
+   * `subject` é justamente o nome. Quem precisa da frase inteira é a busca.
+   */
+  message: string;
   /** Id do associado, quando o telefone foi reconhecido. */
   memberId: string | null;
   /** Só dígitos, E.164. */

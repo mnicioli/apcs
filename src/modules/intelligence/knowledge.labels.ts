@@ -59,7 +59,7 @@ export const KNOWLEDGE_CONTENT_WARNING =
   "Não escreva aqui preços da Bolsa nem o conteúdo de normativas e comunicados: eles têm módulo próprio, com versão e vigência, e o chatbot já consulta a publicação vigente. Use este campo para o que não tem outro lugar — horário, contato, como funciona um processo.";
 
 export const KNOWLEDGE_KEYWORDS_HELP =
-  "Separadas por vírgula. É por elas que o chatbot encontra a resposta: escreva as palavras que o associado usaria (“horas”, “aberto”, “funcionamento”), não as do título.";
+  "Separadas por vírgula. Escreva as palavras que o associado usaria (“horas”, “aberto”, “funcionamento”), não as do título — é por elas que o robô acha este item. Evite palavras com menos de 4 letras: a busca casa por trecho, e “oi” casa dentro de “foi”.";
 
 export const KNOWLEDGE_CHATBOT_HELP =
   "Ativo diz que a resposta vale. Disponível para o chatbot diz que o bot pode dizê-la sozinho — são decisões diferentes, e uma resposta pode valer para o atendimento humano antes de valer para o robô.";

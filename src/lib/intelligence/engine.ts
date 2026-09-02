@@ -13,6 +13,7 @@ import {
   type RouterDecision,
   type RouterTurn,
   type ToolAttachment,
+  type ToolContext,
   type ToolResult,
   type ToolSource,
 } from "@/modules/intelligence/intelligence.types";
@@ -200,18 +201,95 @@ function assuntoDe(decision: RouterDecision): string | null {
   return decision.kind === "tool" || decision.kind === "confirm" ? decision.subject : null;
 }
 
+/** O contexto que toda ferramenta recebe. Um lugar só, para não divergirem. */
+function contextoDeFerramenta(input: HandleMessageInput): ToolContext {
+  return {
+    message: input.message,
+    memberId: input.memberId,
+    phone: input.phone,
+    correlationId: input.correlationId,
+  };
+}
+
+/**
+ * §43. O RESGATE PELA BASE DE CONHECIMENTO — a última tentativa antes de dizer
+ * "não entendi".
+ *
+ * ----------------------------------------------------------------------------
+ * ⚠️ POR QUE ELE EXISTE
+ * ----------------------------------------------------------------------------
+ * A Base de Conhecimento só era consultada quando o classificador devolvia
+ * `consultar_conhecimento`. E o classificador NÃO CONHECE as palavras-chave
+ * cadastradas — o prompt diz isso com todas as letras. Ele decide pelo FORMATO
+ * da pergunta, não pelo conteúdo dela.
+ *
+ * O efeito, medido em 01/09/2026: uma chave cadastrada que não pareça pergunta
+ * institucional ("jets", "disponível") era classificada como `desconhecido` com
+ * confiança 0.1–0.3, e o item nunca era alcançado. Quem cadastrou leu no
+ * formulário que "é por elas que o chatbot encontra a resposta" e estava certo
+ * sobre a intenção do desenho, não sobre o que o código fazia.
+ *
+ * ----------------------------------------------------------------------------
+ * ⚠️ POR QUE AQUI, E NÃO ANTES DO CLASSIFICADOR
+ * ----------------------------------------------------------------------------
+ * Consultar a base antes da IA resolveria o mesmo caso e abriria um bem pior: a
+ * busca casa por TRECHO, então uma chave infeliz — "bolsa", "manda", "material"
+ * — sequestraria as consultas de Bolsa, normativa e comunicado, que são a
+ * função principal do robô. E sequestraria em silêncio, para todo mundo, a
+ * partir de um cadastro que ninguém revisou.
+ *
+ * Aqui o resgate só age onde HOJE NÃO HÁ RESPOSTA NENHUMA. O pior caso deixa de
+ * ser "o robô parou de mandar a Bolsa" e passa a ser "o robô respondeu um item
+ * da base em vez de dizer que não entendeu" — que é o que se estava pedindo.
+ *
+ * ⚠️ E A TRILHA REGISTRA A VERDADE: `intent` continua sendo o que o
+ * classificador disse (`desconhecido`), com `tool: getKnowledge` ao lado. O par
+ * é o que torna o resgate MENSURÁVEL — dá para contar quantos "não entendi" a
+ * base salvou, que é o número que diz se este caminho vale a pena.
+ */
+async function resgatarNaBase(
+  input: HandleMessageInput,
+): Promise<{ reply: Resposta; outcome: InteractionOutcome; tool: ToolName } | null> {
+  const resultado = await toolFor("getKnowledge").run(null, contextoDeFerramenta(input));
+
+  // Só "ok" resgata. `empty` é o caso normal (a base não tem esse assunto) e
+  // `error` já foi registrado lá dentro — nos dois, o "não entendi" configurado
+  // continua sendo a resposta certa, e é ele que lista o que o robô sabe fazer.
+  if (resultado.status !== "ok") return null;
+
+  return {
+    reply: {
+      body: resultado.body,
+      attachments: resultado.attachments,
+      handoff: false,
+      source: resultado.source,
+    },
+    outcome: "tool_ok",
+    tool: "getKnowledge",
+  };
+}
+
 async function executar(
   decision: RouterDecision,
   input: HandleMessageInput,
   mensagens: Awaited<ReturnType<typeof loadChatbotMessages>>,
 ): Promise<{ reply: Resposta; outcome: InteractionOutcome; tool: ToolName | null }> {
   switch (decision.kind) {
-    case "message":
+    case "message": {
+      // ⚠️ SÓ NO "não entendi". As outras frases — boas-vindas, despedida — são
+      // a resposta certa e completa; procurar na base antes delas trocaria uma
+      // saudação por um item de FAQ que casou por acaso.
+      if (decision.message === "fallback") {
+        const resgate = await resgatarNaBase(input);
+        if (resgate) return resgate;
+      }
+
       return {
         reply: { body: mensagens(decision.message), attachments: [], handoff: false, source: null },
         outcome: "message",
         tool: null,
       };
+    }
 
     case "confirm":
       return {
@@ -234,11 +312,7 @@ async function executar(
 
     case "tool": {
       const ferramenta = toolFor(decision.tool);
-      const resultado = await ferramenta.run(decision.subject, {
-        memberId: input.memberId,
-        phone: input.phone,
-        correlationId: input.correlationId,
-      });
+      const resultado = await ferramenta.run(decision.subject, contextoDeFerramenta(input));
 
       return {
         reply: respostaDaFerramenta(resultado, mensagens),

@@ -246,13 +246,20 @@ const TOOLS: Record<ToolName, ToolDefinition> = {
    * que a pessoa escreveu. "Vocês abrem que horas?" não tem assunto extraível —
    * tem "horas", que é justamente a palavra-chave cadastrada. Passar só o
    * subject aqui jogaria fora o que faz a busca funcionar.
+   *
+   * ⚠️ E POR UM TEMPO ELE JOGOU FORA MESMO. Este comentário descrevia o desenho
+   * certo enquanto o código passava `subject` — o motor não tinha a mensagem
+   * para dar. Medido em 01/09/2026: "vocês abrem que horas?" chegava aqui com
+   * `subject` nulo e saía como "nada publicado" sem uma consulta sequer. A
+   * mensagem entrou no `ToolContext` para fechar essa distância, e o teste
+   * `tools-knowledge.test.ts` fixa qual dos dois é usado.
    */
   getKnowledge: {
     name: "getKnowledge",
     label: "Base de Conhecimento",
-    run: (subject, contexto) =>
+    run: (_subject, contexto) =>
       seguro("getKnowledge", contexto, async () => {
-        const consulta = (subject ?? "").trim();
+        const consulta = contexto.message.trim();
         if (consulta.length < 2) return { status: "empty" };
 
         const achados = await searchKnowledgeForChatbot(consulta);
