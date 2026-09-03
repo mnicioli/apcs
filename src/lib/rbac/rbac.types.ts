@@ -92,6 +92,9 @@ export type Permission =
   // Base de Conhecimento — as respostas escritas que o chatbot pode dar
   | "knowledge.read"
   | "knowledge.write"
+  // Fluxos de Atendimento — o desenho da triagem que o chatbot executa
+  | "flows.read"
+  | "flows.write"
   | "clients.read"
   | "clients.write"
   | "projects.read"

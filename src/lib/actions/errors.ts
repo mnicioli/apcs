@@ -109,6 +109,20 @@ export type ActionErrorCode =
   | "whatsappNotConfigured"
   | "whatsappSendFailed"
   | "whatsappEmptyMessage"
+  // Fluxos de Atendimento. Mesmo raciocínio dos outros módulos: cada um diz o
+  // que fazer em seguida. E `flowVersionFrozen` carrega a regra inteira, porque
+  // ela não é óbvia para quem só quer corrigir uma palavra numa pergunta — o
+  // fluxo no ar não se edita, cria-se a versão seguinte.
+  | "flowVersionFrozen"
+  | "flowTransitionNotAllowed"
+  | "flowAlreadyPublished"
+  | "flowNeedsApproval"
+  | "flowInvalidGraph"
+  | "flowNeedsPublishedVersion"
+  | "flowHasHistory"
+  // A única do módulo que NÃO vem do banco: o handler de uma ação de negócio
+  // ainda não foi ligado no código que está no ar. Ver `publishFlowVersionAction`.
+  | "flowActionNotReady"
   | "unexpected"; // erro não previsto (logar no servidor!)
 
 export interface ActionErrorBody {
@@ -256,6 +270,27 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   whatsappSendFailed:
     "Não foi possível entregar a mensagem. Ela ficou marcada como não entregue na conversa — tente novamente em instantes.",
   whatsappEmptyMessage: "Escreva a mensagem antes de enviar.",
+  // Fluxos. A primeira é a que mais vai aparecer, e por isso ela ensina a regra
+  // em vez de só recusar: quem tenta editar um fluxo publicado não está fazendo
+  // nada errado — está fazendo do jeito que era antes de existir versão.
+  flowVersionFrozen:
+    "Esta versão já foi publicada e não pode mais ser alterada. Crie uma nova versão a partir dela: a que está no ar continua atendendo até você publicar a nova.",
+  flowTransitionNotAllowed:
+    "A situação atual da versão não permite esta mudança. Recarregue a página para ver em que etapa ela está.",
+  flowAlreadyPublished: "Esta versão já é a que está no ar.",
+  flowNeedsApproval: "A versão precisa estar aprovada antes de ir para o ar.",
+  // ⚠️ Não diz "fluxo inválido" e para por aí: a action anexa a lista de
+  // problemas que `validate_flow_version` devolveu, e é ela que diz onde olhar.
+  flowInvalidGraph:
+    "O fluxo tem pendências e não pode ir para o ar. Corrija os pontos indicados e publique de novo.",
+  flowNeedsPublishedVersion: "Publique uma versão antes de ligar o fluxo.",
+  flowHasHistory:
+    "Este fluxo já foi publicado ou já atendeu conversas, então ele faz parte do histórico e não pode ser excluído. Desligue-o em vez de apagá-lo.",
+  // ⚠️ Diz que o problema NÃO é do desenho. Sem isso, quem desenhou o fluxo
+  // ficaria procurando o erro num nó que está correto — o que falta é a ligação
+  // com o módulo, e ela é trabalho de quem cuida do sistema.
+  flowActionNotReady:
+    "Uma das ações usadas neste fluxo ainda não está ligada ao sistema. O desenho está certo — fale com quem cuida do sistema para habilitá-la antes de publicar.",
   unexpected: "Ocorreu um erro inesperado. Tente novamente.",
 };
 
@@ -521,6 +556,28 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "surveyInvalidBatch" };
     case "SV010":
       return { code: "surveyContextInvalid" };
+    // Classe `FL` — Fluxos de Atendimento, pela mesma razão de todas as
+    // anteriores: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
+    // supabase/migrations/20260917000100_flows.sql.
+    //
+    // ⚠️ FL001 vem de um GATILHO, e não de uma função. É a única desta lista que
+    // pode aparecer num `insert` comum pelo PostgREST — é o que acontece quando
+    // a tela ainda mostra os botões de edição de uma versão que outra aba já
+    // publicou.
+    case "FL001":
+      return { code: "flowVersionFrozen" };
+    case "FL002":
+      return { code: "flowTransitionNotAllowed" };
+    case "FL003":
+      return { code: "flowAlreadyPublished" };
+    case "FL004":
+      return { code: "flowNeedsApproval" };
+    case "FL005":
+      return { code: "flowInvalidGraph" };
+    case "FL006":
+      return { code: "flowNeedsPublishedVersion" };
+    case "FL007":
+      return { code: "flowHasHistory" };
     default:
       return { code: "unexpected" };
   }

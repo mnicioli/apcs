@@ -71,6 +71,9 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "knowledge.read": "Consultar as respostas do chatbot",
   "knowledge.write": "Escrever o que o chatbot responde",
 
+  "flows.read": "Consultar os fluxos de atendimento",
+  "flows.write": "Desenhar, aprovar e publicar fluxos",
+
   "analytics.read": "Abrir relatórios e indicadores",
 
   "users.manage": "Convidar, editar papéis e inativar contas",
@@ -116,6 +119,11 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
     title: "Base de Conhecimento",
     status: "live",
     permissions: ["knowledge.read", "knowledge.write"],
+  },
+  {
+    title: "Fluxos de Atendimento",
+    status: "live",
+    permissions: ["flows.read", "flows.write"],
   },
   { title: "Administração", status: "live", permissions: ["users.manage", "settings.manage"] },
   { title: "Inteligência", status: "roadmap", permissions: ["analytics.read"] },

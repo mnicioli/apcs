@@ -23,6 +23,7 @@ import {
   TrendingUp,
   UserPlus,
   Users,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/rbac/rbac.types";
@@ -320,6 +321,21 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/knowledge",
         icon: BookOpen,
         permission: "knowledge.read",
+        available: true,
+      },
+      {
+        // ⚠️ AQUI, E NÃO NUMA SEÇÃO PRÓPRIA. Um fluxo de atendimento é o
+        // desenho do que o robô faz com o que ele entendeu — mesma família da
+        // Base de Conhecimento, que é o que ele responde. Uma seção "Fluxos" ao
+        // lado de "Inteligência" separaria as duas metades da mesma decisão.
+        //
+        // Vem DEPOIS da Base de Conhecimento porque é a ordem em que os dois
+        // foram construídos e em que se aprende a mexer: primeiro o que
+        // responder, depois o caminho até a resposta.
+        title: "Fluxos de Atendimento",
+        href: "/flows",
+        icon: Workflow,
+        permission: "flows.read",
         available: true,
       },
       {

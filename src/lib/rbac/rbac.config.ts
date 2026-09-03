@@ -163,6 +163,28 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "knowledge.read": ["admin", "comercial"],
   "knowledge.write": ["admin"],
 
+  // Fluxos de Atendimento — o desenho da triagem que o chatbot executa.
+  //
+  // ⚠️ O ESCOPO PEDIA TRÊS PERFIS (Administrador, Gestor e Atendente) E AQUI SÓ
+  // EXISTEM DOIS, porque o Gestor foi APOSENTADO em 20260902000000: um CHECK em
+  // `profiles.role` impede que qualquer conta tenha `ceo`. Trazê-lo de volta por
+  // causa deste módulo arrastaria 122 referências em policies antigas.
+  //
+  // Um "Gestor de Fluxos" continua possível sem papel novo — é um CARGO criado
+  // em /permissions com base `admin` e só as chaves `flows.*`. Um cargo TIRA do
+  // teto do papel-base, e essa é exatamente a forma que 20260903000100 desenhou
+  // para o caso "precisa publicar isto e mais nada".
+  //
+  // O ATENDENTE (`comercial`) LÊ porque a conversa dele chega triada: sem ver o
+  // desenho, ele não sabe por que aquela pessoa caiu na fila dele. E não
+  // escreve, pelo mesmo motivo dos outros módulos de conteúdo — mudar a triagem
+  // no meio do expediente muda o atendimento de todo mundo.
+  //
+  // Deve bater com `flow_is_reader()` / `flow_is_writer()` em
+  // supabase/migrations/20260917000100_flows.sql.
+  "flows.read": ["admin", "comercial"],
+  "flows.write": ["admin"],
+
   // Módulo 01 — Clientes
   "clients.read": ["admin", "comercial"],
   "clients.write": ["admin", "comercial"],
