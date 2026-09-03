@@ -152,48 +152,75 @@ export default async function EventDetailPage({
           <CardHeader>
             <CardTitle className="text-base">Dados do evento</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <SignedImage
-              url={event.imageUrl}
-              alt={event.name}
-              sizes="h-56 w-full max-w-md"
-              className="rounded-lg"
-            />
+          <CardContent>
+            {/* ⚠️ CARTAZ À ESQUERDA, DADOS À DIREITA — e a divisão só a partir
+                de `xl`. A conta, com o menu lateral de 256px: este cartão ocupa
+                2/3 de um grid de três colunas, o que dá ~584px úteis em `xl` e
+                ~280px por coluna aqui dentro. Em `lg` sobrariam ~194px, estreito
+                demais para o cartaz e para os rótulos — abaixo de `xl` eles
+                voltam a empilhar. */}
+            <div className="grid gap-6 xl:grid-cols-2">
+              {/* ⚠️ `object-contain`, E É O PONTO DESTA MUDANÇA. O padrão do
+                  `SignedImage` é `object-cover`, que PREENCHE a caixa e corta o
+                  que sobra — certo para a miniatura da grid, errado aqui: o
+                  cartaz vinha decapitado, sem o título que ele existe para
+                  mostrar. `object-contain` cabe a imagem inteira dentro da
+                  caixa.
 
-            <dl className="grid gap-4 sm:grid-cols-2">
-              {/* `whitespace-pre-line`: a descrição é texto livre, e quem a
-                  escreveu em duas linhas vai vê-la em duas linhas — inclusive
-                  no WhatsApp, que preserva a quebra. */}
-              {event.description && (
-                <Item label="Descrição" className="sm:col-span-2">
-                  <span className="whitespace-pre-line">{event.description}</span>
-                </Item>
-              )}
-              <Item label="Local">{event.location}</Item>
-              <Item label="Data">{formatCalendarDate(event.eventDate)}</Item>
-              <Item label="Hora de início">{formatTime(event.startTime)}</Item>
-              {/* Sem hora de término, o campo não aparece — um "—" só ocuparia
-                  espaço para dizer que não há nada. */}
-              {event.endTime && <Item label="Hora de término">{formatTime(event.endTime)}</Item>}
+                  A proporção fixa (`aspect-video`) mantém a altura previsível e
+                  dá à imagem um fundo onde sobrar — sem ela, cada evento
+                  esticaria o cartão a uma altura diferente. O padrão do
+                  componente não muda: Bolsa e a grid de Eventos continuam
+                  cortando, que é o certo para miniatura. */}
+              <SignedImage
+                url={event.imageUrl}
+                alt={event.name}
+                sizes="aspect-video w-full"
+                className="bg-muted rounded-lg object-contain"
+              />
 
-              {event.registrationUrl && (
-                <Item label="Link de inscrição" className="sm:col-span-2">
-                  {/* `rel="noopener noreferrer"`: sem `noopener`, a página de
-                      destino recebe `window.opener` e pode redirecionar esta
-                      aba. O protocolo já foi restrito a http/https no Zod e no
-                      CHECK da tabela. */}
-                  <a
-                    href={event.registrationUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary-strong inline-flex items-center gap-1 break-all hover:underline"
-                  >
-                    {event.registrationUrl}
-                    <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  </a>
-                </Item>
-              )}
-            </dl>
+              <dl className="grid content-start gap-4">
+                {/* `whitespace-pre-line`: a descrição é texto livre, e quem a
+                    escreveu em duas linhas vai vê-la em duas linhas — inclusive
+                    no WhatsApp, que preserva a quebra. */}
+                {event.description && (
+                  <Item label="Descrição">
+                    <span className="whitespace-pre-line">{event.description}</span>
+                  </Item>
+                )}
+                <Item label="Local">{event.location}</Item>
+                <Item label="Data">{formatCalendarDate(event.eventDate)}</Item>
+
+                {/* Início e término lado a lado: são um PAR — as duas pontas da
+                    mesma janela —, e empilhados se leem como dois dados soltos. */}
+                <div className="grid grid-cols-2 gap-4">
+                  <Item label="Hora de início">{formatTime(event.startTime)}</Item>
+                  {/* Sem hora de término, o campo não aparece — um "—" só
+                      ocuparia espaço para dizer que não há nada. */}
+                  {event.endTime && (
+                    <Item label="Hora de término">{formatTime(event.endTime)}</Item>
+                  )}
+                </div>
+
+                {event.registrationUrl && (
+                  <Item label="Link de inscrição">
+                    {/* `rel="noopener noreferrer"`: sem `noopener`, a página de
+                        destino recebe `window.opener` e pode redirecionar esta
+                        aba. O protocolo já foi restrito a http/https no Zod e no
+                        CHECK da tabela. */}
+                    <a
+                      href={event.registrationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-strong inline-flex items-center gap-1 break-all hover:underline"
+                    >
+                      {event.registrationUrl}
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    </a>
+                  </Item>
+                )}
+              </dl>
+            </div>
           </CardContent>
         </Card>
 
