@@ -207,7 +207,9 @@ export function EventForm({
           coluna, e os campos de horário passariam a quebrar de linha. */}
       <div className="grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-1">
-          <CardContent className="p-6">
+          {/* `h-full` desce a altura esticada do cartão até o campo — sem isto o
+              `h-full` de lá dentro não teria pai com altura definida para medir. */}
+          <CardContent className="h-full p-6">
             <EventImageField
               file={file}
               onFileChange={setFile}

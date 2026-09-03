@@ -86,7 +86,12 @@ export function EventImageField({
   const hasImage = shownUrl !== null;
 
   return (
-    <div className="space-y-2">
+    // ⚠️ `h-full` E COLUNA FLEX PORQUE O CARTÃO ESTICA. Na tela de edição este
+    // campo mora numa coluna que acompanha a altura dos campos ao lado, e ela é
+    // alta. Sem isto, a área tracejada ficava colada no topo com centenas de
+    // pixels de branco embaixo — a imagem parecia um detalhe num cartão vazio,
+    // que é o oposto de estar em evidência.
+    <div className="flex h-full flex-col space-y-2">
       <Label htmlFor={fieldId}>
         Imagem <span aria-hidden="true">*</span>
         <span className="sr-only">(obrigatório)</span>
@@ -100,28 +105,36 @@ export function EventImageField({
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
         className={cn(
-          "rounded-lg border-2 border-dashed px-6 py-6 transition-colors",
+          // `flex-1` faz a área tracejada tomar a altura que sobrar do cartão;
+          // `justify-center` centra o conteúdo nela em vez de empurrá-lo para o
+          // topo. Numa coluna baixa nada disso aparece — só entra em cena quando
+          // há espaço sobrando.
+          "flex flex-1 flex-col justify-center rounded-lg border-2 border-dashed px-6 py-6 transition-colors",
           isDragging ? "border-primary bg-accent" : "border-border",
         )}
       >
         {hasImage ? (
-          <div className="flex flex-wrap items-center gap-4">
-            {/* ⚠️ A PRÉVIA CRESCEU JUNTO COM A COLUNA. Em `h-24 w-40` ela era
-                uma miniatura de 96px sobrando no topo de uma coluna alta, e
-                pequena demais para conferir se o cartaz certo foi enviado — que
-                é a única pergunta que ela responde.
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            {/* ⚠️ A IMAGEM MANDA NA PRÓPRIA ALTURA — sem proporção fixa.
+                Ela já foi `h-24 w-40` (miniatura de 96px perdida no topo de uma
+                coluna alta) e depois `aspect-video`, que é DEITADA: um cartaz em
+                pé aparecia inteiro, mas encolhido no meio da caixa, com sobra em
+                cima e embaixo. Nos dois casos a prévia não respondia a única
+                pergunta que ela existe para responder — "é este cartaz mesmo?".
 
-                `w-full` faz os irmãos quebrarem para baixo (o pai é
-                `flex-wrap`), então a coluna estreita ganha empilhamento de
-                graça; `max-w-xs` impede que ela vire um painel quando o
-                formulário está numa coluna só. E `object-contain`, pelo mesmo
-                motivo da tela de detalhe: cartaz em pé não pode aparecer
-                decapitado justo na hora de confirmar qual é. */}
+                Com `w-full` e altura automática, o cartaz ocupa a largura da
+                coluna e cresce na proporção dele. O teto de 30rem existe para um
+                cartaz muito alto não empurrar o botão de substituir para fora da
+                tela.
+
+                E `w-full` faz os irmãos quebrarem para baixo (o pai é
+                `flex-wrap`): nome do arquivo e botões empilham sob a imagem sem
+                precisar de media query. */}
             <SignedImage
               url={shownUrl}
               alt={eventName || "Cartaz do evento"}
-              sizes="aspect-video w-full max-w-xs"
-              className="bg-transparent object-contain"
+              sizes="w-full"
+              className="h-auto max-h-[30rem] min-h-32 bg-transparent object-contain"
             />
 
             <div className="min-w-40 flex-1 space-y-1">
