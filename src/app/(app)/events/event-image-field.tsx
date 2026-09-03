@@ -106,7 +106,23 @@ export function EventImageField({
       >
         {hasImage ? (
           <div className="flex flex-wrap items-center gap-4">
-            <SignedImage url={shownUrl} alt={eventName || "Cartaz do evento"} sizes="h-24 w-40" />
+            {/* ⚠️ A PRÉVIA CRESCEU JUNTO COM A COLUNA. Em `h-24 w-40` ela era
+                uma miniatura de 96px sobrando no topo de uma coluna alta, e
+                pequena demais para conferir se o cartaz certo foi enviado — que
+                é a única pergunta que ela responde.
+
+                `w-full` faz os irmãos quebrarem para baixo (o pai é
+                `flex-wrap`), então a coluna estreita ganha empilhamento de
+                graça; `max-w-xs` impede que ela vire um painel quando o
+                formulário está numa coluna só. E `object-contain`, pelo mesmo
+                motivo da tela de detalhe: cartaz em pé não pode aparecer
+                decapitado justo na hora de confirmar qual é. */}
+            <SignedImage
+              url={shownUrl}
+              alt={eventName || "Cartaz do evento"}
+              sizes="aspect-video w-full max-w-xs"
+              className="bg-transparent object-contain"
+            />
 
             <div className="min-w-40 flex-1 space-y-1">
               <p className="truncate text-sm font-medium">

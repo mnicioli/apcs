@@ -196,102 +196,122 @@ export function EventForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-      <Card>
-        <CardContent className="space-y-6 p-6">
-          <EventImageField
-            file={file}
-            onFileChange={setFile}
-            currentImageUrl={event?.imageUrl ?? null}
-            eventName={watch("name") || (event?.name ?? "Evento")}
-            disabled={busy}
-          />
+      {/* ⚠️ DUAS COLUNAS, A IMAGEM OCUPANDO A ALTURA INTEIRA. A conta, com o
+          menu lateral de 256px: em `xl` sobram ~960px, e um grid de três frações
+          dá ~304px para o cartaz e ~608px para os campos. Dentro dos campos, as
+          duas colunas ficam com ~268px cada — folgado para o par hora+minuto,
+          que precisa de ~166px.
 
-          <div className="grid gap-6 sm:grid-cols-2">
-            <Field
-              id={nameId}
-              label="Nome"
-              required
-              error={errors.name?.message}
-              className="sm:col-span-2"
-            >
-              <Input
-                id={nameId}
-                aria-invalid={!!errors.name}
-                aria-describedby={errors.name ? `${nameId}-erro` : undefined}
-                placeholder="Workshop APCS"
-                {...register("name")}
-              />
-            </Field>
+          Abaixo de `xl` tudo empilha: a mesma decisão da tela de detalhe, pelo
+          mesmo motivo — três frações de uma tela de 1024px dariam ~218px por
+          coluna, e os campos de horário passariam a quebrar de linha. */}
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-1">
+          <CardContent className="p-6">
+            <EventImageField
+              file={file}
+              onFileChange={setFile}
+              currentImageUrl={event?.imageUrl ?? null}
+              eventName={watch("name") || (event?.name ?? "Evento")}
+              disabled={busy}
+            />
+          </CardContent>
+        </Card>
 
-            {/*
+        <div className="flex flex-col gap-6 xl:col-span-2">
+          <Card>
+            <CardContent className="space-y-6 p-6">
+              <div className="grid gap-6 sm:grid-cols-2">
+                <Field
+                  id={nameId}
+                  label="Nome"
+                  required
+                  error={errors.name?.message}
+                  className="sm:col-span-2"
+                >
+                  <Input
+                    id={nameId}
+                    aria-invalid={!!errors.name}
+                    aria-describedby={errors.name ? `${nameId}-erro` : undefined}
+                    placeholder="Workshop APCS"
+                    {...register("name")}
+                  />
+                </Field>
+
+                {/*
               A DESCRIÇÃO fica entre o nome e o local porque é assim que a
               mensagem de WhatsApp sai: nome, descrição, e só então onde e
               quando. O formulário na ordem da mensagem é o que permite conferir
               o resultado sem precisar imaginá-lo.
             */}
-            <Field
-              id={descriptionId}
-              label="Descrição"
-              error={errors.description?.message}
-              hint="Opcional. Sai no WhatsApp logo abaixo do nome do evento."
-              className="sm:col-span-2"
-            >
-              <Textarea
-                id={descriptionId}
-                rows={3}
-                maxLength={600}
-                aria-invalid={!!errors.description}
-                aria-describedby={errors.description ? `${descriptionId}-erro` : undefined}
-                placeholder="Um encontro para discutir mercado, sanidade e novidades do setor."
-                {...register("description")}
-              />
-            </Field>
+                <Field
+                  id={descriptionId}
+                  label="Descrição"
+                  error={errors.description?.message}
+                  hint="Opcional. Sai no WhatsApp logo abaixo do nome do evento."
+                  className="sm:col-span-2"
+                >
+                  <Textarea
+                    id={descriptionId}
+                    rows={3}
+                    maxLength={600}
+                    aria-invalid={!!errors.description}
+                    aria-describedby={errors.description ? `${descriptionId}-erro` : undefined}
+                    placeholder="Um encontro para discutir mercado, sanidade e novidades do setor."
+                    {...register("description")}
+                  />
+                </Field>
 
-            <Field
-              id={locationId}
-              label="Local"
-              required
-              error={errors.location?.message}
-              hint="Texto livre — pode ser um endereço, uma cidade ou 'Online'."
-              className="sm:col-span-2"
-            >
-              <Input
-                id={locationId}
-                aria-invalid={!!errors.location}
-                aria-describedby={errors.location ? `${locationId}-erro` : undefined}
-                placeholder="Auditório APCS"
-                {...register("location")}
-              />
-            </Field>
+                <Field
+                  id={locationId}
+                  label="Local"
+                  required
+                  error={errors.location?.message}
+                  hint="Texto livre — pode ser um endereço, uma cidade ou 'Online'."
+                  className="sm:col-span-2"
+                >
+                  <Input
+                    id={locationId}
+                    aria-invalid={!!errors.location}
+                    aria-describedby={errors.location ? `${locationId}-erro` : undefined}
+                    placeholder="Auditório APCS"
+                    {...register("location")}
+                  />
+                </Field>
 
-            <Field id={dateId} label="Data do evento" required error={errors.eventDate?.message}>
-              <Input
-                id={dateId}
-                type="date"
-                aria-invalid={!!errors.eventDate}
-                aria-describedby={errors.eventDate ? `${dateId}-erro` : undefined}
-                {...register("eventDate")}
-              />
-            </Field>
+                <Field
+                  id={dateId}
+                  label="Data do evento"
+                  required
+                  error={errors.eventDate?.message}
+                >
+                  <Input
+                    id={dateId}
+                    type="date"
+                    aria-invalid={!!errors.eventDate}
+                    aria-describedby={errors.eventDate ? `${dateId}-erro` : undefined}
+                    {...register("eventDate")}
+                  />
+                </Field>
 
-            <Field
-              id={urlId}
-              label="Link para inscrição"
-              error={errors.registrationUrl?.message}
-              hint="Opcional. Precisa começar com http:// ou https://."
-            >
-              <Input
-                id={urlId}
-                type="url"
-                inputMode="url"
-                aria-invalid={!!errors.registrationUrl}
-                aria-describedby={errors.registrationUrl ? `${urlId}-erro` : undefined}
-                placeholder="https://apcs.org.br/inscricao"
-                {...register("registrationUrl")}
-              />
-            </Field>
+                <Field
+                  id={urlId}
+                  label="Link para inscrição"
+                  error={errors.registrationUrl?.message}
+                  hint="Opcional. Precisa começar com http:// ou https://."
+                >
+                  <Input
+                    id={urlId}
+                    type="url"
+                    inputMode="url"
+                    aria-invalid={!!errors.registrationUrl}
+                    aria-describedby={errors.registrationUrl ? `${urlId}-erro` : undefined}
+                    placeholder="https://apcs.org.br/inscricao"
+                    {...register("registrationUrl")}
+                  />
+                </Field>
 
-            {/*
+                {/*
               ⚠️ DOIS SELETORES, E NÃO O `<input type="time">` COM `step`.
               O campo nativo estava aqui com `step={300}`, e o seletor do Chrome
               listava os sessenta minutos assim mesmo — `step` vale para a
@@ -301,99 +321,118 @@ export function EventForm({
               A dica "De 5 em 5 minutos" saiu junto: ela existia para explicar
               uma regra que agora está desenhada na própria lista.
             */}
-            <Field id={startId} label="Hora de início" required error={errors.startTime?.message}>
-              <TimeSelect
-                id={startId}
-                label="Hora de início"
-                required
-                value={watch("startTime") ?? ""}
-                disabled={busy}
-                invalid={!!errors.startTime}
-                describedBy={errors.startTime ? `${startId}-erro` : undefined}
-                onChange={(valor) =>
-                  setValue("startTime", valor, {
-                    shouldDirty: true,
-                    // Revalidar só depois da primeira tentativa de envio: marcar
-                    // "informe um horário" enquanto a pessoa ainda escolhe a
-                    // hora é acusá-la de um erro que ela está no meio de não
-                    // cometer. Mesma regra do formulário de Palestras.
-                    shouldValidate: isSubmitted,
-                  })
-                }
-              />
-            </Field>
+                <Field
+                  id={startId}
+                  label="Hora de início"
+                  required
+                  error={errors.startTime?.message}
+                >
+                  <TimeSelect
+                    id={startId}
+                    label="Hora de início"
+                    required
+                    value={watch("startTime") ?? ""}
+                    disabled={busy}
+                    invalid={!!errors.startTime}
+                    describedBy={errors.startTime ? `${startId}-erro` : undefined}
+                    onChange={(valor) =>
+                      setValue("startTime", valor, {
+                        shouldDirty: true,
+                        // Revalidar só depois da primeira tentativa de envio: marcar
+                        // "informe um horário" enquanto a pessoa ainda escolhe a
+                        // hora é acusá-la de um erro que ela está no meio de não
+                        // cometer. Mesma regra do formulário de Palestras.
+                        shouldValidate: isSubmitted,
+                      })
+                    }
+                  />
+                </Field>
 
-            <Field
-              id={endId}
-              label="Hora de término"
-              error={errors.endTime?.message}
-              hint="Opcional."
-            >
-              <TimeSelect
-                id={endId}
-                label="Hora de término"
-                value={watch("endTime") ?? ""}
-                disabled={busy}
-                invalid={!!errors.endTime}
-                describedBy={errors.endTime ? `${endId}-erro` : undefined}
-                onChange={(valor) =>
-                  setValue("endTime", valor, { shouldDirty: true, shouldValidate: isSubmitted })
-                }
-              />
-            </Field>
-          </div>
-
-          {/* `fieldset`/`legend` de verdade: é o que faz o leitor de tela
-              anunciar "Público-alvo" antes de cada caixa de seleção. */}
-          <fieldset className="space-y-2" aria-describedby={`${segmentsId}-erro`}>
-            <legend className="text-sm leading-none font-medium">
-              Público-alvo <span aria-hidden="true">*</span>
-              <span className="sr-only">(obrigatório)</span>
-            </legend>
-
-            {segments.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Nenhuma segmentação disponível.</p>
-            ) : (
-              <div className="space-y-2 pt-1">
-                {segments.map((segment) => (
-                  <label
-                    key={segment.id}
-                    className="hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      value={segment.id}
-                      disabled={busy}
-                      className="accent-primary mt-0.5 h-4 w-4 shrink-0 cursor-pointer"
-                      {...register("segmentIds")}
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium">{segment.name}</span>
-                      {segment.description && (
-                        <span className="text-muted-foreground block text-sm">
-                          {segment.description}
-                        </span>
-                      )}
-                    </span>
-                  </label>
-                ))}
+                <Field
+                  id={endId}
+                  label="Hora de término"
+                  error={errors.endTime?.message}
+                  hint="Opcional."
+                >
+                  <TimeSelect
+                    id={endId}
+                    label="Hora de término"
+                    value={watch("endTime") ?? ""}
+                    disabled={busy}
+                    invalid={!!errors.endTime}
+                    describedBy={errors.endTime ? `${endId}-erro` : undefined}
+                    onChange={(valor) =>
+                      setValue("endTime", valor, { shouldDirty: true, shouldValidate: isSubmitted })
+                    }
+                  />
+                </Field>
               </div>
-            )}
+            </CardContent>
+          </Card>
 
-            {errors.segmentIds && (
-              <p id={`${segmentsId}-erro`} role="alert" className="text-destructive text-sm">
-                {errors.segmentIds.message}
+          {/* ⚠️ O PÚBLICO-ALVO EM CAIXA PRÓPRIA. Ele não é mais um campo do
+              formulário: é a decisão de QUEM VAI RECEBER, e ela tem peso
+              diferente de "qual o local". Misturado no meio dos outros, virava
+              a última coisa da lista — o lugar onde se marca no automático.
+
+              Fica na mesma coluna dos campos de propósito: quem preenche lê de
+              cima para baixo e termina decidindo o público, com o cartaz à
+              vista do lado. */}
+          <Card>
+            <CardContent className="space-y-2 p-6">
+              {/* `fieldset`/`legend` de verdade: é o que faz o leitor de tela
+                  anunciar "Público-alvo" antes de cada caixa de seleção. */}
+              <fieldset className="space-y-2" aria-describedby={`${segmentsId}-erro`}>
+                <legend className="text-sm leading-none font-medium">
+                  Público-alvo <span aria-hidden="true">*</span>
+                  <span className="sr-only">(obrigatório)</span>
+                </legend>
+
+                {segments.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">Nenhuma segmentação disponível.</p>
+                ) : (
+                  <div className="space-y-2 pt-1">
+                    {segments.map((segment) => (
+                      <label
+                        key={segment.id}
+                        className="hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          value={segment.id}
+                          disabled={busy}
+                          className="accent-primary mt-0.5 h-4 w-4 shrink-0 cursor-pointer"
+                          {...register("segmentIds")}
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium">{segment.name}</span>
+                          {segment.description && (
+                            <span className="text-muted-foreground block text-sm">
+                              {segment.description}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {errors.segmentIds && (
+                  <p id={`${segmentsId}-erro`} role="alert" className="text-destructive text-sm">
+                    {errors.segmentIds.message}
+                  </p>
+                )}
+              </fieldset>
+
+              <p className="text-muted-foreground text-xs">
+                {selectedSegments.length === 0
+                  ? "Nenhum público selecionado."
+                  : `${selectedSegments.length} público(s) selecionado(s).`}
               </p>
-            )}
-          </fieldset>
-
-          <p className="text-muted-foreground text-xs">
-            {selectedSegments.length === 0
-              ? "Nenhum público selecionado."
-              : `${selectedSegments.length} público(s) selecionado(s).`}
-          </p>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {formError && (
         <p role="alert" className="text-destructive text-sm">

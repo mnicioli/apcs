@@ -167,16 +167,21 @@ export default async function EventDetailPage({
                   mostrar. `object-contain` cabe a imagem inteira dentro da
                   caixa.
 
-                  A proporção fixa (`aspect-video`) mantém a altura previsível e
-                  dá à imagem um fundo onde sobrar — sem ela, cada evento
-                  esticaria o cartão a uma altura diferente. O padrão do
-                  componente não muda: Bolsa e a grid de Eventos continuam
-                  cortando, que é o certo para miniatura. */}
+                  A proporção fixa (`aspect-video`) mantém a altura previsível —
+                  sem ela, cada evento esticaria o cartão a uma altura diferente.
+
+                  ⚠️ E SEM FUNDO PRÓPRIO. Um cartaz em pé deixa sobra dos dois
+                  lados, e pintar essa sobra de cinza desenhava uma moldura em
+                  volta da imagem — a sobra chamava mais atenção que o cartaz.
+                  Sem `bg-`, ela some no fundo do cartão.
+
+                  O padrão do componente não muda: Bolsa e a grid de Eventos
+                  continuam cortando, que é o certo para miniatura. */}
               <SignedImage
                 url={event.imageUrl}
                 alt={event.name}
                 sizes="aspect-video w-full"
-                className="bg-muted rounded-lg object-contain"
+                className="rounded-lg bg-transparent object-contain"
               />
 
               <dl className="grid content-start gap-4">
@@ -224,8 +229,19 @@ export default async function EventDetailPage({
           </CardContent>
         </Card>
 
-        <div className="space-y-6">
-          <Card>
+        {/* ⚠️ A COLUNA DA DIREITA ACOMPANHA A ALTURA DA ESQUERDA. Os dois
+            cartões daqui somavam bem menos que "Dados do evento" (que cresce com
+            o cartaz), e a página terminava com um degrau — conteúdo à esquerda,
+            vazio à direita.
+
+            `flex-col` mais `flex-1` em cada cartão divide a altura da LINHA
+            entre os dois. Como quem manda na altura é o grid, isso vale nos dois
+            sentidos: se "Dados do evento" crescer com uma descrição longa ou
+            encolher num evento sem cartaz, estes dois acompanham sozinhos — que
+            é o que se pede de um alinhamento, e não um valor fixo que envelhece
+            no primeiro evento diferente. */}
+        <div className="flex flex-col gap-6">
+          <Card className="flex flex-1 flex-col">
             <CardHeader>
               <CardTitle className="text-base">Público-alvo</CardTitle>
               <CardDescription>Quem poderá receber informações sobre este evento.</CardDescription>
@@ -248,7 +264,7 @@ export default async function EventDetailPage({
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="flex flex-1 flex-col">
             <CardHeader>
               <CardTitle className="text-base">Registro</CardTitle>
             </CardHeader>
