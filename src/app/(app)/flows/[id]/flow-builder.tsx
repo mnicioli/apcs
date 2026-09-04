@@ -412,6 +412,75 @@ function BuilderShell({
   );
 
   /** Ligar dois nós (§6). A condição sai da BOLINHA de onde a seta partiu (§9). */
+  /**
+   * Arrastar a PONTA de uma seta para outro lugar (§5, §6).
+   *
+   * ⚠️ É O GESTO QUE O PAINEL DE PROPRIEDADES MANDA FAZER para trocar a
+   * alternativa de onde uma ligação sai — e ele só existe porque este handler
+   * existe. `edgesReconnectable` sozinho não faz nada: a ponta é arrastada e
+   * volta ao lugar, sem erro e sem efeito.
+   *
+   * Apaga e recria em vez de atualizar: a seta pode ter mudado de ORIGEM, e com
+   * ela a condição inteira (de `{answer, EVENTOS}` para `{answer, FILIACAO}`).
+   * Um update parcial deixaria a condição velha apontando de uma bolinha nova.
+   */
+  const religar = useCallback(
+    async (antigaId: string, nova: Connection) => {
+      if (readOnly) return;
+
+      const origem = nodes.find((n) => n.id === nova.source);
+      if (!origem || !nova.target) return;
+
+      const condicao = conditionForConnection(origem, nova.sourceHandle);
+      if (!condicao) return;
+
+      setSaveState("saving");
+
+      const apagou = await deleteFlowTransitionAction(antigaId);
+      if (!apagou.ok) {
+        setSaveState("error");
+        setErro(ACTION_ERROR_MESSAGES[apagou.error.code]);
+        return;
+      }
+
+      const anterior = transitions.find((t) => t.id === antigaId);
+      const criou = await upsertFlowTransitionAction(version.id, {
+        sourceNodeId: origem.id,
+        targetNodeId: nova.target,
+        condition: condicao,
+        // O rótulo escrito à mão e a ordem sobrevivem: quem move a ponta de uma
+        // seta não quis perder o texto que escreveu nela.
+        label: anterior?.label ?? "",
+        priority: anterior?.priority ?? 0,
+      });
+
+      if (!criou.ok) {
+        setSaveState("error");
+        setErro(ACTION_ERROR_MESSAGES[criou.error.code]);
+        // A antiga já se foi; recarregar é o único jeito de a tela voltar a
+        // mostrar o que o banco tem.
+        router.refresh();
+        return;
+      }
+
+      setTransitions((atuais) => [
+        ...atuais.filter((t) => t.id !== antigaId),
+        {
+          id: criou.data.id,
+          flowVersionId: version.id,
+          sourceNodeId: origem.id,
+          targetNodeId: nova.target!,
+          condition: condicao,
+          label: anterior?.label ?? null,
+          priority: anterior?.priority ?? 0,
+        },
+      ]);
+      setSelecionado(null);
+      setSaveState("saved");
+    },
+    [readOnly, nodes, transitions, version.id, router],
+  );
+
   const onConnect = useCallback(
     async (conexao: Connection) => {
       if (readOnly) return;
@@ -829,6 +898,11 @@ function BuilderShell({
               nodeTypes={nodeTypes}
               onNodesChange={onNodesChange}
               onConnect={(c) => void onConnect(c)}
+              // ⚠️ SEM ISTO, `edgesReconnectable` NÃO FAZ NADA — a ponta da seta
+              // é arrastada e volta para o lugar, em silêncio. E o painel de
+              // propriedades manda arrastá-la para trocar de alternativa, ou
+              // seja: a instrução estaria mentindo.
+              onReconnect={(antiga, nova) => void religar(antiga.id, nova)}
               onNodeClick={(_, no) => setSelecionado({ tipo: "no", id: no.id })}
               onEdgeClick={(_, seta) => setSelecionado({ tipo: "seta", id: seta.id })}
               onPaneClick={() => setSelecionado(null)}
