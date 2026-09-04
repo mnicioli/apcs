@@ -67,7 +67,7 @@ const FLOW_COLUMNS =
   "id, name, description, channel, status, is_entry, active_version_id, created_at, updated_at, " +
   "author:profiles!flows_created_by_fkey (id, full_name), " +
   "editor:profiles!flows_updated_by_fkey (id, full_name), " +
-  "versions:flow_versions (id, version, status)";
+  "versions:flow_versions!flow_versions_flow_id_fkey (id, version, status)";
 
 interface FlowRow {
   id: string;
@@ -448,7 +448,7 @@ export async function getAttendanceTeam(id: string): Promise<AttendanceTeamDetai
     .from("attendance_teams")
     .select(
       "id, key, name, description, status, created_at, updated_at, " +
-        "members:attendance_team_members (profile_id, added_at, profile:profiles (id, full_name, email))",
+        "members:attendance_team_members (profile_id, added_at, profile:profiles!attendance_team_members_profile_id_fkey (id, full_name, email))",
     )
     .eq("id", id)
     .returns<TeamDetailRow[]>()

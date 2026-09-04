@@ -84,9 +84,13 @@ export default async function FlowsPage({
         )}
       </div>
 
-      <p className="text-muted-foreground text-sm" role="status">
-        {flowCoverage(noAr, flows.length)}
-      </p>
+      {/* Só com fluxos na lista: vazia, quem responde é o quadro abaixo — e ele
+          sabe diferenciar "não há nenhum" de "o filtro não achou". */}
+      {flows.length > 0 && (
+        <p className="text-muted-foreground text-sm" role="status">
+          {flowCoverage(noAr, flows.length)}
+        </p>
+      )}
 
       {flows.length === 0 ? (
         <Card>
