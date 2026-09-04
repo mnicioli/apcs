@@ -230,6 +230,25 @@ function MessageFields({
         />
       </Campo>
 
+      {/* ⚠️ O TEMPLATE É PARA O DIA EM QUE O WHATSAPP EXIGIR UM. Fora da janela
+          de 24h, a Meta só entrega mensagem com modelo previamente aprovado — e
+          o nome desse modelo é o que vai aqui. Nesta etapa ele é apenas
+          guardado: quem o usa é a camada de envio (Prompt 4). O texto de ajuda
+          diz isso, porque um campo que não faz nada e não avisa é pior do que
+          um campo ausente. */}
+      <Campo
+        label="Modelo aprovado (template)"
+        ajuda="Opcional. Só é necessário para falar com quem não escreveu nas últimas 24h. Ainda não é usado no envio."
+      >
+        <Input
+          value={texto(node, "templateKey")}
+          disabled={readOnly}
+          maxLength={80}
+          className="font-mono text-xs"
+          onChange={(e) => onChangeConfig(node, onChange, { templateKey: e.target.value })}
+        />
+      </Campo>
+
       <Campo label="Esperar antes de enviar" ajuda="Em segundos. Zero envia junto com a anterior.">
         <Input
           type="number"

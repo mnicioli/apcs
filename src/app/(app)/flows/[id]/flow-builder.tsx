@@ -19,12 +19,13 @@ import {
   type Node,
   type NodeChange,
 } from "@xyflow/react";
-import { AlertTriangle, ArrowLeft, Check, Loader2, Play, Search } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Copy, Loader2, Play, Search } from "lucide-react";
 import {
   createFlowVersionAction,
   advanceFlowVersionAction,
   deleteFlowNodeAction,
   deleteFlowTransitionAction,
+  duplicateFlowAction,
   duplicateFlowNodeAction,
   publishFlowVersionAction,
   saveNodePositionsAction,
@@ -39,6 +40,7 @@ import {
   conditionForConnection,
   defaultNodeConfiguration,
   handleForTransition,
+  issuesByNodeId,
   nodeMatchesSearch,
   nodeOutlets,
   suggestNodeKey,
@@ -191,15 +193,8 @@ function BuilderShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** A pendência de cada nó, para o selo na caixinha. */
-  const problemaPorNo = useMemo(() => {
-    const mapa = new Map<string, string>();
-    for (const p of problemas) {
-      const no = nodes.find((n) => p.detail.includes(`"${n.key}"`));
-      if (no && !mapa.has(no.id)) mapa.set(no.id, p.detail);
-    }
-    return mapa;
-  }, [problemas, nodes]);
+  /** A pendência de cada nó, para o selo na caixinha. Índice, não busca — §23. */
+  const problemaPorNo = useMemo(() => issuesByNodeId(problemas, nodes), [problemas, nodes]);
 
   /* ---------------------------------------------------------------------- */
   /* Auto save (§14)                                                         */
@@ -317,29 +312,31 @@ function BuilderShell({
    * componentes seriam redesenhados a cada quadro da animação. Com ele, só o nó
    * cujo conteúdo mudou de fato perde a identidade.
    */
-  const cacheDeDados = useRef(new Map<string, { chave: unknown; data: BuilderNodeData }>());
+  const cacheDeDados = useRef(
+    new Map<
+      string,
+      { no: FlowNode; problema: string | null; apagado: boolean; data: BuilderNodeData }
+    >(),
+  );
 
   const rfNodes = useMemo<Node<BuilderNodeData>[]>(() => {
     return nodes.map((no) => {
       const problema = problemaPorNo.get(no.id) ?? null;
       const apagado = busca.trim() !== "" && !nodeMatchesSearch(no, busca);
-      const outlets = nodeOutlets(no);
 
-      // A chave do cache carrega tudo que a caixinha desenha — menos a posição,
-      // que o React Flow trata por fora.
-      const chave = JSON.stringify([
-        no.key,
-        no.name,
-        no.type,
-        no.configuration,
-        no.isStart,
-        problema,
-        apagado,
-      ]);
-
+      // ⚠️ COMPARA POR REFERÊNCIA, e não por `JSON.stringify` do conteúdo. A
+      // versão anterior serializava a configuração de CADA nó a cada render — e
+      // arrastar redispara o render a cada quadro, então num fluxo de mil nós
+      // (§23) era mil serializações por quadro para descobrir que nada mudou.
+      //
+      // `setNodes` só cria objeto novo para o nó que mudou, então a igualdade de
+      // referência responde a mesma pergunta de graça.
       const anterior = cacheDeDados.current.get(no.id);
       const data =
-        anterior && anterior.chave === chave
+        anterior &&
+        anterior.no === no &&
+        anterior.problema === problema &&
+        anterior.apagado === apagado
           ? anterior.data
           : {
               chave: no.key,
@@ -347,12 +344,12 @@ function BuilderShell({
               kind: no.type,
               resumo: resumoDoNo(no, teams),
               isStart: no.isStart,
-              outlets,
+              outlets: nodeOutlets(no),
               problema,
               apagado,
             };
 
-      cacheDeDados.current.set(no.id, { chave, data });
+      cacheDeDados.current.set(no.id, { no, problema, apagado, data });
 
       return {
         id: no.id,
@@ -530,40 +527,69 @@ function BuilderShell({
   /* Excluir e duplicar (§5, §16)                                            */
   /* ---------------------------------------------------------------------- */
 
-  const excluirSelecionado = useCallback(async () => {
-    if (readOnly || !selecionado) return;
+  /**
+   * ⚠️ APAGAR ACEITA UMA LISTA, e não um id, porque há DOIS caminhos até aqui: o
+   * botão do painel de propriedades (sempre um) e a tecla Delete sobre uma
+   * seleção do canvas (pode ser vários). Duas implementações divergiriam — e a
+   * que ficasse para trás deixaria linhas órfãs na tela depois de apagar.
+   */
+  const apagarNos = useCallback(
+    async (ids: string[]) => {
+      if (readOnly || ids.length === 0) return;
 
-    setSaveState("saving");
+      setSaveState("saving");
+      const alvos = new Set(ids);
 
-    if (selecionado.tipo === "seta") {
-      const resultado = await deleteFlowTransitionAction(selecionado.id);
-      if (!resultado.ok) {
-        setSaveState("error");
-        setErro(ACTION_ERROR_MESSAGES[resultado.error.code]);
-        return;
+      for (const id of ids) {
+        const resultado = await deleteFlowNodeAction(id);
+        if (!resultado.ok) {
+          setSaveState("error");
+          setErro(ACTION_ERROR_MESSAGES[resultado.error.code]);
+          return;
+        }
       }
-      setTransitions((atuais) => atuais.filter((t) => t.id !== selecionado.id));
-    } else {
-      const resultado = await deleteFlowNodeAction(selecionado.id);
-      if (!resultado.ok) {
-        setSaveState("error");
-        setErro(ACTION_ERROR_MESSAGES[resultado.error.code]);
-        return;
-      }
-      setNodes((atuais) => atuais.filter((n) => n.id !== selecionado.id));
+
+      setNodes((atuais) => atuais.filter((n) => !alvos.has(n.id)));
       // As setas que tocavam o nó caíram no banco por cascade; aqui elas somem
       // da tela pelo mesmo motivo — deixar uma seta apontando para o vazio
       // faria o canvas mostrar um estado que não existe.
       setTransitions((atuais) =>
-        atuais.filter(
-          (t) => t.sourceNodeId !== selecionado.id && t.targetNodeId !== selecionado.id,
-        ),
+        atuais.filter((t) => !alvos.has(t.sourceNodeId) && !alvos.has(t.targetNodeId)),
       );
-    }
+      setSelecionado(null);
+      setSaveState("saved");
+    },
+    [readOnly],
+  );
 
-    setSelecionado(null);
-    setSaveState("saved");
-  }, [readOnly, selecionado]);
+  const apagarSetas = useCallback(
+    async (ids: string[]) => {
+      if (readOnly || ids.length === 0) return;
+
+      setSaveState("saving");
+      const alvos = new Set(ids);
+
+      for (const id of ids) {
+        const resultado = await deleteFlowTransitionAction(id);
+        if (!resultado.ok) {
+          setSaveState("error");
+          setErro(ACTION_ERROR_MESSAGES[resultado.error.code]);
+          return;
+        }
+      }
+
+      setTransitions((atuais) => atuais.filter((t) => !alvos.has(t.id)));
+      setSelecionado(null);
+      setSaveState("saved");
+    },
+    [readOnly],
+  );
+
+  const excluirSelecionado = useCallback(async () => {
+    if (!selecionado) return;
+    if (selecionado.tipo === "seta") await apagarSetas([selecionado.id]);
+    else await apagarNos([selecionado.id]);
+  }, [selecionado, apagarNos, apagarSetas]);
 
   const duplicarNo = useCallback(async () => {
     if (readOnly || selecionado?.tipo !== "no") return;
@@ -660,6 +686,33 @@ function BuilderShell({
             Testar fluxo
           </Button>
 
+          {/* §16. Duplicar o FLUXO inteiro — a cópia nasce desligada e sem ser a
+              entrada do canal, senão ela começaria a atender no mesmo instante.
+              Duplicar uma ETAPA fica no painel de propriedades, que é onde a
+              etapa está selecionada. */}
+          {canWrite && (
+            <Button
+              variant="outline"
+              size="sm"
+              loading={emTransicao}
+              title="Cria um fluxo novo com uma cópia deste desenho."
+              onClick={() =>
+                startTransition(async () => {
+                  setErro(null);
+                  const resultado = await duplicateFlowAction(flow.id);
+                  if (!resultado.ok) {
+                    setErro(ACTION_ERROR_MESSAGES[resultado.error.code]);
+                    return;
+                  }
+                  router.push(`/flows/${resultado.data.id}?v=${resultado.data.versionId}`);
+                })
+              }
+            >
+              <Copy className="h-4 w-4" aria-hidden="true" />
+              Duplicar
+            </Button>
+          )}
+
           {canWrite && (
             <LifecycleButtons
               version={version}
@@ -694,7 +747,12 @@ function BuilderShell({
       )}
 
       {/* =========== ÁREAS 2, 3 e 4 — ferramentas, canvas e propriedades ========== */}
-      <div className="grid min-h-0 flex-1 grid-cols-[13rem_1fr_20rem] gap-3">
+      {/* ⚠️ AS LATERAIS ENCOLHEM ANTES DO CANVAS. Com 13rem + 20rem fixos, um
+          monitor de 1280px sobrava ~750px para o desenho — e é o desenho que a
+          pessoa veio ver. As duas colunas laterais só crescem quando há tela
+          sobrando (2xl). Desktop é a prioridade do §24; tablet fica utilizável e
+          celular não é alvo. */}
+      <div className="grid min-h-0 flex-1 grid-cols-[11rem_1fr_18rem] gap-3 2xl:grid-cols-[13rem_1fr_22rem]">
         {/* ---- ÁREA 3: caixa de ferramentas ---- */}
         <Card className="min-h-0 overflow-y-auto">
           <CardContent className="space-y-3 p-3">
@@ -777,7 +835,16 @@ function BuilderShell({
               nodesConnectable={!readOnly}
               nodesDraggable={!readOnly}
               edgesReconnectable={!readOnly}
-              deleteKeyCode={null}
+              // ⚠️ DELETE E BACKSPACE APAGAM O QUE ESTÁ SELECIONADO (§5) — mas
+              // só com o CANVAS em foco. O React Flow ignora a tecla enquanto o
+              // cursor está num campo, então apagar uma palavra do texto da
+              // mensagem no painel ao lado não apaga a etapa.
+              //
+              // Em versão congelada a tecla é desligada: um canvas que aceita
+              // apagar e devolve erro a cada tecla é pior do que um travado.
+              deleteKeyCode={readOnly ? null : ["Delete", "Backspace"]}
+              onNodesDelete={(apagados) => void apagarNos(apagados.map((n) => n.id))}
+              onEdgesDelete={(apagadas) => void apagarSetas(apagadas.map((e) => e.id))}
               fitView
               minZoom={0.1}
               maxZoom={2}

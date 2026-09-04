@@ -278,6 +278,47 @@ function leituraTexto(configuration: Record<string, unknown>, campo: string): st
 }
 
 /* -------------------------------------------------------------------------- */
+/* As pendências, por nó (§13)                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Liga cada pendência ao nó que ela acusa, para o selo aparecer na caixinha.
+ *
+ * ⚠️ A LIGAÇÃO É PELA CHAVE ENTRE ASPAS, e ela é a única costura possível: o
+ * banco devolve `(code, detail)` e mais nada — não há id de nó no retorno de
+ * `validate_flow_version`, porque a mesma lista precisa servir a quem lê a
+ * mensagem sem ter o desenho na mão.
+ *
+ * ⚠️ E ELA É UM ÍNDICE, NÃO UMA BUSCA. A versão anterior fazia
+ * `nodes.find(n => detail.includes(n.key))` DENTRO do laço de pendências — ou
+ * seja, pendências × nós comparações de texto, refeitas a cada quadro do
+ * arrastar. Num fluxo de mil nós (§23) isso é dezenas de milhares de `includes`
+ * por quadro, e o canvas engasga justamente no fluxo grande que o §23 manda
+ * manter navegável.
+ *
+ * Aqui é um mapa montado uma vez: nós + pendências, e não o produto dos dois.
+ */
+export function issuesByNodeId(
+  issues: readonly { code: string; detail: string }[],
+  nodes: readonly Pick<FlowNode, "id" | "key">[],
+): Map<string, string> {
+  const porChave = new Map(nodes.map((n) => [n.key, n.id]));
+  const porNo = new Map<string, string>();
+
+  for (const issue of issues) {
+    const chave = /"([A-Z][A-Z0-9_]*)"/.exec(issue.detail)?.[1];
+    if (chave === undefined) continue;
+
+    const id = porChave.get(chave);
+    // A primeira pendência ganha o selo: a caixinha tem lugar para uma frase, e
+    // a lista completa está no painel lateral.
+    if (id !== undefined && !porNo.has(id)) porNo.set(id, issue.detail);
+  }
+
+  return porNo;
+}
+
+/* -------------------------------------------------------------------------- */
 /* A busca do canvas (§19)                                                    */
 /* -------------------------------------------------------------------------- */
 

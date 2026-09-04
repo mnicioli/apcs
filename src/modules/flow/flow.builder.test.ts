@@ -5,6 +5,7 @@ import {
   conditionForConnection,
   defaultNodeConfiguration,
   handleForTransition,
+  issuesByNodeId,
   nodeMatchesSearch,
   nodeOutlets,
   suggestNodeKey,
@@ -291,6 +292,98 @@ describe("o rótulo da seta", () => {
 });
 
 /* -------------------------------------------------------------------------- */
+
+describe("as pendências ligadas a cada nó (§13)", () => {
+  const NOS = [
+    { id: "n1", key: "BOAS_VINDAS" },
+    { id: "n2", key: "PERGUNTA_ASSUNTO" },
+    { id: "n3", key: "FIM" },
+  ];
+
+  it("acha o nó pela chave entre aspas da mensagem", () => {
+    const mapa = issuesByNodeId(
+      [
+        {
+          code: "dead_end",
+          detail: 'O nó "BOAS_VINDAS" não tem saída e não encerra o atendimento.',
+        },
+      ],
+      NOS,
+    );
+
+    expect(mapa.get("n1")).toContain("BOAS_VINDAS");
+    expect(mapa.has("n2")).toBe(false);
+  });
+
+  /**
+   * ⚠️ AS PENDÊNCIAS DE FLUXO NÃO TÊM DONO. "O fluxo precisa de um nó inicial"
+   * não acusa nenhuma caixinha — e tentar ligá-la a alguma colocaria um selo
+   * vermelho num nó que está correto.
+   */
+  it("ignora a pendência que não cita nó nenhum", () => {
+    const mapa = issuesByNodeId(
+      [{ code: "missing_start", detail: "O fluxo precisa de um nó inicial." }],
+      NOS,
+    );
+
+    expect(mapa.size).toBe(0);
+  });
+
+  it("a primeira pendência ganha o selo — a caixinha só tem lugar para uma", () => {
+    const mapa = issuesByNodeId(
+      [
+        { code: "empty_message", detail: 'A etapa "PERGUNTA_ASSUNTO" não tem texto para enviar.' },
+        {
+          code: "question_without_options",
+          detail: 'A pergunta "PERGUNTA_ASSUNTO" não tem duas alternativas preenchidas.',
+        },
+      ],
+      NOS,
+    );
+
+    expect(mapa.get("n2")).toContain("não tem texto");
+  });
+
+  it("uma chave que não existe mais não derruba nada", () => {
+    const mapa = issuesByNodeId(
+      [{ code: "dead_end", detail: 'O nó "APAGADO" não tem saída e não encerra o atendimento.' }],
+      NOS,
+    );
+
+    expect(mapa.size).toBe(0);
+  });
+
+  /**
+   * ⚠️ O TESTE QUE GUARDA A COSTURA. A ligação é feita por uma expressão regular
+   * sobre a MENSAGEM que o banco escreve — então mudar o texto de uma pendência
+   * pode fazer o selo sumir do canvas sem que nada quebre. Este caso percorre as
+   * frases reais de `validateFlowGraph` em vez de frases inventadas.
+   */
+  it("casa com as frases que o validador de verdade produz", () => {
+    const problemas = validateFlowGraph(
+      {
+        nodes: [
+          no({ id: "n1", type: "message", key: "BOAS_VINDAS", isStart: true }),
+          no({ id: "n2", type: "attendant", key: "PARA_O_TIME" }),
+          no({ id: "n3", type: "end", key: "FIM" }),
+        ],
+        transitions: [],
+      },
+      [],
+    );
+
+    const mapa = issuesByNodeId(problemas, [
+      { id: "n1", key: "BOAS_VINDAS" },
+      { id: "n2", key: "PARA_O_TIME" },
+      { id: "n3", key: "FIM" },
+    ]);
+
+    // As três caixinhas têm algo errado, e cada uma recebe o próprio recado.
+    expect(mapa.get("n1")).toBeTruthy();
+    expect(mapa.get("n2")).toBeTruthy();
+    expect(mapa.get("n3")).toBeTruthy();
+  });
+});
 
 describe("a busca no desenho (§19)", () => {
   /**
