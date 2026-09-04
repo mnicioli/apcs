@@ -9,13 +9,20 @@ import {
 /**
  * A validação de entrada — a primeira camada, não a única.
  *
- * ⚠️ O QUE ESTES TESTES GUARDAM É A DIFERENÇA ENTRE "ERRO AGORA" E "ERRO NA
- * PUBLICAÇÃO". Um nó ATTENDANT sem time e um QUESTION sem alternativas passam
- * pelo banco (a coluna `configuration` é jsonb livre, de propósito) e só caem em
- * `validate_flow_version()`, no fim — quando o desenho já tem quarenta nós e a
- * pessoa precisa caçar os três buracos.
+ * ⚠️ O QUE O ZOD COBRA AQUI É A **FORMA**, NÃO O CONTEÚDO. A divisão foi
+ * corrigida quando o Builder chegou:
  *
- * A união discriminada é o que cobra na hora de salvar cada nó.
+ *   Zod          o campo existe? o tipo bate? a chave tem o formato? há
+ *                alternativa com chave repetida? passa do teto de tamanho?
+ *   Publicação   o texto foi escrito? o time está ativo? há duas alternativas
+ *                preenchidas? (`validate_flow_version`, no banco)
+ *
+ * A versão anterior exigia CONTEÚDO na gravação, e isso quebrava a primeira
+ * ação do desenhador: arrastar uma caixinha de mensagem cria o nó na hora, com
+ * o texto vazio — e a criação era recusada com "dados inválidos" antes de a
+ * caixinha aparecer.
+ *
+ * Rascunho é trabalho em andamento. A barreira é publicar.
  */
 
 const NO_BASE = { key: "PERGUNTA_ASSUNTO", name: "Assunto", position: { x: 0, y: 0 } };
@@ -51,7 +58,8 @@ describe("a chave estável (§10)", () => {
 });
 
 describe("a configuração por tipo de nó (§8, §19)", () => {
-  it("recusa um nó de mensagem sem texto", () => {
+  // FORMA, não conteúdo: falta o CAMPO. Texto vazio é aceito — ver o cabeçalho.
+  it("recusa um nó de mensagem sem o campo de texto", () => {
     const resultado = flowNodeFormSchema.safeParse({
       ...NO_BASE,
       type: "message",
@@ -60,14 +68,14 @@ describe("a configuração por tipo de nó (§8, §19)", () => {
     expect(resultado.success).toBe(false);
   });
 
-  it("recusa uma pergunta com menos de duas alternativas", () => {
+  it("recusa uma pergunta de botões sem lista nenhuma", () => {
     const resultado = flowNodeFormSchema.safeParse({
       ...NO_BASE,
       type: "question",
       configuration: {
         text: "Como podemos ajudar?",
         variable: "assunto",
-        options: [{ key: "EVENTOS", label: "Eventos" }],
+        options: [],
       },
     });
     expect(resultado.success).toBe(false);
@@ -129,7 +137,9 @@ describe("a configuração por tipo de nó (§8, §19)", () => {
     expect(resultado.success).toBe(false);
   });
 
-  it("recusa transferência sem time (§11)", () => {
+  // Idem: falta o CAMPO `teamKey`. Time em branco é aceito na gravação e cobrado
+  // na publicação — que é também quem pega o time DESATIVADO depois.
+  it("recusa transferência sem o campo de time (§11)", () => {
     const resultado = flowNodeFormSchema.safeParse({
       ...NO_BASE,
       type: "attendant",
@@ -183,9 +193,33 @@ describe("a condição de uma transição (§9)", () => {
       flowTransitionConditionSchema.safeParse({
         type: "variable",
         name: "assunto",
-        equals: "EVENTOS",
+        operator: "eq",
+        value: "EVENTOS",
       }).success,
     ).toBe(true);
+  });
+
+  it("aceita os cinco operadores do §10", () => {
+    for (const operator of ["eq", "neq", "contains", "gt", "lt"]) {
+      const resultado = flowTransitionConditionSchema.safeParse({
+        type: "variable",
+        name: "quantidade",
+        operator,
+        value: "10",
+      });
+      expect(resultado.success, `operador ${operator}`).toBe(true);
+    }
+  });
+
+  it("recusa um operador que o motor não sabe avaliar", () => {
+    expect(
+      flowTransitionConditionSchema.safeParse({
+        type: "variable",
+        name: "quantidade",
+        operator: "regex",
+        value: "^1",
+      }).success,
+    ).toBe(false);
   });
 
   /**

@@ -7,10 +7,10 @@ Hoje esse caminho está em código (`intent.registry.ts`, `router.ts`,
 `engine.ts`): mudar a triagem exige um programador, um deploy e um
 `pnpm db:types`. Este módulo tira essa decisão do código e a coloca numa tela.
 
-> **Estado: fundação (Prompt 1 de 5).** O banco, o domínio, o motor, as
-> validações, as permissões, a auditoria e as actions estão prontos. A tela de
-> desenho (canvas, arrastar, simulador) e a ligação com o WhatsApp são as etapas
-> seguintes. Ver [Pendências](#12-pendências).
+> **Estado: fundação + Builder visual (Prompts 1 e 2 de 5).** O banco, o
+> domínio, o motor, as validações, as permissões, a auditoria, as actions e a
+> tela de desenho estão prontos. Falta ligar as ações de negócio e o WhatsApp.
+> Ver [Pendências](#13-pendências).
 
 ---
 
@@ -207,47 +207,89 @@ discriminada de `flow.schema.ts`. O TypeScript aponta os três.
 
 ---
 
-## 12. Pendências
+## 12. O Builder visual
 
-Para o **Prompt 2** (desenhador visual):
+`/flows/[id]` — quatro áreas: dados do fluxo em cima, caixa de ferramentas à
+esquerda, canvas no meio, propriedades à direita. O canvas é
+[React Flow](https://reactflow.dev) (`@xyflow/react`), a única dependência de
+peso que o módulo trouxe, carregada só nessa rota.
 
-- Canvas, arrastar e soltar, edição de nó e transição na tela. Todas as actions
-  já existem (`src/lib/actions/flows.ts`); falta quem as chame.
-- Formulário de fluxo e de versão, trilha de etapas, botão de publicar com a
-  lista de pendências de `validateFlowVersion()`.
-- Tela de times com edição de membros.
+**A peça mais importante é a bolinha de saída.** Uma pergunta de escolha ganha
+um ponto de ligação POR ALTERNATIVA, e cada ponto carrega a CHAVE dela. Arrastar
+de "Eventos" até o próximo nó monta a condição `{answer, EVENTOS}` — ninguém
+digita chave, ninguém escolhe número, e não existe caminho pelo qual uma seta
+acabe presa a uma posição. Reordenar as alternativas move as bolinhas e mantém
+as setas.
 
-Depois:
+**Auto save** com espera de 800ms. Posições viajam por uma ação própria
+(`saveNodePositionsAction`) e **não entram na trilha** — o gatilho ignora o
+UPDATE em que só a posição mudou, senão uma tarde reorganizando o desenho
+produziria centenas de linhas de "etapa alterada".
 
-- **Simulador de conversa** (Prompt 2/3) — roda sobre o MESMO
-  `advanceFlow()`, imprimindo os efeitos em vez de executá-los.
-- **Handlers das ações** (Prompt 3) — `FLOW_ACTION_HANDLERS`.
-- **Ligação com o WhatsApp** (Prompt 4) — quem executa os `FlowEffect`, escreve
-  `flow_runs` / `flow_run_steps` com `service_role` e usa a chave de
-  idempotência.
-- **Resumo por IA** (§16) — se um dia existir, entra como campo A MAIS embaixo
-  das variáveis coletadas, nunca no lugar delas.
-- **`pnpm db:types`** depois de aplicar a migration, para derrubar
-  `src/lib/supabase/untyped.ts` (ver o cabeçalho do arquivo).
+**Onde cada coisa é cobrada** — a divisão foi corrigida durante o Builder:
+
+| Camada     | Confere                                                                   |
+| ---------- | ------------------------------------------------------------------------- |
+| Zod        | a FORMA: campo existe, tipo bate, chave no formato, alternativa repetida  |
+| Publicação | se está COMPLETO: texto escrito, time ativo, duas alternativas de verdade |
+
+A versão anterior cobrava conteúdo na gravação, e isso quebrava a primeira ação
+do desenhador: arrastar uma caixinha de mensagem cria o nó na hora, com o texto
+vazio — e a criação era recusada antes de a caixinha aparecer.
+
+**Testar fluxo** roda `advanceFlow()`, o motor de verdade — o mesmo que vai
+atender no WhatsApp. As ações de negócio não são executadas: o simulador mostra
+qual seria e segue como se tivesse dado certo, dizendo isso na tela.
 
 ---
 
-## 13. Arquivos
+## 13. Pendências
+
+- **Handlers das ações** (Prompt 3) — `FLOW_ACTION_HANDLERS` está vazio de
+  propósito. Ligar a Bolsa é uma entrada apontando para
+  `src/lib/services/market-chatbot.ts`.
+- **Ligação com o WhatsApp** (Prompt 4) — quem executa os `FlowEffect`, escreve
+  `flow_runs` / `flow_run_steps` com `service_role` e usa a chave de
+  idempotência. O `delaySeconds` e o `slaMinutes` são carregados hoje e não
+  cobrados por ninguém: quem os honra é essa camada.
+- **Simulador completo** (Prompt 5).
+- **Tela de times com edição de membros** — as actions existem
+  (`setAttendanceTeamMembersAction`); a lista de `/flows` mostra os times em
+  leitura.
+- **Editar os dados do fluxo pela tela** — `updateFlowAction` existe e nenhuma
+  tela a chama ainda. Nome, descrição e canal são definidos na criação.
+- **Duplicar fluxo** — `duplicateFlowAction` existe sem botão. Duplicar ETAPA
+  está no painel de propriedades.
+- **Resumo por IA** (§16) — se um dia existir, entra como campo A MAIS embaixo
+  das variáveis coletadas, nunca no lugar delas.
+
+---
+
+## 14. Arquivos
 
 ```
 supabase/migrations/20260917000000_flow_enums.sql    os sete tipos + 15 verbos de auditoria
 supabase/migrations/20260917000100_flows.sql         8 tabelas, 12 funções, 11 gatilhos, RLS
+supabase/migrations/20260918000000_flow_builder.sql  validação dos tipos de pergunta + auditoria sem ruído
 
 src/modules/flow/flow.types.ts                       o domínio
 src/modules/flow/flow.schema.ts                      Zod — a união discriminada por tipo de nó
 src/modules/flow/flow.rules.ts                       ciclo de vida + espelho da validação
 src/modules/flow/flow.engine.ts                      o motor determinístico
+src/modules/flow/flow.builder.ts                     as decisões do Builder que não dependem de React
 src/modules/flow/flow.actions.registry.ts            o registro de ações (§26)
 src/modules/flow/flow.labels.ts                      os textos PT-BR
 
 src/lib/services/flows.ts                            leitura
 src/lib/actions/flows.ts                             escrita
-src/app/(app)/flows/page.tsx                         a grid (somente leitura nesta fundação)
+
+src/app/(app)/flows/page.tsx                         a lista + os times
+src/app/(app)/flows/new/                             o cadastro de um fluxo
+src/app/(app)/flows/[id]/page.tsx                    o servidor do Builder
+src/app/(app)/flows/[id]/flow-builder.tsx            as quatro áreas, auto save, ciclo de vida
+src/app/(app)/flows/[id]/builder-node.tsx            a caixinha do canvas
+src/app/(app)/flows/[id]/node-inspector.tsx          o painel de propriedades
+src/app/(app)/flows/[id]/flow-simulator.tsx          "Testar fluxo"
 
 src/test/sql-flow-validation.test.ts                 o espelho TypeScript ↔ SQL
 ```

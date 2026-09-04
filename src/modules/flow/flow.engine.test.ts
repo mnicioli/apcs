@@ -107,6 +107,9 @@ describe("o motor de fluxos", () => {
       kind: "sendMessage",
       nodeId: "n1",
       text: "Olá! Aqui é a APCS.",
+      delaySeconds: 0,
+      imageUrl: null,
+      pdfUrl: null,
     });
     expect(effects[1]).toMatchObject({ kind: "askQuestion", nodeId: "n2" });
 
@@ -134,7 +137,14 @@ describe("o motor de fluxos", () => {
     // §15: o que a pessoa respondeu fica guardado, e é a CHAVE, não o rótulo.
     expect(state.variables).toEqual({ assunto: "EVENTOS" });
     expect(effects).toEqual([
-      { kind: "assignTeam", nodeId: "n3", teamKey: "TIME_EVENTOS", message: null },
+      {
+        kind: "assignTeam",
+        nodeId: "n3",
+        teamKey: "TIME_EVENTOS",
+        message: null,
+        slaMinutes: null,
+        priority: "normal",
+      },
     ]);
     expect(state.status).toBe("handed_off");
     expect(state.assignedTeamKey).toBe("TIME_EVENTOS");
@@ -367,7 +377,7 @@ describe("o motor de fluxos", () => {
           sourceNodeId: "c1",
           targetNodeId: "c2",
           priority: 0,
-          condition: { type: "variable", name: "associado", equals: "true" },
+          condition: { type: "variable", name: "associado", operator: "eq", value: "true" },
         }),
         // A saída "sempre" fica por último: é o padrão, e um padrão que ganhasse
         // da regra específica tornaria a bifurcação decorativa.

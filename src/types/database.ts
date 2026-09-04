@@ -182,6 +182,100 @@ export type Database = {
           },
         ];
       };
+      attendance_team_members: {
+        Row: {
+          added_at: string;
+          added_by: string | null;
+          profile_id: string;
+          team_id: string;
+        };
+        Insert: {
+          added_at?: string;
+          added_by?: string | null;
+          profile_id: string;
+          team_id: string;
+        };
+        Update: {
+          added_at?: string;
+          added_by?: string | null;
+          profile_id?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "attendance_team_members_added_by_fkey";
+            columns: ["added_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "attendance_team_members_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "attendance_team_members_team_id_fkey";
+            columns: ["team_id"];
+            isOneToOne: false;
+            referencedRelation: "attendance_teams";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      attendance_teams: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          key: string;
+          name: string;
+          status: Database["public"]["Enums"]["attendance_team_status"];
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          key: string;
+          name: string;
+          status?: Database["public"]["Enums"]["attendance_team_status"];
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          key?: string;
+          name?: string;
+          status?: Database["public"]["Enums"]["attendance_team_status"];
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "attendance_teams_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "attendance_teams_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       broadcast_recipients: {
         Row: {
           attempts: number;
@@ -1125,6 +1219,397 @@ export type Database = {
           },
           {
             foreignKeyName: "events_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      flow_nodes: {
+        Row: {
+          configuration: Json;
+          created_at: string;
+          flow_version_id: string;
+          id: string;
+          is_start: boolean;
+          key: string;
+          metadata: Json;
+          name: string;
+          position: Json;
+          type: Database["public"]["Enums"]["flow_node_type"];
+          updated_at: string;
+        };
+        Insert: {
+          configuration?: Json;
+          created_at?: string;
+          flow_version_id: string;
+          id?: string;
+          is_start?: boolean;
+          key: string;
+          metadata?: Json;
+          name: string;
+          position?: Json;
+          type: Database["public"]["Enums"]["flow_node_type"];
+          updated_at?: string;
+        };
+        Update: {
+          configuration?: Json;
+          created_at?: string;
+          flow_version_id?: string;
+          id?: string;
+          is_start?: boolean;
+          key?: string;
+          metadata?: Json;
+          name?: string;
+          position?: Json;
+          type?: Database["public"]["Enums"]["flow_node_type"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "flow_nodes_flow_version_id_fkey";
+            columns: ["flow_version_id"];
+            isOneToOne: false;
+            referencedRelation: "flow_versions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      flow_run_steps: {
+        Row: {
+          created_at: string;
+          flow_run_id: string;
+          id: number;
+          idempotency_key: string;
+          inbound_message_id: string | null;
+          input: Json;
+          node_id: string | null;
+          output: Json;
+          seq: number;
+        };
+        Insert: {
+          created_at?: string;
+          flow_run_id: string;
+          id?: never;
+          idempotency_key: string;
+          inbound_message_id?: string | null;
+          input?: Json;
+          node_id?: string | null;
+          output?: Json;
+          seq: number;
+        };
+        Update: {
+          created_at?: string;
+          flow_run_id?: string;
+          id?: never;
+          idempotency_key?: string;
+          inbound_message_id?: string | null;
+          input?: Json;
+          node_id?: string | null;
+          output?: Json;
+          seq?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "flow_run_steps_flow_run_id_fkey";
+            columns: ["flow_run_id"];
+            isOneToOne: false;
+            referencedRelation: "flow_runs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flow_run_steps_inbound_message_id_fkey";
+            columns: ["inbound_message_id"];
+            isOneToOne: false;
+            referencedRelation: "whatsapp_messages";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      flow_runs: {
+        Row: {
+          assigned_team_id: string | null;
+          assigned_user_id: string | null;
+          completed_at: string | null;
+          conversation_status: Database["public"]["Enums"]["flow_conversation_status"];
+          current_node_id: string | null;
+          flow_id: string;
+          flow_version_id: string;
+          id: string;
+          intent: string | null;
+          intent_confidence: number | null;
+          started_at: string;
+          status: Database["public"]["Enums"]["flow_run_status"];
+          updated_at: string;
+          variables: Json;
+          whatsapp_chat_id: string | null;
+        };
+        Insert: {
+          assigned_team_id?: string | null;
+          assigned_user_id?: string | null;
+          completed_at?: string | null;
+          conversation_status?: Database["public"]["Enums"]["flow_conversation_status"];
+          current_node_id?: string | null;
+          flow_id: string;
+          flow_version_id: string;
+          id?: string;
+          intent?: string | null;
+          intent_confidence?: number | null;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["flow_run_status"];
+          updated_at?: string;
+          variables?: Json;
+          whatsapp_chat_id?: string | null;
+        };
+        Update: {
+          assigned_team_id?: string | null;
+          assigned_user_id?: string | null;
+          completed_at?: string | null;
+          conversation_status?: Database["public"]["Enums"]["flow_conversation_status"];
+          current_node_id?: string | null;
+          flow_id?: string;
+          flow_version_id?: string;
+          id?: string;
+          intent?: string | null;
+          intent_confidence?: number | null;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["flow_run_status"];
+          updated_at?: string;
+          variables?: Json;
+          whatsapp_chat_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "flow_runs_assigned_team_id_fkey";
+            columns: ["assigned_team_id"];
+            isOneToOne: false;
+            referencedRelation: "attendance_teams";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flow_runs_assigned_user_id_fkey";
+            columns: ["assigned_user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flow_runs_current_node_fk";
+            columns: ["current_node_id", "flow_version_id"];
+            isOneToOne: false;
+            referencedRelation: "flow_nodes";
+            referencedColumns: ["id", "flow_version_id"];
+          },
+          {
+            foreignKeyName: "flow_runs_flow_id_fkey";
+            columns: ["flow_id"];
+            isOneToOne: false;
+            referencedRelation: "flows";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flow_runs_version_fk";
+            columns: ["flow_version_id", "flow_id"];
+            isOneToOne: false;
+            referencedRelation: "flow_versions";
+            referencedColumns: ["id", "flow_id"];
+          },
+          {
+            foreignKeyName: "flow_runs_whatsapp_chat_id_fkey";
+            columns: ["whatsapp_chat_id"];
+            isOneToOne: false;
+            referencedRelation: "whatsapp_chats";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      flow_transitions: {
+        Row: {
+          condition: Json;
+          created_at: string;
+          flow_version_id: string;
+          id: string;
+          label: string | null;
+          priority: number;
+          source_node_id: string;
+          target_node_id: string;
+        };
+        Insert: {
+          condition?: Json;
+          created_at?: string;
+          flow_version_id: string;
+          id?: string;
+          label?: string | null;
+          priority?: number;
+          source_node_id: string;
+          target_node_id: string;
+        };
+        Update: {
+          condition?: Json;
+          created_at?: string;
+          flow_version_id?: string;
+          id?: string;
+          label?: string | null;
+          priority?: number;
+          source_node_id?: string;
+          target_node_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "flow_transitions_flow_version_id_fkey";
+            columns: ["flow_version_id"];
+            isOneToOne: false;
+            referencedRelation: "flow_versions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flow_transitions_source_fk";
+            columns: ["source_node_id", "flow_version_id"];
+            isOneToOne: false;
+            referencedRelation: "flow_nodes";
+            referencedColumns: ["id", "flow_version_id"];
+          },
+          {
+            foreignKeyName: "flow_transitions_target_fk";
+            columns: ["target_node_id", "flow_version_id"];
+            isOneToOne: false;
+            referencedRelation: "flow_nodes";
+            referencedColumns: ["id", "flow_version_id"];
+          },
+        ];
+      };
+      flow_versions: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          definition: Json | null;
+          flow_id: string;
+          id: string;
+          notes: string | null;
+          published_at: string | null;
+          published_by: string | null;
+          status: Database["public"]["Enums"]["flow_version_status"];
+          updated_at: string;
+          updated_by: string | null;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          definition?: Json | null;
+          flow_id: string;
+          id?: string;
+          notes?: string | null;
+          published_at?: string | null;
+          published_by?: string | null;
+          status?: Database["public"]["Enums"]["flow_version_status"];
+          updated_at?: string;
+          updated_by?: string | null;
+          version: number;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          definition?: Json | null;
+          flow_id?: string;
+          id?: string;
+          notes?: string | null;
+          published_at?: string | null;
+          published_by?: string | null;
+          status?: Database["public"]["Enums"]["flow_version_status"];
+          updated_at?: string;
+          updated_by?: string | null;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "flow_versions_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flow_versions_flow_id_fkey";
+            columns: ["flow_id"];
+            isOneToOne: false;
+            referencedRelation: "flows";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flow_versions_published_by_fkey";
+            columns: ["published_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flow_versions_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      flows: {
+        Row: {
+          active_version_id: string | null;
+          channel: Database["public"]["Enums"]["flow_channel"];
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          is_entry: boolean;
+          name: string;
+          status: Database["public"]["Enums"]["flow_status"];
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          active_version_id?: string | null;
+          channel?: Database["public"]["Enums"]["flow_channel"];
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          is_entry?: boolean;
+          name: string;
+          status?: Database["public"]["Enums"]["flow_status"];
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          active_version_id?: string | null;
+          channel?: Database["public"]["Enums"]["flow_channel"];
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          is_entry?: boolean;
+          name?: string;
+          status?: Database["public"]["Enums"]["flow_status"];
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "flows_active_version_fk";
+            columns: ["active_version_id"];
+            isOneToOne: false;
+            referencedRelation: "flow_versions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flows_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flows_updated_by_fkey";
             columns: ["updated_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
@@ -3124,6 +3609,32 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      advance_flow_version: {
+        Args: {
+          p_to: Database["public"]["Enums"]["flow_version_status"];
+          p_version_id: string;
+        };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          definition: Json | null;
+          flow_id: string;
+          id: string;
+          notes: string | null;
+          published_at: string | null;
+          published_by: string | null;
+          status: Database["public"]["Enums"]["flow_version_status"];
+          updated_at: string;
+          updated_by: string | null;
+          version: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "flow_versions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       approve_membership_application: {
         Args: { p_application_id: string; p_note?: string };
         Returns: {
@@ -3438,6 +3949,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      compile_flow_definition: { Args: { p_version_id: string }; Returns: Json };
       complete_survey_inbound_event: {
         Args: {
           p_contact_id?: string;
@@ -3556,6 +4068,29 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "events";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_flow_version: {
+        Args: { p_copy_from?: string; p_flow_id: string; p_notes?: string };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          definition: Json | null;
+          flow_id: string;
+          id: string;
+          notes: string | null;
+          published_at: string | null;
+          published_by: string | null;
+          status: Database["public"]["Enums"]["flow_version_status"];
+          updated_at: string;
+          updated_by: string | null;
+          version: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "flow_versions";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -3881,6 +4416,7 @@ export type Database = {
         };
       };
       delete_app_role: { Args: { p_key: string }; Returns: undefined };
+      delete_flow: { Args: { p_flow_id: string }; Returns: undefined };
       delete_survey: { Args: { p_survey_id: string }; Returns: undefined };
       estimate_audience_criteria: {
         Args: { p_criteria: Json };
@@ -4034,6 +4570,8 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      flow_is_reader: { Args: never; Returns: boolean };
+      flow_is_writer: { Args: never; Returns: boolean };
       get_survey_for_chatbot: {
         Args: { p_survey_id: string };
         Returns: {
@@ -4246,6 +4784,29 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "consent_texts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      publish_flow_version: {
+        Args: { p_version_id: string };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          definition: Json | null;
+          flow_id: string;
+          id: string;
+          notes: string | null;
+          published_at: string | null;
+          published_by: string | null;
+          status: Database["public"]["Enums"]["flow_version_status"];
+          updated_at: string;
+          updated_by: string | null;
+          version: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "flow_versions";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -4638,6 +5199,31 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "events";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_flow_status: {
+        Args: {
+          p_flow_id: string;
+          p_status: Database["public"]["Enums"]["flow_status"];
+        };
+        Returns: {
+          active_version_id: string | null;
+          channel: Database["public"]["Enums"]["flow_channel"];
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          is_entry: boolean;
+          name: string;
+          status: Database["public"]["Enums"]["flow_status"];
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "flows";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -5333,6 +5919,13 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      validate_flow_version: {
+        Args: { p_version_id: string };
+        Returns: {
+          code: string;
+          detail: string;
+        }[];
+      };
       whatsapp_bot_pause_minutes: { Args: never; Returns: number };
       whatsapp_bot_rate_ok: { Args: { p_chat_id: string }; Returns: boolean };
       whatsapp_bot_should_answer: {
@@ -5452,8 +6045,24 @@ export type Database = {
         | "knowledge_created"
         | "knowledge_updated"
         | "knowledge_activated"
-        | "knowledge_deactivated";
+        | "knowledge_deactivated"
+        | "flow_created"
+        | "flow_updated"
+        | "flow_deleted"
+        | "flow_activated"
+        | "flow_deactivated"
+        | "flow_version_created"
+        | "flow_version_updated"
+        | "flow_version_tested"
+        | "flow_version_submitted"
+        | "flow_version_approved"
+        | "flow_version_published"
+        | "flow_version_rolled_back"
+        | "flow_node_changed"
+        | "flow_transition_changed"
+        | "flow_team_changed";
       app_role: "admin" | "ceo" | "pm" | "tech_lead" | "comercial" | "financeiro" | "viewer";
+      attendance_team_status: "active" | "inactive";
       broadcast_recipient_status: "pending" | "sending" | "sent" | "error" | "blocked";
       broadcast_source: "normative" | "communication" | "market_bulletin" | "lecture";
       broadcast_status: "running" | "done" | "failed";
@@ -5499,6 +6108,31 @@ export type Database = {
         | "error"
         | "blocked";
       event_status: "active" | "inactive";
+      flow_channel: "whatsapp" | "web";
+      flow_conversation_status:
+        | "new"
+        | "triage"
+        | "waiting_reply"
+        | "in_service"
+        | "waiting_customer"
+        | "resolved"
+        | "closed";
+      flow_node_type: "message" | "question" | "condition" | "action" | "attendant" | "end";
+      flow_run_status:
+        | "running"
+        | "waiting_reply"
+        | "handed_off"
+        | "completed"
+        | "failed"
+        | "cancelled";
+      flow_status: "active" | "inactive";
+      flow_version_status:
+        | "draft"
+        | "testing"
+        | "pending_approval"
+        | "approved"
+        | "published"
+        | "superseded";
       intelligence_outcome:
         | "tool_ok"
         | "tool_empty"
@@ -5762,8 +6396,24 @@ export const Constants = {
         "knowledge_updated",
         "knowledge_activated",
         "knowledge_deactivated",
+        "flow_created",
+        "flow_updated",
+        "flow_deleted",
+        "flow_activated",
+        "flow_deactivated",
+        "flow_version_created",
+        "flow_version_updated",
+        "flow_version_tested",
+        "flow_version_submitted",
+        "flow_version_approved",
+        "flow_version_published",
+        "flow_version_rolled_back",
+        "flow_node_changed",
+        "flow_transition_changed",
+        "flow_team_changed",
       ],
       app_role: ["admin", "ceo", "pm", "tech_lead", "comercial", "financeiro", "viewer"],
+      attendance_team_status: ["active", "inactive"],
       broadcast_recipient_status: ["pending", "sending", "sent", "error", "blocked"],
       broadcast_source: ["normative", "communication", "market_bulletin", "lecture"],
       broadcast_status: ["running", "done", "failed"],
@@ -5813,6 +6463,34 @@ export const Constants = {
         "blocked",
       ],
       event_status: ["active", "inactive"],
+      flow_channel: ["whatsapp", "web"],
+      flow_conversation_status: [
+        "new",
+        "triage",
+        "waiting_reply",
+        "in_service",
+        "waiting_customer",
+        "resolved",
+        "closed",
+      ],
+      flow_node_type: ["message", "question", "condition", "action", "attendant", "end"],
+      flow_run_status: [
+        "running",
+        "waiting_reply",
+        "handed_off",
+        "completed",
+        "failed",
+        "cancelled",
+      ],
+      flow_status: ["active", "inactive"],
+      flow_version_status: [
+        "draft",
+        "testing",
+        "pending_approval",
+        "approved",
+        "published",
+        "superseded",
+      ],
       intelligence_outcome: [
         "tool_ok",
         "tool_empty",

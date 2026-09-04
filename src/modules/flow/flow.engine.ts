@@ -73,10 +73,25 @@ export interface FlowQuestionOption {
  * travessia, e as duas versões divergiriam na primeira manutenção.
  */
 export type FlowEffect =
-  | { kind: "sendMessage"; nodeId: string; text: string }
+  | {
+      kind: "sendMessage";
+      nodeId: string;
+      text: string;
+      /** Pausa antes de enviar, em segundos (Prompt 2, §7). */
+      delaySeconds: number;
+      imageUrl: string | null;
+      pdfUrl: string | null;
+    }
   | { kind: "askQuestion"; nodeId: string; text: string; options: FlowQuestionOption[] }
   | { kind: "runAction"; nodeId: string; actionKey: string; arguments: Record<string, string> }
-  | { kind: "assignTeam"; nodeId: string; teamKey: string; message: string | null }
+  | {
+      kind: "assignTeam";
+      nodeId: string;
+      teamKey: string;
+      message: string | null;
+      slaMinutes: number | null;
+      priority: string;
+    }
   | { kind: "complete"; nodeId: string; message: string | null }
   /**
    * A pessoa respondeu algo que não casa com alternativa nenhuma. O motor NÃO
@@ -165,6 +180,51 @@ function responder(
   const node = acharNode(definition, state.currentNodeId);
   if (!node) return falhar(state, state.currentNodeId, "node_not_found");
 
+  const variavelDoNo = campoTexto(node, "variable");
+
+  /* ---------------------------------------------------------------------- */
+  /* Pergunta ABERTA — texto livre e número (Prompt 2, §8)                    */
+  /* ---------------------------------------------------------------------- */
+  // ⚠️ AQUI NÃO HÁ CHAVE A CASAR: o que a pessoa escreveu É a resposta. O nó
+  // grava a variável e segue pela única saída — a bifurcação, se houver, é de
+  // um nó de CONDIÇÃO adiante, que sabe comparar.
+  if (perguntaAberta(node)) {
+    const resposta = texto.trim();
+
+    if (resposta === "" || (tipoDaPergunta(node) === "number" && !ehNumero(resposta))) {
+      // Um "abc" onde se pediu um número não avança e não vira variável. Repetir
+      // a pergunta escrita é a única resposta honesta — gravar lixo faria a
+      // condição seguinte comparar contra nada.
+      return {
+        state,
+        effects: [
+          {
+            kind: "repeatQuestion",
+            nodeId: node.id,
+            text: textoDoNo(node, state.variables),
+            options: [],
+          },
+        ],
+      };
+    }
+
+    const comAberta: FlowVariables = variavelDoNo
+      ? { ...state.variables, [variavelDoNo]: resposta }
+      : state.variables;
+
+    const saidaAberta = escolherTransicao(definition, node.id, comAberta, null);
+    if (!saidaAberta) {
+      return falhar({ ...state, variables: comAberta }, node.id, "no_matching_transition");
+    }
+
+    return percorrer(
+      definition,
+      { ...state, variables: comAberta, status: "running" },
+      saidaAberta.targetNodeId,
+      [],
+    );
+  }
+
   const options = alternativas(node);
   const escolhida = casarAlternativa(texto, options);
 
@@ -174,15 +234,21 @@ function responder(
     // adivinhar aqui seria decidir o atendimento por um palpite.
     return {
       state,
-      effects: [{ kind: "repeatQuestion", nodeId: node.id, text: textoDoNo(node), options }],
+      effects: [
+        {
+          kind: "repeatQuestion",
+          nodeId: node.id,
+          text: textoDoNo(node, state.variables),
+          options,
+        },
+      ],
     };
   }
 
   // §15. A resposta vira variável ANTES de a transição ser avaliada — assim uma
   // condição pode olhar o que acabou de ser respondido.
-  const variavel = campoTexto(node, "variable");
-  const variables: FlowVariables = variavel
-    ? { ...state.variables, [variavel]: escolhida.key }
+  const variables: FlowVariables = variavelDoNo
+    ? { ...state.variables, [variavelDoNo]: escolhida.key }
     : state.variables;
 
   const saida = escolherTransicao(definition, node.id, variables, escolhida.key);
@@ -255,7 +321,20 @@ function percorrer(
 
     switch (node.type) {
       case "message": {
-        effects.push({ kind: "sendMessage", nodeId: node.id, text: textoDoNo(node) });
+        // ⚠️ O NÓ DESLIGADO É ATRAVESSADO, NÃO IGNORADO. Ele não emite mensagem
+        // e o fluxo segue pela saída dele — que é o que permite calar um aviso
+        // temporário sem desmontar o desenho em volta. Ver `enabled` em
+        // `flow.schema.ts`.
+        if (habilitado(node)) {
+          effects.push({
+            kind: "sendMessage",
+            nodeId: node.id,
+            text: textoDoNo(node, state.variables),
+            delaySeconds: numero(node, "delaySeconds") ?? 0,
+            imageUrl: campoTexto(node, "imageUrl"),
+            pdfUrl: campoTexto(node, "pdfUrl"),
+          });
+        }
         const saida = escolherTransicao(definition, node.id, state.variables, null);
         if (!saida) {
           return { state, effects: [...effects, erro(node.id, "no_matching_transition")] };
@@ -268,7 +347,7 @@ function percorrer(
         effects.push({
           kind: "askQuestion",
           nodeId: node.id,
-          text: textoDoNo(node),
+          text: textoDoNo(node, state.variables),
           options: alternativas(node),
         });
         return {
@@ -279,7 +358,7 @@ function percorrer(
 
       case "condition": {
         // ⚠️ O NÓ DE CONDIÇÃO NÃO AVALIA NADA SOZINHO. Quem carrega a comparação
-        // é a TRANSIÇÃO (`{type:"variable", name, equals}`) — o nó só marca o
+        // é a TRANSIÇÃO (`{type:"variable", name, operator, value}`) — o nó só marca o
         // ponto do desenho em que a bifurcação acontece. Assim acrescentar um
         // terceiro caminho é acrescentar uma seta, não editar o nó.
         const saida = escolherTransicao(definition, node.id, state.variables, null);
@@ -309,6 +388,10 @@ function percorrer(
           nodeId: node.id,
           teamKey,
           message: campoTexto(node, "message"),
+          // O compromisso de prazo e a posição na fila (Prompt 2, §12). Quem
+          // cobra os dois é a tela de atendimento — o motor só os carrega.
+          slaMinutes: numero(node, "slaMinutes"),
+          priority: campoTexto(node, "priority") ?? "normal",
         });
         return {
           state: {
@@ -385,7 +468,52 @@ function condicaoCasa(
       // §9. Compara CHAVE com CHAVE. Nunca um índice, nunca o rótulo.
       return respostaEscolhida !== null && transicao.condition.optionKey === respostaEscolhida;
     case "variable":
-      return variables[transicao.condition.name] === transicao.condition.equals;
+      return comparar(
+        variables[transicao.condition.name],
+        transicao.condition.operator,
+        transicao.condition.value,
+      );
+  }
+}
+
+/**
+ * Os cinco operadores de condição (Prompt 2, §10).
+ *
+ * ⚠️ `gt`/`lt` SÓ COMPARAM NÚMERO, E RECUSAM O RESTO. Deixar `>` cair na
+ * comparação de texto daria sempre uma resposta — a ordem alfabética —, e ela
+ * estaria errada de um jeito plausível: em texto, "10" é MENOR que "9". Um
+ * fluxo que mandasse pedidos acima de 9 unidades para outro time atenderia
+ * errado sem nunca falhar.
+ *
+ * Diante de um valor não numérico a condição simplesmente não casa, e o desenho
+ * segue para a saída padrão — que é o comportamento previsível.
+ *
+ * ⚠️ VARIÁVEL AUSENTE NUNCA CASA, nem em `neq`. É tentador dizer que "não
+ * definido é diferente de X" — mas isso faria uma pergunta que a pessoa ainda
+ * não respondeu escolher um caminho, o que é adivinhação com cara de regra.
+ */
+function comparar(atual: string | undefined, operador: string, esperado: string): boolean {
+  if (atual === undefined) return false;
+
+  switch (operador) {
+    case "eq":
+      return atual === esperado;
+    case "neq":
+      return atual !== esperado;
+    case "contains":
+      return normalizeForSearch(atual).includes(normalizeForSearch(esperado));
+    case "gt":
+    case "lt": {
+      const a = Number(atual.replace(",", "."));
+      const b = Number(esperado.replace(",", "."));
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+      return operador === "gt" ? a > b : a < b;
+    }
+    default:
+      // Um operador que este build não conhece não escolhe caminho nenhum. É a
+      // mesma postura do retrato congelado: um documento antigo pode citar algo
+      // que o código de hoje não entende, e a resposta certa é não decidir.
+      return false;
   }
 }
 
@@ -444,12 +572,66 @@ function campoTexto(node: CompiledFlowNode, campo: string): string | null {
   return typeof valor === "string" && valor.trim() !== "" ? valor : null;
 }
 
+function numero(node: CompiledFlowNode, campo: string): number | null {
+  const valor = node.configuration[campo];
+  return typeof valor === "number" && Number.isFinite(valor) ? valor : null;
+}
+
+/** Ausente conta como LIGADO: um retrato antigo não tinha este campo. */
+function habilitado(node: CompiledFlowNode): boolean {
+  return node.configuration.enabled !== false;
+}
+
+/**
+ * O texto do nó com as variáveis substituídas (Prompt 2, §7).
+ *
+ * ⚠️ ISTO NÃO É UM MOTOR DE TEMPLATE, E NÃO DEVE VIRAR UM. Ele troca
+ * `{{nome}}` pelo que a conversa coletou, e nada mais — sem condicional, sem
+ * laço, sem chamada. O texto que sai daqui foi ESCRITO por alguém na
+ * configuração do nó; o que muda é só o buraco preenchido.
+ *
+ * ⚠️ UMA VARIÁVEL QUE NÃO EXISTE VIRA STRING VAZIA, e não fica como
+ * `{{nome}}` na tela da pessoa. Mostrar a chave crua num WhatsApp é o tipo de
+ * vazamento que faz a associação parecer quebrada — "Olá !" é feio, "Olá
+ * {{nome}}!" é constrangedor.
+ */
+export function interpolar(texto: string, variables: FlowVariables): string {
+  return texto.replace(/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/gi, (_, nome: string) => {
+    return variables[nome] ?? "";
+  });
+}
+
 /** O texto do nó, ou o nome dele. Nunca uma frase inventada aqui. */
-function textoDoNo(node: CompiledFlowNode): string {
-  return campoTexto(node, "text") ?? node.name;
+function textoDoNo(node: CompiledFlowNode, variables: FlowVariables): string {
+  return interpolar(campoTexto(node, "text") ?? node.name, variables);
+}
+
+/** O tipo da pergunta (Prompt 2, §8). Ausente = botões, como o schema. */
+function tipoDaPergunta(node: CompiledFlowNode): string {
+  return campoTexto(node, "kind") ?? "buttons";
+}
+
+/** Texto livre e número não têm alternativa a casar — a resposta É o valor. */
+function perguntaAberta(node: CompiledFlowNode): boolean {
+  const tipo = tipoDaPergunta(node);
+  return tipo === "free_text" || tipo === "number";
+}
+
+function ehNumero(texto: string): boolean {
+  return Number.isFinite(Number(texto.replace(",", ".")));
 }
 
 function alternativas(node: CompiledFlowNode): FlowQuestionOption[] {
+  // SIM/NÃO não guarda alternativa no desenho: as duas são fixas, com chave
+  // estável, para que todo fluxo do sistema use as MESMAS — e uma condição
+  // escrita como `SIM` continue valendo em qualquer lugar.
+  if (tipoDaPergunta(node) === "yes_no") {
+    return [
+      { key: "SIM", label: "Sim" },
+      { key: "NAO", label: "Não" },
+    ];
+  }
+
   const bruto = node.configuration.options;
   if (!Array.isArray(bruto)) return [];
 

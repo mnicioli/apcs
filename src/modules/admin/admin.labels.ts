@@ -45,6 +45,31 @@ export const ADMIN_AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
   knowledge_updated: "Item de conhecimento editado",
   knowledge_activated: "Item de conhecimento ativado",
   knowledge_deactivated: "Item de conhecimento inativado",
+  // ⚠️ E A BARREIRA FUNCIONOU: os quinze verbos abaixo entraram em
+  // 20260917000000_flow_enums.sql e o type-check reprovou este arquivo assim
+  // que `pnpm db:types` rodou. É exatamente o que o comentário do topo diz que
+  // deveria acontecer — e não aconteceu com os cargos, em 20260903000100,
+  // porque o tipo vinha de um `database.ts` velho.
+  //
+  // Os rótulos separam CICLO DE VIDA de EDIÇÃO de propósito: "quem publicou a
+  // versão que está no ar?" e "quem mexeu no fluxo ontem?" são perguntas
+  // diferentes, feitas com pressa, e um "Fluxo alterado" genérico
+  // transformaria as duas numa varredura do jsonb de cada linha.
+  flow_created: "Fluxo criado",
+  flow_updated: "Fluxo editado",
+  flow_deleted: "Fluxo excluído",
+  flow_activated: "Fluxo ligado",
+  flow_deactivated: "Fluxo desligado",
+  flow_version_created: "Versão de fluxo criada",
+  flow_version_updated: "Versão de fluxo editada",
+  flow_version_tested: "Versão de fluxo enviada para teste",
+  flow_version_submitted: "Versão de fluxo enviada para aprovação",
+  flow_version_approved: "Versão de fluxo aprovada",
+  flow_version_published: "Versão de fluxo publicada",
+  flow_version_rolled_back: "Versão de fluxo restaurada",
+  flow_node_changed: "Etapa do fluxo alterada",
+  flow_transition_changed: "Ligação do fluxo alterada",
+  flow_team_changed: "Time de atendimento alterado",
 };
 
 /*

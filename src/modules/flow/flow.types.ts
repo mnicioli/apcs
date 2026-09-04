@@ -194,7 +194,13 @@ export interface FlowNode {
 export type FlowTransitionCondition =
   | { type: "always" }
   | { type: "answer"; optionKey: string }
-  | { type: "variable"; name: string; equals: string };
+  | {
+      type: "variable";
+      name: string;
+      /** Ver `CONDITION_OPERATORS` em `flow.schema.ts`. */
+      operator: "eq" | "neq" | "contains" | "gt" | "lt";
+      value: string;
+    };
 
 export interface FlowTransition {
   id: string;
@@ -258,6 +264,12 @@ export const FLOW_VALIDATION_CODES = [
   "dead_end",
   "unreachable",
   "question_without_options",
+  // Pergunta de resposta aberta com mais de uma saída. O motor segue pela única
+  // saída; a segunda seta nunca executa, e o desenho mente sobre o que faz.
+  "open_question_branches",
+  // Mensagem ou pergunta sem texto. Sem esta regra o motor enviaria o NOME do
+  // nó — a pessoa receberia "Mensagem 3" no WhatsApp.
+  "empty_message",
   "attendant_without_team",
 ] as const;
 export type FlowValidationCode = (typeof FLOW_VALIDATION_CODES)[number];

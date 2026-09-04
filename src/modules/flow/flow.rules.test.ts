@@ -49,7 +49,10 @@ function seta(id: string, de: string, para: string): FlowTransition {
 
 /** O menor fluxo que passa em tudo: começa, pergunta nada, encerra. */
 const VALIDO = {
-  nodes: [no({ id: "n1", type: "message", isStart: true }), no({ id: "n2", type: "end" })],
+  nodes: [
+    no({ id: "n1", type: "message", isStart: true, configuration: { text: "Olá!" } }),
+    no({ id: "n2", type: "end" }),
+  ],
   transitions: [seta("t1", "n1", "n2")],
 };
 
@@ -193,7 +196,7 @@ describe("a validação do desenho (§19)", () => {
    */
   it("cobra o nó de encerramento (§21)", () => {
     const semFim = {
-      nodes: [no({ id: "n1", type: "message", isStart: true })],
+      nodes: [no({ id: "n1", type: "message", isStart: true, configuration: { text: "Olá!" } })],
       transitions: [],
     };
     const codigos = validateFlowGraph(semFim, []).map((p) => p.code);
@@ -203,7 +206,13 @@ describe("a validação do desenho (§19)", () => {
   it("acusa o beco sem saída e diz qual nó é", () => {
     const beco = {
       nodes: [
-        no({ id: "n1", type: "message", key: "BOAS_VINDAS", isStart: true }),
+        no({
+          id: "n1",
+          type: "message",
+          key: "BOAS_VINDAS",
+          isStart: true,
+          configuration: { text: "Olá!" },
+        }),
         no({ id: "n2", type: "end" }),
       ],
       transitions: [],
@@ -215,7 +224,7 @@ describe("a validação do desenho (§19)", () => {
   it("não trata encerramento nem transferência como beco sem saída", () => {
     const comAtendente = {
       nodes: [
-        no({ id: "n1", type: "message", isStart: true }),
+        no({ id: "n1", type: "message", isStart: true, configuration: { text: "Olá!" } }),
         no({
           id: "n2",
           type: "attendant",
@@ -270,7 +279,7 @@ describe("a validação do desenho (§19)", () => {
   it("acusa transferência para um time que não está ativo (§11)", () => {
     const paraTime = {
       nodes: [
-        no({ id: "n1", type: "message", isStart: true }),
+        no({ id: "n1", type: "message", isStart: true, configuration: { text: "Olá!" } }),
         no({
           id: "n2",
           type: "attendant",
@@ -291,7 +300,7 @@ describe("a validação do desenho (§19)", () => {
   it("acusa transferência sem time nenhum configurado", () => {
     const semTime = {
       nodes: [
-        no({ id: "n1", type: "message", isStart: true }),
+        no({ id: "n1", type: "message", isStart: true, configuration: { text: "Olá!" } }),
         no({ id: "n2", type: "attendant", key: "PARA_NINGUEM" }),
         no({ id: "n3", type: "end" }),
       ],

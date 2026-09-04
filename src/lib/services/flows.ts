@@ -1,6 +1,5 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { untyped } from "@/lib/supabase/untyped";
 import { normalizeForSearch } from "@/lib/utils";
 import { flowDefinitionSchema } from "@/modules/flow/flow.schema";
 import type {
@@ -113,7 +112,7 @@ function toFlow(row: FlowRow): Flow {
 export async function listFlows(filters: FlowFilters): Promise<Flow[]> {
   const supabase = await createClient();
 
-  const { data, error } = await untyped(supabase)
+  const { data, error } = await supabase
     .from("flows")
     .select(FLOW_COLUMNS)
     .order("name")
@@ -157,7 +156,7 @@ export function matchesFlowFilters(flow: Flow, filters: FlowFilters): boolean {
 export async function getFlow(id: string): Promise<Flow | null> {
   const supabase = await createClient();
 
-  const { data, error } = await untyped(supabase)
+  const { data, error } = await supabase
     .from("flows")
     .select(FLOW_COLUMNS)
     .eq("id", id)
@@ -244,7 +243,7 @@ function parseDefinition(bruto: unknown, versionId: string): FlowDefinition | nu
 export async function listFlowVersions(flowId: string): Promise<FlowVersion[]> {
   const supabase = await createClient();
 
-  const { data, error } = await untyped(supabase)
+  const { data, error } = await supabase
     .from("flow_versions")
     .select(VERSION_COLUMNS)
     .eq("flow_id", flowId)
@@ -262,7 +261,7 @@ export async function listFlowVersions(flowId: string): Promise<FlowVersion[]> {
 export async function getFlowVersion(id: string): Promise<FlowVersion | null> {
   const supabase = await createClient();
 
-  const { data, error } = await untyped(supabase)
+  const { data, error } = await supabase
     .from("flow_versions")
     .select(VERSION_COLUMNS)
     .eq("id", id)
@@ -310,13 +309,13 @@ export async function getFlowGraph(
   const supabase = await createClient();
 
   const [nos, setas] = await Promise.all([
-    untyped(supabase)
+    supabase
       .from("flow_nodes")
       .select("id, flow_version_id, type, key, name, configuration, position, metadata, is_start")
       .eq("flow_version_id", versionId)
       .order("key")
       .returns<NodeRow[]>(),
-    untyped(supabase)
+    supabase
       .from("flow_transitions")
       .select("id, flow_version_id, source_node_id, target_node_id, condition, label, priority")
       .eq("flow_version_id", versionId)
@@ -373,9 +372,9 @@ export async function getFlowGraph(
 export async function validateFlowVersion(versionId: string): Promise<FlowValidationIssue[]> {
   const supabase = await createClient();
 
-  const { data, error } = await untyped(supabase).rpc("validate_flow_version", {
+  const { data, error } = await supabase.rpc("validate_flow_version", {
     p_version_id: versionId,
-  });
+  } as never);
 
   if (error) {
     console.error(`[flows] validateFlowVersion falhou: ${error.message}`);
@@ -416,7 +415,7 @@ interface TeamDetailRow extends Omit<TeamRow, "members"> {
 export async function listAttendanceTeams(): Promise<AttendanceTeam[]> {
   const supabase = await createClient();
 
-  const { data, error } = await untyped(supabase)
+  const { data, error } = await supabase
     .from("attendance_teams")
     .select(
       "id, key, name, description, status, created_at, updated_at, " +
@@ -445,7 +444,7 @@ export async function listAttendanceTeams(): Promise<AttendanceTeam[]> {
 export async function getAttendanceTeam(id: string): Promise<AttendanceTeamDetail | null> {
   const supabase = await createClient();
 
-  const { data, error } = await untyped(supabase)
+  const { data, error } = await supabase
     .from("attendance_teams")
     .select(
       "id, key, name, description, status, created_at, updated_at, " +
@@ -518,7 +517,7 @@ interface RunRow {
 export async function listFlowRuns(flowId: string, limit = 50): Promise<FlowRun[]> {
   const supabase = await createClient();
 
-  const { data, error } = await untyped(supabase)
+  const { data, error } = await supabase
     .from("flow_runs")
     .select(
       "id, flow_id, flow_version_id, whatsapp_chat_id, current_node_id, status, " +

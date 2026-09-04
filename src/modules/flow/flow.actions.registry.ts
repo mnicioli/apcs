@@ -43,6 +43,13 @@ export const FLOW_ACTION_KEYS = [
   "solicitar_palestra",
   "participar_enquete",
   "registrar_lead",
+  // As três do §11 do Prompt 2. Acrescentá-las foram DUAS LINHAS cada — o valor
+  // aqui e a entrada no registro. Nem o motor, nem o validador, nem a tela do
+  // Builder foram tocados, que é a prova de que o registro está fazendo o
+  // trabalho dele.
+  "criar_ticket",
+  "enviar_pdf",
+  "enviar_imagem",
 ] as const;
 
 export type FlowActionKey = (typeof FLOW_ACTION_KEYS)[number];
@@ -168,6 +175,41 @@ export const FLOW_ACTION_REGISTRY: Record<FlowActionKey, FlowActionDefinition> =
       { name: "assunto", label: "Assunto", required: false },
     ],
     produces: ["lead_id"],
+  },
+
+  criar_ticket: {
+    label: "Abrir chamado de atendimento",
+    description: "Registra a solicitação como um atendimento a ser tratado por um time.",
+    module: "leads",
+    // ⚠️ ESCREVE, e é a que mais dói repetir: dois chamados idênticos viram duas
+    // pessoas trabalhando a mesma coisa, e a segunda descobre isso no fim.
+    writes: true,
+    parameters: [
+      { name: "assunto", label: "Assunto", required: true },
+      { name: "descricao", label: "Descrição", required: false },
+    ],
+    produces: ["ticket_protocolo"],
+  },
+
+  enviar_pdf: {
+    label: "Enviar um PDF",
+    description: "Manda um documento já publicado pela APCS.",
+    module: "documents",
+    // ⚠️ NÃO ESCREVE NO CRM, mas SAI DA CASA. Reenviar o mesmo PDF não corrompe
+    // dado nenhum; só faz a pessoa receber duas vezes — irritante, não grave.
+    // A distinção `writes` continua honesta: ela é sobre o que fica gravado.
+    writes: false,
+    parameters: [{ name: "documento_url", label: "Endereço do arquivo", required: true }],
+    produces: ["envio_ok"],
+  },
+
+  enviar_imagem: {
+    label: "Enviar uma imagem",
+    description: "Manda um cartaz, banner ou material visual já publicado.",
+    module: "documents",
+    writes: false,
+    parameters: [{ name: "imagem_url", label: "Endereço da imagem", required: true }],
+    produces: ["envio_ok"],
   },
 };
 

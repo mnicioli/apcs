@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ACTION_ERROR_MESSAGES, mapPostgresError } from "@/lib/actions/errors";
@@ -35,6 +35,24 @@ const ENUMS = readFileSync(join(MIGRATIONS, "20260917000000_flow_enums.sql"), "u
 const FLUXOS = readFileSync(join(MIGRATIONS, "20260917000100_flows.sql"), "utf8");
 
 /**
+ * ⚠️ AS MIGRATIONS DO MÓDULO, EM ORDEM — E ISSO NÃO É DETALHE.
+ *
+ * `validate_flow_version` e `flow_audit` são `create or replace`: a definição
+ * que VALE é a da ÚLTIMA migration que as reescreveu, não a da primeira. Este
+ * teste lia só `20260917000100`, e no dia em que o Builder trocou as duas
+ * funções ele passou a conferir um texto que o banco já não executa — uma
+ * guarda apontada para o passado, que é pior do que guarda nenhuma porque
+ * parece verde.
+ *
+ * A varredura é por prefixo do nome de arquivo: toda migration de fluxo entra,
+ * inclusive as que ainda não existem.
+ */
+const MIGRACOES_DE_FLUXO = readdirSync(MIGRATIONS)
+  .filter((nome) => /^\d+_flow/.test(nome) && nome.endsWith(".sql"))
+  .sort()
+  .map((nome) => [nome, readFileSync(join(MIGRATIONS, nome), "utf8")] as const);
+
+/**
  * ⚠️ SEM OS COMENTÁRIOS. Toda migration deste projeto termina com um bloco
  * ROLLBACK escrito em linhas comentadas, e o cabeçalho destas duas discute em
  * português os mesmos códigos que o teste procura. Lendo o texto cru, um
@@ -46,17 +64,30 @@ const FLUXOS_SQL = semComentarios(FLUXOS);
 const ENUMS_SQL = semComentarios(ENUMS);
 
 /**
- * O corpo de `validate_flow_version` — e SÓ ele.
+ * O corpo da ÚLTIMA definição de uma função `public.<nome>()` — e só ele.
  *
- * ⚠️ RECORTAR A FUNÇÃO IMPORTA. Procurar os códigos no arquivo inteiro faria
+ * ⚠️ DUAS COISAS IMPORTAM AQUI, E AS DUAS JÁ FALHARAM NESTE ARQUIVO.
+ *
+ * A primeira é RECORTAR A FUNÇÃO: procurar os códigos no arquivo inteiro faria
  * `'dead_end'` casar com qualquer menção em outra função, e o teste aprovaria um
- * código que a validação não devolve mais. O recorte vai do cabeçalho até o
- * `$fn$;` que fecha.
+ * código que a validação não devolve mais.
+ *
+ * A segunda é PEGAR A ÚLTIMA: com `create or replace`, quem vale é a migration
+ * mais recente. Ler só a primeira faz o teste conferir um texto que o banco já
+ * não executa.
  */
+export function corpoDaFuncaoVigente(nome: string): string {
+  for (const [, sql] of [...MIGRACOES_DE_FLUXO].reverse()) {
+    const limpo = semComentarios(sql);
+    const inicio = limpo.indexOf(`create or replace function public.${nome}(`);
+    if (inicio === -1) continue;
+    return limpo.slice(inicio, limpo.indexOf("$fn$;", inicio));
+  }
+  return "";
+}
+
 function corpoDaValidacao(): string {
-  const inicio = FLUXOS_SQL.indexOf("create or replace function public.validate_flow_version");
-  const fim = FLUXOS_SQL.indexOf("$fn$;", inicio);
-  return FLUXOS_SQL.slice(inicio, fim);
+  return corpoDaFuncaoVigente("validate_flow_version");
 }
 
 describe("o espelho da validação de fluxos (§19)", () => {
@@ -241,14 +272,8 @@ describe("os grants de coluna dos fluxos", () => {
  * apareceria no dia em que alguém apagasse um nó.
  */
 describe("os gatilhos que atendem DELETE", () => {
-  function corpoDaFuncao(nome: string): string {
-    const inicio = FLUXOS_SQL.indexOf(`create or replace function public.${nome}()`);
-    expect(inicio, `função ${nome} não encontrada na migration`).toBeGreaterThan(-1);
-    return FLUXOS_SQL.slice(inicio, FLUXOS_SQL.indexOf("$fn$;", inicio));
-  }
-
   it.each(["flow_graph_draft_only", "flow_audit"])("%s ramifica por tg_op", (nome) => {
-    const corpo = corpoDaFuncao(nome);
+    const corpo = corpoDaFuncaoVigente(nome);
 
     expect(corpo).toMatch(/tg_op\s*=\s*'DELETE'/i);
     expect(

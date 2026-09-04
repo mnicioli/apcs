@@ -44,10 +44,29 @@ const variableNameSchema = z
     "Use letras minúsculas, números e sublinhado — de 2 a 40 caracteres, começando por letra.",
   );
 
+/**
+ * ⚠️ SEM MÍNIMO, E ISSO FOI UMA CORREÇÃO — NÃO UM DESCUIDO.
+ *
+ * A versão anterior exigia `min(1)`, e o Builder do Prompt 2 mostrou por que
+ * isso estava errado: arrastar uma caixinha de mensagem para o canvas CRIA o nó
+ * no banco na hora, e a configuração inicial dele é um texto vazio (a pessoa
+ * ainda não escreveu nada). Com o mínimo, a criação era recusada com "dados
+ * inválidos" antes de a caixinha aparecer — o primeiro clique do desenhador
+ * falhava.
+ *
+ * A divisão certa é outra, e é a mesma do módulo inteiro:
+ *
+ *   Zod          confere a FORMA — campo certo, tipo certo, teto de tamanho,
+ *                chave no formato, alternativa sem chave repetida.
+ *   Publicação   confere se está COMPLETO — texto escrito, time ativo, duas
+ *                alternativas de verdade.
+ *
+ * Rascunho é trabalho em andamento; a barreira é publicar. Cobrar conteúdo na
+ * gravação transformaria cada tecla numa recusa.
+ */
 const messageTextSchema = z
   .string()
   .trim()
-  .min(1, "Escreva a mensagem.")
   .max(1000, "A mensagem não pode passar de 1000 caracteres.");
 
 /* -------------------------------------------------------------------------- */
@@ -65,51 +84,136 @@ const messageTextSchema = z
  *
  * Com a união, o TypeScript e o Zod cobram na hora de salvar o nó.
  */
+/**
+ * A MENSAGEM (Prompt 2, §7).
+ *
+ * ⚠️ `enabled` É A LEITURA DE "STATUS" NAQUELA LISTA DE CAMPOS, e vale dizer o
+ * que ela significa, porque a palavra sozinha não diz: um nó de mensagem
+ * DESLIGADO não é apagado nem interrompe o fluxo — ele é ATRAVESSADO. O motor
+ * segue a saída dele sem mandar nada.
+ *
+ * Serve para calar um aviso temporário ("estamos em recesso") sem desmontar o
+ * desenho em volta e sem ter de lembrar como era para religar depois. Só existe
+ * na MENSAGEM porque só nela "pular" tem um significado óbvio — pular uma
+ * pergunta deixaria a variável seguinte vazia, e pular uma transferência
+ * abandonaria a pessoa.
+ */
 export const messageNodeConfigSchema = z.object({
   text: messageTextSchema,
+
+  // Anexos. URL, e não upload: a Bolsa, as normativas e os eventos já têm
+  // bucket próprio com vigência e permissão — copiar um PDF para cá criaria uma
+  // segunda cópia com outro ciclo de vida. O que se cola aqui é o endereço do
+  // arquivo que aqueles módulos publicaram.
+  imageUrl: z.string().trim().url("Informe um endereço válido.").optional().or(z.literal("")),
+  pdfUrl: z.string().trim().url("Informe um endereço válido.").optional().or(z.literal("")),
+
+  /** Modelo de mensagem aprovado no provedor, quando houver. */
+  templateKey: z.string().trim().max(80).optional().or(z.literal("")),
+
+  /**
+   * Pausa antes de enviar. Existe para uma sequência de mensagens não chegar
+   * como um bloco só — e o teto de 60s é para ninguém desenhar uma espera que
+   * estoura o tempo de um webhook.
+   */
+  delaySeconds: z.number().int().min(0).max(60).default(0),
+
+  enabled: z.boolean().default(true),
 });
 
-export const questionNodeConfigSchema = z.object({
-  text: messageTextSchema,
-  /**
-   * ⚠️ DUAS ALTERNATIVAS É O MÍNIMO QUE FAZ SENTIDO. Com uma só, não há
-   * pergunta: há uma mensagem com um botão. E o §19 do escopo pede que o
-   * backend recuse "Node sem configuração obrigatória" — esta é a forma dessa
-   * regra para o nó QUESTION.
-   */
-  options: z
-    .array(
-      z.object({
-        key: stableKeySchema,
-        label: z
-          .string()
-          .trim()
-          .min(1, "Escreva o texto da alternativa.")
-          .max(120, "A alternativa não pode passar de 120 caracteres."),
-      }),
-    )
-    .min(2, "Uma pergunta precisa de ao menos duas alternativas.")
-    .max(10, "Mais de dez alternativas não cabem numa mensagem de WhatsApp.")
-    .superRefine((options, ctx) => {
-      // ⚠️ CHAVE REPETIDA É O DEFEITO SILENCIOSO DESTE MÓDULO. Duas alternativas
-      // com a chave `EVENTOS` fazem a transição casar sempre com a primeira, e a
-      // segunda vira um caminho que nunca executa. Nada quebra; o fluxo só
-      // atende errado.
-      const vistas = new Set<string>();
-      options.forEach((opcao, indice) => {
-        if (vistas.has(opcao.key)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [indice, "key"],
-            message: "Esta chave já foi usada em outra alternativa.",
-          });
-        }
-        vistas.add(opcao.key);
-      });
+/**
+ * OS CINCO TIPOS DE PERGUNTA (Prompt 2, §8).
+ *
+ * ⚠️ A DIVISÃO QUE IMPORTA NÃO É ENTRE OS CINCO — É ENTRE OS QUE TÊM
+ * ALTERNATIVA E OS QUE NÃO TÊM.
+ *
+ *   `buttons`, `list`, `yes_no`   a resposta é uma CHAVE de um conjunto fechado
+ *   `free_text`, `number`         a resposta é o que a pessoa escreveu
+ *
+ * O primeiro grupo escolhe o caminho pela chave (§9); o segundo apenas GRAVA a
+ * variável e segue pela única saída. Tratar os dois do mesmo jeito faria uma
+ * pergunta de texto livre exigir alternativas que ela não tem — e é exatamente
+ * essa a mudança que `validate_flow_version()` recebeu na migration do Builder.
+ */
+export const QUESTION_KINDS = ["buttons", "list", "free_text", "number", "yes_no"] as const;
+export type QuestionKind = (typeof QUESTION_KINDS)[number];
+
+/** As alternativas de SIM/NÃO são fixas — chave estável, como todas as outras. */
+export const YES_NO_OPTIONS = [
+  { key: "SIM", label: "Sim" },
+  { key: "NAO", label: "Não" },
+] as const;
+
+/** O tipo de pergunta espera uma lista de alternativas escrita à mão? */
+export function questionNeedsOptions(kind: QuestionKind): boolean {
+  return kind === "buttons" || kind === "list";
+}
+
+const questionOptionsSchema = z
+  .array(
+    z.object({
+      key: stableKeySchema,
+      // Vazio é aceito na gravação — uma alternativa recém-adicionada ainda não
+      // tem texto. Quem cobra é a publicação, contando só as preenchidas.
+      label: z.string().trim().max(120, "A alternativa não pode passar de 120 caracteres."),
     }),
-  /** Onde a resposta é guardada (§15). Sem isto, o que a pessoa disse se perde. */
-  variable: variableNameSchema,
-});
+  )
+  .max(10, "Mais de dez alternativas não cabem numa mensagem de WhatsApp.")
+  .superRefine((options, ctx) => {
+    // ⚠️ CHAVE REPETIDA É O DEFEITO SILENCIOSO DESTE MÓDULO. Duas alternativas
+    // com a chave `EVENTOS` fazem a transição casar sempre com a primeira, e a
+    // segunda vira um caminho que nunca executa. Nada quebra; o fluxo só
+    // atende errado.
+    const vistas = new Set<string>();
+    options.forEach((opcao, indice) => {
+      if (vistas.has(opcao.key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [indice, "key"],
+          message: "Esta chave já foi usada em outra alternativa.",
+        });
+      }
+      vistas.add(opcao.key);
+    });
+  });
+
+export const questionNodeConfigSchema = z
+  .object({
+    text: messageTextSchema,
+    kind: z.enum(QUESTION_KINDS).default("buttons"),
+    options: questionOptionsSchema.default([]),
+    /** Onde a resposta é guardada (§15). Sem isto, o que a pessoa disse se perde. */
+    variable: variableNameSchema,
+  })
+  .superRefine((config, ctx) => {
+    // ⚠️ ZERO ALTERNATIVAS É RECUSADO; UMA, NÃO. A diferença é entre FORMA e
+    // CONTEÚDO: uma pergunta de botões sem lista nenhuma é um objeto malformado;
+    // uma pergunta com uma alternativa é um desenho pela metade — a pessoa
+    // acabou de apagar a segunda e vai digitar outra.
+    //
+    // Quem cobra as duas é `validate_flow_version`, na publicação. Cobrar aqui
+    // faria o auto save recusar a gravação no meio da edição, e o trabalho se
+    // perderia justamente no momento em que ele é mais frágil.
+    if (questionNeedsOptions(config.kind) && config.options.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["options"],
+        message: "Uma pergunta de botões ou lista precisa de alternativas.",
+      });
+    }
+  });
+
+/**
+ * A CONDIÇÃO (Prompt 2, §10). Os quatro operadores do escopo.
+ *
+ * ⚠️ `gt`/`lt` COMPARAM NÚMERO, e é por isso que existe o tipo de pergunta
+ * `number`. Comparar texto com `>` daria uma resposta — a ordem alfabética — e
+ * ela estaria errada de um jeito plausível: "10" é MENOR que "9" em texto.
+ * O motor converte os dois lados e recusa a comparação quando algum não é
+ * número, em vez de decidir o caminho por uma ordenação que ninguém pediu.
+ */
+export const CONDITION_OPERATORS = ["eq", "neq", "contains", "gt", "lt"] as const;
+export type ConditionOperator = (typeof CONDITION_OPERATORS)[number];
 
 export const conditionNodeConfigSchema = z.object({
   /** A variável avaliada. As comparações moram nas transições que saem daqui. */
@@ -125,11 +229,29 @@ export const actionNodeConfigSchema = z.object({
   arguments: z.record(variableNameSchema).default({}),
 });
 
+/** As três prioridades da fila (Prompt 2, §12). */
+export const HANDOFF_PRIORITIES = ["low", "normal", "high"] as const;
+export type HandoffPriority = (typeof HANDOFF_PRIORITIES)[number];
+
 export const attendantNodeConfigSchema = z.object({
-  /** A chave do TIME, nunca o id de uma pessoa (§11). */
-  teamKey: stableKeySchema,
+  /**
+   * A chave do TIME, nunca o id de uma pessoa (§11).
+   *
+   * ⚠️ VAZIO É ACEITO NA GRAVAÇÃO, pelo mesmo motivo do texto da mensagem: um nó
+   * de transferência recém-arrastado ainda não tem time escolhido. Quem recusa
+   * publicar sem time ativo é `validate_flow_version` — e ela recusa também o
+   * caso que o Zod jamais veria, que é o time ter sido DESATIVADO depois.
+   */
+  teamKey: z.union([stableKeySchema, z.literal("")]),
   /** O que a pessoa lê ao ser transferida. Opcional: há um texto padrão. */
   message: messageTextSchema.optional(),
+  /**
+   * Em quantos minutos alguém deveria assumir. É um COMPROMISSO, não um
+   * despertador: nesta etapa ele é gravado e mostrado na fila — quem cobra o
+   * prazo é a tela de atendimento, não o motor.
+   */
+  slaMinutes: z.number().int().min(1).max(10_080).optional(),
+  priority: z.enum(HANDOFF_PRIORITIES).default("normal"),
 });
 
 export const endNodeConfigSchema = z.object({
@@ -187,10 +309,13 @@ export const flowTransitionConditionSchema = z.discriminatedUnion("type", [
   // ⚠️ `optionKey`, e NUNCA um índice. Ver o comentário do tipo
   // `FlowTransitionCondition` e o §9 do escopo.
   z.object({ type: z.literal("answer"), optionKey: stableKeySchema }),
+  // Os quatro operadores do §10 do Prompt 2, mais o "diferente" — que sai de
+  // graça e evita desenhar a negação com duas setas.
   z.object({
     type: z.literal("variable"),
     name: variableNameSchema,
-    equals: z.string().trim().min(1).max(200),
+    operator: z.enum(CONDITION_OPERATORS).default("eq"),
+    value: z.string().trim().min(1).max(200),
   }),
 ]);
 

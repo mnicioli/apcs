@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Plus } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import { listAttendanceTeams, listFlows } from "@/lib/services/flows";
@@ -21,6 +23,7 @@ import {
   type FlowFilters,
 } from "@/modules/flow/flow.types";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: FLOWS_PAGE_TITLE };
@@ -28,16 +31,8 @@ export const metadata: Metadata = { title: FLOWS_PAGE_TITLE };
 /**
  * A GRID DOS FLUXOS DE ATENDIMENTO.
  *
- * ⚠️ ELA É SÓ DE LEITURA NESTA FUNDAÇÃO, E ISSO É O PROMPT 1 CUMPRINDO O QUE
- * PROMETEU. O §28 exclui o desenhador visual, o canvas e o arrastar — e um
- * formulário provisório para criar nó e transição seria construído para ser
- * jogado fora daqui a um prompt, deixando no caminho um segundo jeito de
- * escrever a mesma coisa.
- *
- * O que existe por baixo já é completo: as actions de
- * `src/lib/actions/flows.ts` criam fluxo, abrem versão, escrevem nó e
- * transição, publicam e fazem rollback. Falta a tela que as chama, e ela é o
- * Prompt 2.
+ * ⚠️ ELA NÃO DESENHA NADA — é a porta. O desenho mora em `/flows/[id]`, que é o
+ * Builder; aqui só se responde "o que existe e o que está atendendo".
  *
  * ⚠️ A COLUNA MAIS IMPORTANTE É "NO AR", e ela não é o `status` do fluxo. Um
  * fluxo ativo sem versão publicada não existe (o CHECK
@@ -70,11 +65,23 @@ export default async function FlowsPage({
   const isFiltered =
     filters.query.trim() !== "" || filters.status !== "all" || filters.channel !== "";
 
+  const canWrite = hasPermission(role, "flows.write");
+
   return (
     <div className="space-y-6">
-      <div className="max-w-2xl">
-        <h1 className="text-2xl font-semibold tracking-tight">{FLOWS_PAGE_TITLE}</h1>
-        <p className="text-muted-foreground text-sm">{FLOWS_PAGE_DESCRIPTION}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-2xl">
+          <h1 className="text-2xl font-semibold tracking-tight">{FLOWS_PAGE_TITLE}</h1>
+          <p className="text-muted-foreground text-sm">{FLOWS_PAGE_DESCRIPTION}</p>
+        </div>
+        {canWrite && (
+          <Button asChild>
+            <Link href="/flows/new">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Novo fluxo
+            </Link>
+          </Button>
+        )}
       </div>
 
       <p className="text-muted-foreground text-sm" role="status">
@@ -91,8 +98,7 @@ export default async function FlowsPage({
               // ⚠️ O VAZIO DIZ O QUE VEM A SEGUIR em vez de só constatar. Uma
               // tela que abre vazia e não explica por quê parece quebrada.
               <p className="text-muted-foreground text-sm">
-                A estrutura de fluxos, versões, nós e transições já está no banco. A tela de desenho
-                — onde os fluxos são montados e publicados — é a próxima etapa.
+                Crie o primeiro fluxo para começar a desenhar a triagem do atendimento.
               </p>
             )}
           </CardContent>
@@ -120,7 +126,12 @@ export default async function FlowsPage({
                   {flows.map((flow) => (
                     <tr key={flow.id} className="border-border border-b last:border-0">
                       <th scope="row" className="px-4 py-3 text-left font-medium">
-                        {flow.name}
+                        <Link
+                          href={`/flows/${flow.id}`}
+                          className="underline-offset-4 hover:underline"
+                        >
+                          {flow.name}
+                        </Link>
                         {flow.isEntry && (
                           <span className="text-muted-foreground ml-2 text-xs font-normal">
                             (entrada)

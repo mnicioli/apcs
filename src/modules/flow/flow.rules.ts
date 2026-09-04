@@ -1,4 +1,5 @@
 import { isFlowActionKey, isFlowActionReady, type FlowActionKey } from "./flow.actions.registry";
+import { QUESTION_KINDS, questionNeedsOptions, type QuestionKind } from "./flow.schema";
 import type {
   Flow,
   FlowNode,
@@ -154,11 +155,43 @@ export function validateFlowGraph(
       });
     }
 
-    if (node.type === "question" && contarAlternativas(node) < 2) {
-      problemas.push({
-        code: "question_without_options",
-        detail: `A pergunta "${node.key}" não tem alternativas configuradas.`,
-      });
+    // ⚠️ SEM TEXTO, O MOTOR ENVIA O NOME DO NÓ. A pessoa do outro lado receberia
+    // "Mensagem 3" — e nada teria falhado.
+    if (node.type === "message" || node.type === "question") {
+      const texto = node.configuration.text;
+      if (typeof texto !== "string" || texto.trim() === "") {
+        problemas.push({
+          code: "empty_message",
+          detail: `A etapa "${node.key}" não tem texto para enviar.`,
+        });
+      }
+    }
+
+    if (node.type === "question") {
+      const tipo = tipoDaPergunta(node);
+
+      // ⚠️ SÓ AS PERGUNTAS DE ESCOLHA PRECISAM DE ALTERNATIVA. Cobrar isso de
+      // uma pergunta de texto livre mandaria a pessoa configurar alternativas
+      // numa pergunta que por definição não tem — e o fluxo, que está certo,
+      // seria recusado na publicação.
+      if (questionNeedsOptions(tipo) && contarAlternativas(node) < 2) {
+        problemas.push({
+          code: "question_without_options",
+          detail: `A pergunta "${node.key}" não tem duas alternativas preenchidas.`,
+        });
+      }
+
+      // A pergunta ABERTA grava a variável e segue pela única saída. Com duas,
+      // a segunda nunca executa.
+      if (tipo === "free_text" || tipo === "number") {
+        const saidas = transitions.filter((t) => t.sourceNodeId === node.id).length;
+        if (saidas > 1) {
+          problemas.push({
+            code: "open_question_branches",
+            detail: `A pergunta "${node.key}" é de resposta aberta e não pode ter mais de uma saída.`,
+          });
+        }
+      }
     }
 
     if (node.type === "attendant") {
@@ -255,7 +288,32 @@ function leitura(node: { configuration: Record<string, unknown> }, campo: string
   return typeof valor === "string" && valor.trim() !== "" ? valor : null;
 }
 
+/**
+ * ⚠️ CONTA SÓ AS PREENCHIDAS. O Builder cria alternativas com o rótulo em
+ * branco — contar o tamanho da lista aprovaria uma pergunta com duas
+ * alternativas mudas, que no WhatsApp chega como itens em branco.
+ */
 function contarAlternativas(node: { configuration: Record<string, unknown> }): number {
   const options = node.configuration.options;
-  return Array.isArray(options) ? options.length : 0;
+  if (!Array.isArray(options)) return 0;
+
+  return options.filter((item) => {
+    if (typeof item !== "object" || item === null) return false;
+    const { label } = item as { label?: unknown };
+    return typeof label === "string" && label.trim() !== "";
+  }).length;
+}
+
+/**
+ * O tipo da pergunta (Prompt 2, §8).
+ *
+ * Ausente = `buttons`, e o padrão importa: um nó desenhado antes do Builder não
+ * tem o campo, e tratá-lo como texto livre faria a validação parar de cobrar as
+ * alternativas que ele de fato precisa ter.
+ */
+function tipoDaPergunta(node: { configuration: Record<string, unknown> }): QuestionKind {
+  const bruto = node.configuration.kind;
+  return typeof bruto === "string" && (QUESTION_KINDS as readonly string[]).includes(bruto)
+    ? (bruto as QuestionKind)
+    : "buttons";
 }

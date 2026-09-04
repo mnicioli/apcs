@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { fail, failFromPostgres, ok, type ActionResult } from "@/lib/actions/errors";
 import { createClient } from "@/lib/supabase/server";
-import { untyped } from "@/lib/supabase/untyped";
 import { getFlowGraph } from "@/lib/services/flows";
 import { flowActionDefinition } from "@/modules/flow/flow.actions.registry";
 import { pendingFlowActions } from "@/modules/flow/flow.rules";
@@ -53,31 +52,62 @@ function revalidateFlows() {
 /* Fluxos                                                                     */
 /* -------------------------------------------------------------------------- */
 
-export async function createFlowAction(input: FlowFormData): Promise<ActionResult<{ id: string }>> {
+/**
+ * ⚠️ O FLUXO NASCE JÁ COM A v1 EM RASCUNHO, e as duas coisas acontecem aqui.
+ *
+ * Um fluxo sem versão é um estado que nenhuma tela sabe desenhar: o Builder abre
+ * numa versão, o histórico lista versões, publicar publica uma versão. Deixar a
+ * criação da v1 para o clique seguinte significaria que uma falha de rede no
+ * meio deixaria um fluxo órfão na lista — visível, inútil e sem botão que o
+ * conserte.
+ *
+ * Se a criação da versão falhar, o fluxo é DESFEITO. É a coisa mais próxima de
+ * uma transação que dá para fazer daqui: as duas escritas passam por funções
+ * diferentes (uma é PostgREST, a outra é RPC) e não compartilham transação.
+ */
+export async function createFlowAction(
+  input: FlowFormData,
+): Promise<ActionResult<{ id: string; versionId: string }>> {
   const parsed = flowFormSchema.safeParse(input);
   if (!parsed.success) return fail("invalidInput");
 
-  const negado = await assertPermission<{ id: string }>("flows.write");
+  const negado = await assertPermission<{ id: string; versionId: string }>("flows.write");
   if (negado) return negado;
 
   try {
     const supabase = await createClient();
-    const { data, error } = await untyped(supabase)
+    const { data, error } = await supabase
       .from("flows")
       .insert({
         name: parsed.data.name,
         description: parsed.data.description || null,
         channel: parsed.data.channel,
         is_entry: parsed.data.isEntry,
-      })
+      } as never)
       .select("id")
       .returns<{ id: string }[]>()
       .single();
 
     if (error) return failFromPostgres("flows.create", error, { nome: parsed.data.name });
 
+    const { data: versao, error: erroVersao } = await supabase.rpc("create_flow_version", {
+      p_flow_id: data.id,
+      p_copy_from: null,
+      p_notes: null,
+    } as never);
+
+    if (erroVersao || !versao) {
+      // O fluxo recém-criado ainda não publicou nada e não atendeu ninguém, então
+      // `delete_flow` o aceita. Um `delete` direto não passaria: o privilégio foi
+      // revogado justamente para que a exclusão passe pelas três recusas dela.
+      await supabase.rpc("delete_flow", { p_flow_id: data.id } as never);
+      return failFromPostgres("flows.create", erroVersao ?? new Error("sem versao"), {
+        nome: parsed.data.name,
+      });
+    }
+
     revalidateFlows();
-    return ok({ id: data.id });
+    return ok({ id: data.id, versionId: (versao as { id: string }).id });
   } catch (error) {
     console.error(`[flows] createFlow falhou: ${error instanceof Error ? error.message : error}`);
     return fail("unexpected");
@@ -100,14 +130,14 @@ export async function updateFlowAction(
     // 42501 — o que a tela traduziria como "você não tem permissão", mandando a
     // pessoa procurar no RBAC um problema que é de privilégio de coluna. Ligar
     // e desligar tem função própria, logo abaixo.
-    const { error } = await untyped(supabase)
+    const { error } = await supabase
       .from("flows")
       .update({
         name: parsed.data.name,
         description: parsed.data.description || null,
         channel: parsed.data.channel,
         is_entry: parsed.data.isEntry,
-      })
+      } as never)
       .eq("id", id);
 
     if (error) return failFromPostgres("flows.update", error, { id });
@@ -129,10 +159,10 @@ export async function setFlowStatusAction(
 
   try {
     const supabase = await createClient();
-    const { error } = await untyped(supabase).rpc("set_flow_status", {
+    const { error } = await supabase.rpc("set_flow_status", {
       p_flow_id: id,
       p_status: status,
-    });
+    } as never);
 
     if (error) return failFromPostgres("flows.setStatus", error, { id, status });
 
@@ -146,13 +176,103 @@ export async function setFlowStatusAction(
   }
 }
 
+/**
+ * Duplicar um fluxo inteiro (Prompt 2, §16).
+ *
+ * ⚠️ O FLUXO NOVO NASCE DESLIGADO E SEM SER O PONTO DE ENTRADA — sempre, mesmo
+ * que o original fosse os dois. Herdar `is_entry` esbarraria no índice único
+ * (um por canal) e devolveria 23505; herdar `status = 'active'` seria pior:
+ * uma cópia recém-feita, ainda sem revisão, atendendo gente de verdade.
+ *
+ * O desenho vem junto porque é o motivo de duplicar: reaproveitar a triagem do
+ * WhatsApp para montar a do site sem redesenhar trinta nós. Quem faz a cópia é
+ * `create_flow_version`, a mesma função de sempre.
+ */
+export async function duplicateFlowAction(
+  flowId: string,
+): Promise<ActionResult<{ id: string; versionId: string }>> {
+  const negado = await assertPermission<{ id: string; versionId: string }>("flows.write");
+  if (negado) return negado;
+
+  try {
+    const supabase = await createClient();
+
+    const { data: original, error: erroLeitura } = await supabase
+      .from("flows")
+      .select("name, description, channel, active_version_id")
+      .eq("id", flowId)
+      .returns<
+        {
+          name: string;
+          description: string | null;
+          channel: string;
+          active_version_id: string | null;
+        }[]
+      >()
+      .maybeSingle();
+
+    if (erroLeitura) return failFromPostgres("flows.duplicate", erroLeitura, { flowId });
+    if (!original) return fail("notFound");
+
+    const { data: novo, error: erroFluxo } = await supabase
+      .from("flows")
+      .insert({
+        name: `${original.name} (cópia)`.slice(0, 120),
+        description: original.description,
+        channel: original.channel,
+        is_entry: false,
+      } as never)
+      .select("id")
+      .returns<{ id: string }[]>()
+      .single();
+
+    if (erroFluxo) return failFromPostgres("flows.duplicate", erroFluxo, { flowId });
+
+    // De onde copiar: a que está no ar, ou — se nunca houve publicação — a
+    // versão mais recente, que é onde o trabalho está.
+    const origem = original.active_version_id ?? (await ultimaVersao(supabase, flowId));
+
+    const { data: versao, error: erroVersao } = await supabase.rpc("create_flow_version", {
+      p_flow_id: novo.id,
+      p_copy_from: origem,
+      p_notes: `Cópia de "${original.name}".`,
+    } as never);
+
+    if (erroVersao) return failFromPostgres("flows.duplicate", erroVersao, { flowId });
+
+    revalidateFlows();
+    return ok({ id: novo.id, versionId: (versao as { id: string }).id });
+  } catch (error) {
+    console.error(
+      `[flows] duplicateFlow falhou: ${error instanceof Error ? error.message : error}`,
+    );
+    return fail("unexpected");
+  }
+}
+
+async function ultimaVersao(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  flowId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("flow_versions")
+    .select("id")
+    .eq("flow_id", flowId)
+    .order("version", { ascending: false })
+    .limit(1)
+    .returns<{ id: string }[]>()
+    .maybeSingle();
+
+  return data?.id ?? null;
+}
+
 export async function deleteFlowAction(id: string): Promise<ActionResult<{ id: string }>> {
   const negado = await assertPermission<{ id: string }>("flows.write");
   if (negado) return negado;
 
   try {
     const supabase = await createClient();
-    const { error } = await untyped(supabase).rpc("delete_flow", { p_flow_id: id });
+    const { error } = await supabase.rpc("delete_flow", { p_flow_id: id } as never);
 
     if (error) return failFromPostgres("flows.delete", error, { id });
 
@@ -188,11 +308,11 @@ export async function createFlowVersionAction(
 
   try {
     const supabase = await createClient();
-    const { data, error } = await untyped(supabase).rpc("create_flow_version", {
+    const { data, error } = await supabase.rpc("create_flow_version", {
       p_flow_id: flowId,
       p_copy_from: copyFrom ?? null,
       p_notes: parsed.data.notes || null,
-    });
+    } as never);
 
     if (error) return failFromPostgres("flows.createVersion", error, { flowId, copyFrom });
     if (!data) return fail("notFound");
@@ -222,10 +342,10 @@ export async function advanceFlowVersionAction(
 
   try {
     const supabase = await createClient();
-    const { error } = await untyped(supabase).rpc("advance_flow_version", {
+    const { error } = await supabase.rpc("advance_flow_version", {
       p_version_id: versionId,
       p_to: to,
-    });
+    } as never);
 
     if (error) return failFromPostgres("flows.advanceVersion", error, { versionId, to });
 
@@ -273,9 +393,9 @@ export async function publishFlowVersionAction(
     }
 
     const supabase = await createClient();
-    const { error } = await untyped(supabase).rpc("publish_flow_version", {
+    const { error } = await supabase.rpc("publish_flow_version", {
       p_version_id: versionId,
-    });
+    } as never);
 
     if (error) return failFromPostgres("flows.publish", error, { versionId });
 
@@ -301,9 +421,9 @@ export async function updateFlowVersionNotesAction(
 
   try {
     const supabase = await createClient();
-    const { error } = await untyped(supabase)
+    const { error } = await supabase
       .from("flow_versions")
-      .update({ notes: parsed.data.notes || null })
+      .update({ notes: parsed.data.notes || null } as never)
       .eq("id", versionId);
 
     if (error) return failFromPostgres("flows.updateVersionNotes", error, { versionId });
@@ -357,16 +477,16 @@ export async function upsertFlowNodeAction(
     const supabase = await createClient();
 
     const { data, error } = nodeId
-      ? await untyped(supabase)
+      ? await supabase
           .from("flow_nodes")
-          .update(payload)
+          .update(payload as never)
           .eq("id", nodeId)
           .select("id")
           .returns<{ id: string }[]>()
           .single()
-      : await untyped(supabase)
+      : await supabase
           .from("flow_nodes")
-          .insert(payload)
+          .insert(payload as never)
           .select("id")
           .returns<{ id: string }[]>()
           .single();
@@ -383,6 +503,166 @@ export async function upsertFlowNodeAction(
   }
 }
 
+/**
+ * SÓ A POSIÇÃO — o caminho quente do Builder (Prompt 2, §5 e §14).
+ *
+ * ⚠️ AÇÃO PRÓPRIA, E NÃO `upsertFlowNodeAction` COM O NÓ INTEIRO. Arrastar
+ * acontece o tempo todo, e mandar a configuração completa a cada parada de
+ * mouse faria três coisas ruins: trafegar o nó inteiro por um pixel, correr o
+ * risco de sobrescrever uma edição que o painel de propriedades acabou de
+ * fazer, e obrigar o Zod a revalidar um desenho que não mudou.
+ *
+ * ⚠️ E ELA NÃO SUJA A TRILHA. O gatilho `flow_audit` ignora o UPDATE em que
+ * exclusivamente `position` mudou (20260918000000, seção 2) — sem isso, uma
+ * tarde reorganizando um fluxo de trinta nós produziria centenas de linhas
+ * dizendo "etapa alterada", e a pergunta que a trilha existe para responder
+ * sumiria no ruído.
+ *
+ * ⚠️ O TETO DE 200 NÃO É DESCONFIANÇA DA TELA: é o que impede uma seleção
+ * inteira de um fluxo de mil nós (§23) de virar mil consultas numa chamada só.
+ */
+export async function saveNodePositionsAction(
+  positions: { id: string; x: number; y: number }[],
+): Promise<ActionResult<{ saved: number }>> {
+  const negado = await assertPermission<{ saved: number }>("flows.write");
+  if (negado) return negado;
+
+  const lote = positions.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)).slice(0, 200);
+  if (lote.length === 0) return ok({ saved: 0 });
+
+  try {
+    const supabase = await createClient();
+
+    const resultados = await Promise.all(
+      lote.map((p) =>
+        supabase
+          .from("flow_nodes")
+          .update({ position: { x: Math.round(p.x), y: Math.round(p.y) } } as never)
+          .eq("id", p.id),
+      ),
+    );
+
+    const falhou = resultados.find((r) => r.error);
+    if (falhou?.error) {
+      return failFromPostgres("flows.savePositions", falhou.error, { nos: lote.length });
+    }
+
+    // ⚠️ SEM `revalidatePath` AQUI, e é de propósito. Revalidar a rota a cada
+    // arrastar derrubaria o cache do servidor e faria o Next remontar a página
+    // por baixo do canvas — a tela piscaria no meio do desenho. A posição já
+    // está correta na tela; o servidor só precisa saber dela para o próximo
+    // carregamento.
+    return ok({ saved: lote.length });
+  } catch (error) {
+    console.error(
+      `[flows] saveNodePositions falhou: ${error instanceof Error ? error.message : error}`,
+    );
+    return fail("unexpected");
+  }
+}
+
+/**
+ * Duplicar um nó (Prompt 2, §16).
+ *
+ * ⚠️ A CÓPIA NÃO LEVA AS SETAS, e não é preguiça. Um nó duplicado com as
+ * mesmas saídas cria dois caminhos idênticos partindo do mesmo lugar — e o
+ * motor seguiria sempre o de menor prioridade, deixando o outro morto. Quem
+ * duplica quer o CONTEÚDO (o texto, as alternativas); as ligações são a parte
+ * que muda, e é por isso que ela fica para a pessoa desenhar.
+ *
+ * ⚠️ E A CÓPIA NUNCA É O NÓ INICIAL. Só existe um por versão (índice único), e
+ * herdar `is_start` faria a duplicata ser recusada com 23505 — um erro de banco
+ * no lugar de um comportamento óbvio.
+ */
+export async function duplicateFlowNodeAction(
+  nodeId: string,
+): Promise<ActionResult<{ id: string }>> {
+  const negado = await assertPermission<{ id: string }>("flows.write");
+  if (negado) return negado;
+
+  try {
+    const supabase = await createClient();
+
+    const { data: original, error: erroLeitura } = await supabase
+      .from("flow_nodes")
+      .select("flow_version_id, type, key, name, configuration, position")
+      .eq("id", nodeId)
+      .returns<
+        {
+          flow_version_id: string;
+          type: string;
+          key: string;
+          name: string;
+          configuration: Record<string, unknown>;
+          position: { x: number; y: number };
+        }[]
+      >()
+      .maybeSingle();
+
+    if (erroLeitura) return failFromPostgres("flows.duplicateNode", erroLeitura, { nodeId });
+    if (!original) return fail("notFound");
+
+    const { data, error } = await supabase
+      .from("flow_nodes")
+      .insert({
+        flow_version_id: original.flow_version_id,
+        type: original.type,
+        key: await chaveLivre(supabase, original.flow_version_id, original.key),
+        name: `${original.name} (cópia)`.slice(0, 120),
+        configuration: original.configuration,
+        // Deslocada, e não sobreposta: duas caixas no mesmo pixel parecem uma só,
+        // e a pessoa acha que o botão não funcionou.
+        position: { x: (original.position?.x ?? 0) + 60, y: (original.position?.y ?? 0) + 60 },
+        is_start: false,
+      } as never)
+      .select("id")
+      .returns<{ id: string }[]>()
+      .single();
+
+    if (error) return failFromPostgres("flows.duplicateNode", error, { nodeId });
+
+    revalidateFlows();
+    return ok({ id: data.id });
+  } catch (error) {
+    console.error(
+      `[flows] duplicateFlowNode falhou: ${error instanceof Error ? error.message : error}`,
+    );
+    return fail("unexpected");
+  }
+}
+
+/**
+ * Uma chave que ainda não existe naquela versão.
+ *
+ * A chave é única por versão (índice), e o formato só aceita MAIÚSCULAS,
+ * números e sublinhado — daí o sufixo `_2`, `_3`. Sem isto, duplicar um nó
+ * devolveria 23505, que a tela traduz como "já existe um registro com esses
+ * dados" num botão que não pede dado nenhum.
+ */
+async function chaveLivre(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  versionId: string,
+  base: string,
+): Promise<string> {
+  const { data } = await supabase
+    .from("flow_nodes")
+    .select("key")
+    .eq("flow_version_id", versionId)
+    .returns<{ key: string }[]>();
+
+  const usadas = new Set((data ?? []).map((n) => n.key));
+  const raiz = base.replace(/_\d+$/, "").slice(0, 36);
+
+  for (let n = 2; n < 100; n += 1) {
+    const candidata = `${raiz}_${n}`;
+    if (!usadas.has(candidata)) return candidata;
+  }
+
+  // Cem cópias do mesmo nó é um caso que não acontece; ainda assim, devolver
+  // algo único é melhor do que devolver algo que vai colidir.
+  return `${raiz}_${Date.now().toString().slice(-6)}`;
+}
+
 export async function deleteFlowNodeAction(nodeId: string): Promise<ActionResult<{ id: string }>> {
   const negado = await assertPermission<{ id: string }>("flows.write");
   if (negado) return negado;
@@ -391,7 +671,7 @@ export async function deleteFlowNodeAction(nodeId: string): Promise<ActionResult
     const supabase = await createClient();
     // As transições que tocam este nó caem junto (FK composta com `cascade`) —
     // o que evita o estado inconsistente de uma seta apontando para o vazio.
-    const { error } = await untyped(supabase).from("flow_nodes").delete().eq("id", nodeId);
+    const { error } = await supabase.from("flow_nodes").delete().eq("id", nodeId);
 
     if (error) return failFromPostgres("flows.deleteNode", error, { nodeId });
 
@@ -429,16 +709,16 @@ export async function upsertFlowTransitionAction(
     const supabase = await createClient();
 
     const { data, error } = transitionId
-      ? await untyped(supabase)
+      ? await supabase
           .from("flow_transitions")
-          .update(payload)
+          .update(payload as never)
           .eq("id", transitionId)
           .select("id")
           .returns<{ id: string }[]>()
           .single()
-      : await untyped(supabase)
+      : await supabase
           .from("flow_transitions")
-          .insert(payload)
+          .insert(payload as never)
           .select("id")
           .returns<{ id: string }[]>()
           .single();
@@ -464,10 +744,7 @@ export async function deleteFlowTransitionAction(
 
   try {
     const supabase = await createClient();
-    const { error } = await untyped(supabase)
-      .from("flow_transitions")
-      .delete()
-      .eq("id", transitionId);
+    const { error } = await supabase.from("flow_transitions").delete().eq("id", transitionId);
 
     if (error) return failFromPostgres("flows.deleteTransition", error, { transitionId });
 
@@ -510,16 +787,16 @@ export async function upsertAttendanceTeamAction(
     const supabase = await createClient();
 
     const { data, error } = teamId
-      ? await untyped(supabase)
+      ? await supabase
           .from("attendance_teams")
-          .update(payload)
+          .update(payload as never)
           .eq("id", teamId)
           .select("id")
           .returns<{ id: string }[]>()
           .single()
-      : await untyped(supabase)
+      : await supabase
           .from("attendance_teams")
-          .insert(payload)
+          .insert(payload as never)
           .select("id")
           .returns<{ id: string }[]>()
           .single();
@@ -558,7 +835,7 @@ export async function setAttendanceTeamMembersAction(
     // Apaga e reinsere: a composição é pequena (unidades), e um diff aqui
     // trocaria uma operação simples por duas consultas e um conjunto de casos
     // de borda que não pagam.
-    const { error: erroApagar } = await untyped(supabase)
+    const { error: erroApagar } = await supabase
       .from("attendance_team_members")
       .delete()
       .eq("team_id", teamId);
@@ -566,9 +843,9 @@ export async function setAttendanceTeamMembersAction(
     if (erroApagar) return failFromPostgres("flows.setTeamMembers", erroApagar, { teamId });
 
     if (unicos.length > 0) {
-      const { error } = await untyped(supabase)
+      const { error } = await supabase
         .from("attendance_team_members")
-        .insert(unicos.map((profileId) => ({ team_id: teamId, profile_id: profileId })));
+        .insert(unicos.map((profileId) => ({ team_id: teamId, profile_id: profileId })) as never);
 
       if (error) return failFromPostgres("flows.setTeamMembers", error, { teamId });
     }
