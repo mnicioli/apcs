@@ -1,5 +1,10 @@
 import { FLOW_NODE_TYPE_HINTS, FLOW_NODE_TYPE_LABELS } from "./flow.labels";
-import { YES_NO_OPTIONS, type ConditionOperator, type QuestionKind } from "./flow.schema";
+import {
+  conditionOperatorDefinition,
+  operatorNeedsValue,
+  type ConditionOperator,
+} from "./flow.operators";
+import { YES_NO_OPTIONS, type QuestionKind } from "./flow.schema";
 import type { FlowNode, FlowNodeType, FlowTransition, FlowTransitionCondition } from "./flow.types";
 
 /**
@@ -215,12 +220,23 @@ export function handleForTransition(condition: FlowTransitionCondition): string 
 /* O que a seta mostra                                                        */
 /* -------------------------------------------------------------------------- */
 
-const OPERADOR_LABELS: Record<ConditionOperator, string> = {
+/**
+ * ⚠️ A TABELA DE RÓTULOS SAIU DAQUI (Prompt 3, §14). Ela tinha cinco entradas
+ * escritas à mão, e a lista passou a doze — mantê-la significaria uma segunda
+ * lista de operadores para esquecer de atualizar. O rótulo agora vem de
+ * `conditionOperatorDefinition`, que é a mesma fonte do inspetor e do validador.
+ *
+ * O texto da SETA é mais curto do que o do formulário de propósito: "é igual a"
+ * cabe num campo, mas espremido sobre uma linha diagonal ele vira ruído. Por
+ * isso a abreviação abaixo, e só para os três em que a diferença importa.
+ */
+const OPERADOR_CURTO: Partial<Record<ConditionOperator, string>> = {
   eq: "é",
   neq: "não é",
-  contains: "contém",
   gt: "maior que",
   lt: "menor que",
+  gte: "≥",
+  lte: "≤",
 };
 
 /**
@@ -252,7 +268,11 @@ export function transitionLabel(
     }
     case "variable": {
       const { name, operator, value } = transition.condition;
-      return `${name} ${OPERADOR_LABELS[operator] ?? operator} ${value}`;
+      const rotulo = OPERADOR_CURTO[operator] ?? conditionOperatorDefinition(operator).label;
+      // Os quatro operadores sem valor ("foi respondida", "é sim") terminam a
+      // frase no próprio rótulo — colar um valor vazio deixaria um espaço solto
+      // no fim da seta.
+      return operatorNeedsValue(operator) ? `${name} ${rotulo} ${value}` : `${name} ${rotulo}`;
     }
   }
 }

@@ -109,6 +109,28 @@ export default async function SettingsChatbotPage() {
         </CardContent>
       </Card>
 
+      {/* ⚠️ ESTES TRÊS NÃO SÃO FRASES — são o comportamento dos Fluxos de
+          Atendimento, e ficam nesta aba porque é aqui que se mexe no
+          atendimento automático. Um segundo lugar para configurá-lo seria um
+          lugar a mais onde procurar. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Fluxos de Atendimento</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="border-border bg-muted/40 text-muted-foreground rounded-lg border px-4 py-3 text-sm">
+            Estes campos só valem para os <strong>Fluxos de Atendimento</strong> — as triagens que
+            você desenha em Inteligência → Fluxos. Nenhum deles muda alguma coisa sozinho: eles
+            alimentam condições que <em>você</em> liga no desenho. Um fluxo que não usa a condição
+            de horário não é afetado por mexer no horário aqui.
+          </div>
+
+          {campo(SETTING_KEYS.flowIntentHigh)}
+          {campo(SETTING_KEYS.flowIntentMedium)}
+          {campo(SETTING_KEYS.flowBusinessHours)}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>E as respostas de verdade?</CardTitle>

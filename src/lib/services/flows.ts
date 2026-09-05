@@ -65,6 +65,9 @@ function toActor(row: ProfileRef | null): FlowActor | null {
  */
 const FLOW_COLUMNS =
   "id, name, description, channel, status, is_entry, active_version_id, created_at, updated_at, " +
+  // §27 do Prompt 3. A política de tempo mora no FLUXO, e não na versão — ver o
+  // comentário da seção 2 de 20260919000000_flow_engine.sql.
+  "timeout_minutes, timeout_action, timeout_team_id, timeout_message, " +
   "author:profiles!flows_created_by_fkey (id, full_name), " +
   "editor:profiles!flows_updated_by_fkey (id, full_name), " +
   "versions:flow_versions!flow_versions_flow_id_fkey (id, version, status)";
@@ -79,6 +82,10 @@ interface FlowRow {
   active_version_id: string | null;
   created_at: string;
   updated_at: string;
+  timeout_minutes: number | null;
+  timeout_action: Flow["timeoutAction"] | null;
+  timeout_team_id: string | null;
+  timeout_message: string | null;
   author: ProfileRef | null;
   editor: ProfileRef | null;
   versions: { id: string; version: number; status: FlowVersion["status"] }[] | null;
@@ -102,6 +109,14 @@ function toFlow(row: FlowRow): Flow {
     createdAt: row.created_at,
     updatedBy: toActor(row.editor),
     updatedAt: row.updated_at,
+    timeoutMinutes: row.timeout_minutes,
+    // ⚠️ `none` COMO PADRÃO DA LEITURA, e não por acaso: a coluna tem `not null
+    // default 'none'`, então este `??` só age sobre uma linha lida antes de a
+    // migration rodar. Assumir outra coisa faria o cron encerrar conversas de
+    // um fluxo que nunca pediu prazo nenhum.
+    timeoutAction: row.timeout_action ?? "none",
+    timeoutTeamId: row.timeout_team_id,
+    timeoutMessage: row.timeout_message,
   };
 }
 
@@ -177,6 +192,8 @@ export async function getFlow(id: string): Promise<Flow | null> {
 
 const VERSION_COLUMNS =
   "id, flow_id, version, status, notes, definition, published_at, created_at, updated_at, " +
+  // §21 e §22 do Prompt 5. O checklist de homologação e o motivo da reprovação.
+  "checklist, review_notes, reviewed_at, " +
   "author:profiles!flow_versions_created_by_fkey (id, full_name), " +
   "editor:profiles!flow_versions_updated_by_fkey (id, full_name), " +
   "publisher:profiles!flow_versions_published_by_fkey (id, full_name)";
@@ -188,6 +205,9 @@ interface VersionRow {
   status: FlowVersion["status"];
   notes: string | null;
   definition: unknown;
+  checklist: unknown;
+  review_notes: string | null;
+  reviewed_at: string | null;
   published_at: string | null;
   created_at: string;
   updated_at: string;
@@ -210,6 +230,11 @@ function toVersion(row: VersionRow): FlowVersion {
     createdAt: row.created_at,
     updatedBy: toActor(row.editor),
     updatedAt: row.updated_at,
+    // ⚠️ O CHECKLIST SAI CRU. A forma dele é assunto de `flow.checklist.ts`,
+    // que o lê defensivamente — ver o comentário no tipo `FlowVersion`.
+    checklist: row.checklist,
+    reviewNotes: row.review_notes,
+    reviewedAt: row.reviewed_at,
   };
 }
 
@@ -372,6 +397,16 @@ export async function getFlowGraph(
 export async function validateFlowVersion(versionId: string): Promise<FlowValidationIssue[]> {
   const supabase = await createClient();
 
+  // ⚠️ `as never` NOS ARGUMENTOS — E ELE NÃO É SOBRE OS TIPOS ESTAREM
+  // DESATUALIZADOS. `database.ts` conhece esta função desde sempre
+  // (`Args: { p_version_id: string }`). O que falha é a resolução do genérico de
+  // `.rpc()` no cliente do `@supabase/ssr`: ele escolhe a sobrecarga SEM
+  // argumentos e recusa qualquer objeto. Todas as chamadas com argumento deste
+  // projeto que passam pelo cliente de servidor carregam o mesmo cast — ver
+  // `getSurveyMetrics`, `getSurveyResults`, `findLectureConflicts`.
+  //
+  // O cliente `service_role` (`@/lib/supabase/admin`) NÃO tem esse problema:
+  // `src/lib/flow/store.ts` chama cinco funções com argumentos, todas tipadas.
   const { data, error } = await supabase.rpc("validate_flow_version", {
     p_version_id: versionId,
   } as never);
@@ -381,8 +416,12 @@ export async function validateFlowVersion(versionId: string): Promise<FlowValida
     throw error;
   }
 
-  // `returns table (code text, detail text)` chega como lista. O cast é o preço
-  // do cliente sem tipos — ver `src/lib/supabase/untyped.ts`.
+  // ⚠️ E O CAST DA SAÍDA É OUTRO ASSUNTO, que sobrevive a qualquer `db:types`.
+  // O gerador devolve `code: string`; o que ele não tem como saber é que `code`
+  // pertence ao vocabulário fechado de `FLOW_VALIDATION_CODES` — isso está num
+  // `return query select 'dead_end'::text` dentro do PL/pgSQL, não na
+  // assinatura. Quem garante que os dois lados batem é
+  // `src/test/sql-flow-validation.test.ts`, não o compilador.
   return (data ?? []) as FlowValidationIssue[];
 }
 
@@ -501,6 +540,12 @@ interface RunRow {
   started_at: string;
   updated_at: string;
   completed_at: string | null;
+  /* O que o motor de execução acrescentou (Prompt 3). */
+  lock_version: number | null;
+  attempt_count: number | null;
+  last_activity_at: string | null;
+  automation_paused_until: string | null;
+  failure_reason: string | null;
   flow: { name: string } | null;
   version: { version: number } | null;
   team: { key: string } | null;
@@ -523,6 +568,7 @@ export async function listFlowRuns(flowId: string, limit = 50): Promise<FlowRun[
       "id, flow_id, flow_version_id, whatsapp_chat_id, current_node_id, status, " +
         "conversation_status, variables, intent, intent_confidence, assigned_team_id, " +
         "assigned_user_id, started_at, updated_at, completed_at, " +
+        "lock_version, attempt_count, last_activity_at, automation_paused_until, failure_reason, " +
         "flow:flows (name), version:flow_versions (version), team:attendance_teams (key)",
     )
     .eq("flow_id", flowId)
@@ -554,5 +600,14 @@ export async function listFlowRuns(flowId: string, limit = 50): Promise<FlowRun[
     startedAt: row.started_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,
+    lockVersion: row.lock_version ?? 0,
+    attemptCount: row.attempt_count ?? 0,
+    // ⚠️ `last_activity_at` CAI PARA `started_at`, E NÃO PARA AGORA. Uma linha
+    // gravada antes da migration não tem a coluna preenchida; usar o relógio de
+    // agora faria a varredura de tempo achar que ela acabou de ser tocada, e
+    // uma conversa parada desde ontem nunca venceria.
+    lastActivityAt: row.last_activity_at ?? row.updated_at ?? row.started_at,
+    automationPausedUntil: row.automation_paused_until,
+    failureReason: row.failure_reason,
   }));
 }

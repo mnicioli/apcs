@@ -40,6 +40,10 @@ export const FLOW_ACTION_KEYS = [
   "consultar_comunicacao",
   "consultar_evento",
   "consultar_conhecimento",
+  // §24 do Prompt 4. A CONSULTA, ao lado da solicitação que já existia — são
+  // coisas diferentes: uma LÊ o andamento de um pedido feito, a outra CRIA um
+  // pedido novo. Acrescentá-la foram duas linhas, esta e a entrada no registro.
+  "consultar_palestra",
   "solicitar_palestra",
   "participar_enquete",
   "registrar_lead",
@@ -101,7 +105,11 @@ export const FLOW_ACTION_REGISTRY: Record<FlowActionKey, FlowActionDefinition> =
     module: "market",
     writes: false,
     parameters: [],
-    produces: ["bolsa_titulo", "bolsa_url"],
+    // §19 do Prompt 4. A IMAGEM E O PDF SÃO VARIÁVEIS SEPARADAS: a imagem é o
+    // que a pessoa lê no celular sem abrir nada, o PDF é para guardar, e qual
+    // dos dois mandar (ou os dois, e em que ordem) é decisão do DESENHO.
+    // `bolsa_url` continua apontando para o PDF, para os fluxos que já a citam.
+    produces: ["bolsa_titulo", "bolsa_imagem_url", "bolsa_pdf_url", "bolsa_url"],
   },
 
   consultar_normativa: {
@@ -129,7 +137,18 @@ export const FLOW_ACTION_REGISTRY: Record<FlowActionKey, FlowActionDefinition> =
     module: "events",
     writes: false,
     parameters: [],
-    produces: ["evento_titulo", "evento_data", "evento_inscricao_url"],
+    /**
+     * ⚠️ UMA VARIÁVEL SÓ, E ELA É UMA LISTA — corrigido no Prompt 4, onde o
+     * handler foi de fato ligado.
+     *
+     * A declaração anterior (`evento_titulo`, `evento_data`,
+     * `evento_inscricao_url`) descrevia UM evento, e a porta do módulo devolve
+     * a AGENDA daquele público: todos os eventos que aquela pessoa pode ver.
+     * Escolher um deles para preencher `evento_titulo` seria inventar uma
+     * preferência que ninguém expressou — e o desenhador leria no formulário
+     * uma promessa que o handler não tem como cumprir.
+     */
+    produces: ["evento_lista"],
   },
 
   consultar_conhecimento: {
@@ -138,7 +157,28 @@ export const FLOW_ACTION_REGISTRY: Record<FlowActionKey, FlowActionDefinition> =
     module: "knowledge",
     writes: false,
     parameters: [{ name: "pergunta", label: "Texto da pergunta", required: true }],
-    produces: ["conhecimento_titulo", "conhecimento_resposta"],
+    // ⚠️ SEM TÍTULO, e a ausência é o §43. A busca devolve o conteúdo COMO ESTÁ
+    // ESCRITO na Base de Conhecimento; um "título" teria de ser montado por
+    // alguém, e o único candidato seria o modelo — que é exatamente quem não
+    // pode escrever texto ao associado.
+    produces: ["conhecimento_resposta"],
+  },
+
+  consultar_palestra: {
+    label: "Consultar uma solicitação de palestra",
+    description:
+      "Informa o andamento de um pedido de palestra pelo protocolo. Só devolve pedidos do próprio contato.",
+    module: "lectures",
+    writes: false,
+    parameters: [{ name: "protocolo", label: "Protocolo informado", required: true }],
+    produces: [
+      "palestra_protocolo",
+      "palestra_situacao",
+      "palestra_situacao_detalhe",
+      "palestra_tema",
+      "palestra_cidade",
+      "palestra_data",
+    ],
   },
 
   solicitar_palestra: {
@@ -243,9 +283,47 @@ export interface FlowActionInput {
   idempotencyKey: string;
 }
 
+/**
+ * ⚠️ TRÊS MOTIVOS DE FRACASSO, E ELES NÃO SÃO SINÔNIMOS (§16 do Prompt 3).
+ *
+ *   `empty`  a consulta FUNCIONOU e não achou nada. Vira `not_found`, e é uma
+ *            resposta útil: "não encontrei normativa sobre esse assunto" é
+ *            informação, não defeito. Repetir não muda nada.
+ *   `error`  a consulta falhou de um jeito que não melhora sozinho — dado
+ *            inválido, regra de negócio recusada. Vira `failure`.
+ *   `retry`  a consulta falhou por INDISPONIBILIDADE. É o único que o motor
+ *            tenta de novo (§25), e é o handler que decide isso — não o motor
+ *            adivinhando a partir de um erro genérico.
+ *
+ * Colapsar os três num booleano faria o associado ouvir "ocorreu um erro"
+ * quando a verdade era "não achei" — e faria o sistema insistir três vezes numa
+ * consulta que já respondeu.
+ */
 export type FlowActionOutput =
   | { ok: true; variables: Record<string, string> }
-  | { ok: false; reason: "empty" | "error" };
+  | {
+      ok: false;
+      reason: "empty" | "error" | "retry";
+      /**
+       * ⚠️ VARIÁVEIS NO FRACASSO, E ELAS EXISTEM POR UM CASO CONCRETO (§23 do
+       * Prompt 4): a agenda de eventos é SEGMENTADA, e "não há eventos para
+       * você" e "não sei quem você é" são desfechos diferentes que caem os dois
+       * em `not_found`.
+       *
+       * Sem isto, o desenhador teria um caminho só para os dois — e o robô
+       * responderia "não há eventos marcados" a um associado que a APCS
+       * simplesmente não reconheceu pelo telefone. Seria uma afirmação FALSA
+       * sobre a agenda, e a pessoa pararia de perguntar. O robô de um turno já
+       * separa os dois (`ToolResult.unidentified`, e a frase
+       * `chatbot.unidentified` existe só para isso); o fluxo precisava do mesmo
+       * material para tomar a mesma decisão.
+       *
+       * ⚠️ ELAS NÃO MUDAM O DESFECHO. `<chave>_ok` continua `false` e
+       * `<chave>_status` continua `not_found`; o que entra é contexto PARA a
+       * seta, não uma segunda forma de dizer que deu certo.
+       */
+      variables?: Record<string, string>;
+    };
 
 export type FlowActionHandler = (input: FlowActionInput) => Promise<FlowActionOutput>;
 

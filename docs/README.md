@@ -29,6 +29,7 @@ gerais) e pelo [SETUP.md](../SETUP.md) (como rodar).
 | Entender por que o robô "não encontrou" algo    | [INTELIGENCIA.md](./INTELIGENCIA.md) — seções 3 e 4      |
 | Mexer nos fluxos de atendimento / triagem       | [FLUXOS.md](./FLUXOS.md)                                 |
 | Entender versão, publicação e rollback de fluxo | [FLUXOS.md](./FLUXOS.md) — seções 3 e 4                  |
+| **Operar** um fluxo (montar, testar, publicar)  | [FLUXOS-COMO-USAR.md](./FLUXOS-COMO-USAR.md)             |
 | Mexer no banco (tabelas, RLS)                   | [SUPABASE.md](./SUPABASE.md)                             |
 | Saber as convenções de código                   | [CONVENTIONS.md](./CONVENTIONS.md)                       |
 | Escrever testes                                 | [TESTING.md](./TESTING.md)                               |

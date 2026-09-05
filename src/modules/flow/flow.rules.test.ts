@@ -138,6 +138,13 @@ describe("a exclusão de fluxo (§22)", () => {
     createdAt: "2026-09-01T12:00:00Z",
     updatedBy: null,
     updatedAt: "2026-09-01T12:00:00Z",
+    // §27 do Prompt 3. `none` é o padrão: um fluxo que nunca configurou prazo
+    // não deve começar a encerrar conversas sozinho na primeira vez que o cron
+    // rodar.
+    timeoutMinutes: null,
+    timeoutAction: "none",
+    timeoutTeamId: null,
+    timeoutMessage: null,
   });
 
   const versao = (status: FlowVersion["status"]): FlowVersion => ({
@@ -147,6 +154,9 @@ describe("a exclusão de fluxo (§22)", () => {
     status,
     notes: null,
     definition: null,
+    checklist: {},
+    reviewNotes: null,
+    reviewedAt: null,
     publishedAt: null,
     publishedBy: null,
     createdBy: null,
@@ -309,6 +319,96 @@ describe("a validação do desenho (§19)", () => {
     const codigos = validateFlowGraph(semTime, ["TIME_SAC"]).map((p) => p.code);
     expect(codigos).toContain("attendant_without_team");
   });
+
+  /* ---- as duas regras do Prompt 3 ---- */
+
+  /**
+   * §11. O desfecho "transferir ao esgotar as tentativas" só executa quando
+   * alguém erra três vezes seguidas. Sem esta regra, o defeito apareceria no
+   * pior momento da conversa de alguém — e sem ninguém ficar sabendo.
+   */
+  it("acusa pergunta que transfere no fallback sem apontar um time ativo", () => {
+    const comFallback = {
+      nodes: [
+        no({
+          id: "n1",
+          type: "question",
+          key: "MENU",
+          isStart: true,
+          configuration: {
+            text: "Como podemos ajudar?",
+            kind: "buttons",
+            variable: "assunto",
+            onExhausted: "transfer",
+            fallbackTeamKey: "TIME_DESATIVADO",
+            options: [
+              { key: "A", label: "Um" },
+              { key: "B", label: "Dois" },
+            ],
+          },
+        }),
+        no({ id: "n2", type: "end" }),
+      ],
+      transitions: [seta("t1", "n1", "n2")],
+    };
+
+    expect(validateFlowGraph(comFallback, ["TIME_DESATIVADO"]).map((p) => p.code)).not.toContain(
+      "fallback_without_team",
+    );
+
+    expect(validateFlowGraph(comFallback, ["TIME_SAC"]).map((p) => p.code)).toContain(
+      "fallback_without_team",
+    );
+  });
+
+  /**
+   * §14. O Zod aceita a comparação sem valor de propósito (senão o auto save
+   * recusaria entre um clique e o outro); a cobrança é aqui. Em execução, uma
+   * condição assim NUNCA casa — e sem outra saída a conversa morre no meio de
+   * uma frase.
+   */
+  it("acusa comparação sem valor — e não cobra quem não compara", () => {
+    const semValor = {
+      nodes: [
+        no({ id: "n1", type: "message", isStart: true, configuration: { text: "Olá!" } }),
+        no({ id: "n2", type: "end" }),
+      ],
+      transitions: [
+        {
+          ...seta("t1", "n1", "n2"),
+          condition: {
+            type: "variable" as const,
+            name: "tipo",
+            operator: "eq" as const,
+            value: "",
+          },
+        },
+      ],
+    };
+
+    expect(validateFlowGraph(semValor, []).map((p) => p.code)).toContain("condition_without_value");
+
+    // `exists` pergunta SOBRE a variável — cobrar valor dele mandaria a pessoa
+    // preencher um campo que a tela nem mostra.
+    const comExists = {
+      ...semValor,
+      transitions: [
+        {
+          ...seta("t1", "n1", "n2"),
+          condition: {
+            type: "variable" as const,
+            name: "tipo",
+            operator: "exists" as const,
+            value: "",
+          },
+        },
+      ],
+    };
+
+    expect(validateFlowGraph(comExists, []).map((p) => p.code)).not.toContain(
+      "condition_without_value",
+    );
+  });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -380,6 +480,11 @@ describe("o resumo para quem vai atender (§16)", () => {
     startedAt: "2026-09-01T12:00:00Z",
     updatedAt: "2026-09-01T12:05:00Z",
     completedAt: null,
+    lockVersion: 4,
+    attemptCount: 0,
+    lastActivityAt: "2026-09-01T12:05:00Z",
+    automationPausedUntil: null,
+    failureReason: null,
   };
 
   it("mostra a intenção, o que foi coletado e para onde foi", () => {

@@ -326,3 +326,139 @@ export function logIntelligenceEvent(
   if (level === "error") console.error(linha);
   else console.info(linha);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Fluxos de Atendimento — o motor de execução (§36 do Prompt 3)              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * ⚠️ O §36 PEDE UMA LISTA DE CAMPOS, E ELA É QUASE TODA DE IDENTIFICADOR — o
+ * que é exatamente a política deste arquivo, e não uma coincidência feliz.
+ *
+ * `conversationId`, `flowId`, `flowVersionId`, `nodeId`, `executionId`, `event`,
+ * `status`, `duration`: com eles, quem tem acesso ao banco reconstrói o
+ * atendimento inteiro; quem só tem acesso ao log não descobre nada sobre uma
+ * pessoa. O que a pessoa ESCREVEU e o que o robô RESPONDEU continuam fora — eles
+ * vivem em `whatsapp_messages`, com a retenção de lá.
+ *
+ * ⚠️ E A CHAVE DA ALTERNATIVA ESCOLHIDA ENTRA (`optionKey`), porque ela é
+ * vocabulário fechado do desenho — `EVENTOS`, `BOLSA` — e não texto de
+ * ninguém. É o que permite responder "quantas pessoas escolhem Filiação e
+ * desistem" sem ler uma conversa.
+ */
+export type FlowEngineLogEvent =
+  | "flow.run_started"
+  | "flow.step_skipped"
+  | "flow.node"
+  | "flow.answer"
+  | "flow.action"
+  | "flow.handoff"
+  | "flow.completed"
+  | "flow.failed"
+  | "flow.timeout"
+  | "flow.conflict"
+  | "flow.paused"
+  /**
+   * §44 do Prompt 4. QUANDO A IA FOI USADA — e os três desfechos são distintos
+   * de propósito, porque pedem coisas diferentes de quem lê:
+   *
+   *   `intent_resolved`  o modelo respondeu. A linha traz confiança e faixa,
+   *                      que é o material do §47 ("confiança média", "taxa de
+   *                      intenção identificada").
+   *   `intent_failed`    o modelo falhou ou recusou. Alguém precisa olhar o
+   *                      serviço — ou a conversa, se for recusa de segurança.
+   *   `intent_skipped`   nem chegou a ser chamado (sem chave configurada). Não
+   *                      é falha: é a APCS não ter ligado a IA. Contá-lo junto
+   *                      com `failed` faria um projeto sem chave parecer um
+   *                      fornecedor fora do ar.
+   */
+  | "flow.intent_resolved"
+  | "flow.intent_failed"
+  | "flow.intent_skipped";
+
+export interface FlowEngineLogFields {
+  correlationId?: string;
+  /** `flow_runs.id` — o "executionId" do §36. */
+  runId?: string;
+  /** `whatsapp_chats.id` — o "conversationId" do §36. */
+  chatId?: string;
+  flowId?: string;
+  flowVersionId?: string;
+  nodeId?: string;
+  /** `message`, `question`, `condition`… — o tipo, nunca o conteúdo. */
+  nodeType?: string;
+  /** `flow_run_steps.id`. */
+  stepId?: number;
+  /** A chave de idempotência do passo (§23). */
+  idempotencyKey?: string;
+  /** Vocabulário fechado do desenho. Nunca o que a pessoa digitou. */
+  optionKey?: string;
+  actionKey?: string;
+  /** `success` | `failure` | `not_found` | `retry`. */
+  actionStatus?: string;
+  teamKey?: string;
+  status?: string;
+  /** Em que tentativa a resposta está (§11) ou a ação (§25). */
+  attempt?: number;
+  maxAttempts?: number;
+  durationMs?: number;
+  /** Motivo técnico, do vocabulário de `FlowEngineFailure`. Sem dado pessoal. */
+  reason?: string;
+  count?: number;
+
+  /* ------------------------------------------------------------------------ */
+  /* §44 do Prompt 4 — a IA                                                    */
+  /* ------------------------------------------------------------------------ */
+  //
+  // ⚠️ A MENSAGEM DA PESSOA NÃO ESTÁ AQUI, e a ausência é a decisão.
+  //
+  // O §44 lista "mensagem" entre os campos a registrar — e a mesma seção manda
+  // respeitar a LGPD e evitar dado desnecessário. A mensagem crua JÁ ESTÁ em
+  // `whatsapp_messages`, que tem RLS, dono e prazo; repeti-la no log de
+  // aplicação a moveria para um lugar sem nada disso e habitualmente exportado
+  // para fora. O `correlationId` costura os dois registros, que é o que uma
+  // investigação de verdade precisa.
+  //
+  // O que entra é vocabulário fechado e número. Nada aqui identifica ninguém.
+
+  /** `consultar_bolsa`, `desconhecido`, `sys_ia_indisponivel`… */
+  intent?: string;
+  /** 0 a 1, como o modelo devolveu. Material do §47. */
+  confidence?: number;
+  /** `high` | `medium` | `low`, já com os limites configurados aplicados. */
+  band?: string;
+  /** O fornecedor de IA ou de mensageria, conforme o evento. */
+  provider?: string;
+  /** O modelo que de fato respondeu. */
+  model?: string;
+  /** §78 do módulo de inteligência: qual prompt de sistema estava valendo. */
+  promptVersion?: string;
+  latencyMs?: number;
+
+  /**
+   * ⚠️ SEMPRE MASCARADO — passe por `maskPhone`, nunca o número cru.
+   *
+   * Ele existe porque um log de atendimento sem NENHUM identificador de pessoa
+   * é inútil no dia em que alguém diz "o robô me respondeu errado": o
+   * `correlationId` costura os eventos entre si, mas ninguém liga para a APCS
+   * citando um uuid. O telefone mascarado é o suficiente para achar a conversa
+   * e insuficiente para ser um cadastro paralelo.
+   */
+  phone?: string;
+}
+
+export function logFlowEngineEvent(
+  level: "info" | "error",
+  event: FlowEngineLogEvent,
+  fields: FlowEngineLogFields = {},
+): void {
+  const linha = JSON.stringify({
+    ts: new Date().toISOString(),
+    scope: "flow-engine",
+    event,
+    ...fields,
+  });
+
+  if (level === "error") console.error(linha);
+  else console.info(linha);
+}

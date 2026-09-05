@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { FLOW_ACTION_KEYS } from "./flow.actions.registry";
+import { CONDITION_OPERATORS } from "./flow.operators";
 import { FLOW_CHANNELS, FLOW_NODE_TYPES } from "./flow.types";
 
 /**
@@ -177,6 +178,26 @@ const questionOptionsSchema = z
     });
   });
 
+/**
+ * O QUE FAZER QUANDO AS TENTATIVAS ACABAM (§11 e §26 do Prompt 3).
+ *
+ * ⚠️ "REPETIR" NÃO ESTÁ AQUI DE PROPÓSITO, e não é esquecimento: repetir é o
+ * que acontece ATÉ as tentativas acabarem. Oferecê-lo também como desfecho
+ * criaria a única configuração capaz de prender uma pessoa num laço para
+ * sempre — que é exatamente o que `maxAttempts` existe para impedir.
+ *
+ * ⚠️ "VOLTAR AO NÓ ANTERIOR" TAMBÉM NÃO. O escopo o cita, mas o desenho não tem
+ * como expressá-lo: "anterior" é uma posição na TRAVESSIA, não no desenho, e
+ * duas conversas chegam à mesma pergunta por caminhos diferentes. Quem quer
+ * esse comportamento desenha a seta de volta, que é explícita e aparece no
+ * canvas. Ver docs/FLUXOS.md.
+ */
+export const QUESTION_FALLBACKS = ["end", "transfer"] as const;
+export type QuestionFallback = (typeof QUESTION_FALLBACKS)[number];
+
+/** O padrão do §11 do escopo. Três é o número que ele usa no exemplo. */
+export const DEFAULT_QUESTION_MAX_ATTEMPTS = 3;
+
 export const questionNodeConfigSchema = z
   .object({
     text: messageTextSchema,
@@ -184,6 +205,66 @@ export const questionNodeConfigSchema = z
     options: questionOptionsSchema.default([]),
     /** Onde a resposta é guardada (§15). Sem isto, o que a pessoa disse se perde. */
     variable: variableNameSchema,
+
+    /**
+     * §11. Quantas respostas inválidas antes de desistir de perguntar.
+     *
+     * ⚠️ O TETO DE DEZ NÃO É ARBITRÁRIO: acima disso a configuração deixa de ser
+     * "insistir um pouco" e vira o laço infinito com outro nome. Quem precisa de
+     * mais que dez tentativas tem um problema de redação da pergunta, não de
+     * limite.
+     */
+    maxAttempts: z.number().int().min(1).max(10).default(DEFAULT_QUESTION_MAX_ATTEMPTS),
+
+    /**
+     * §10. A frase que a pessoa lê quando a resposta não serviu.
+     *
+     * Vazio é o padrão e significa "repita a pergunta como está escrita" — que é
+     * o que o motor fazia antes desta configuração existir. O campo serve a quem
+     * quer dizer "não entendi, responda com o número da opção" sem reescrever o
+     * texto da pergunta.
+     */
+    invalidText: messageTextSchema.optional(),
+
+    /** §11. O desfecho quando as tentativas acabam. */
+    onExhausted: z.enum(QUESTION_FALLBACKS).default("end"),
+
+    /**
+     * O time do desfecho `transfer`.
+     *
+     * ⚠️ VAZIO É ACEITO NA GRAVAÇÃO e recusado na publicação, como o `teamKey`
+     * da transferência — pelo mesmo motivo: quem acabou de trocar o desfecho
+     * ainda não escolheu o time, e recusar a gravação perderia o trabalho.
+     */
+    fallbackTeamKey: z.union([stableKeySchema, z.literal("")]).optional(),
+
+    /** O que a pessoa lê no desfecho. Opcional: há texto padrão nos rótulos. */
+    exhaustedText: messageTextSchema.optional(),
+
+    /**
+     * §12/§16 do Prompt 4. A PESSOA PODE RESPONDER SEM ESCOLHER UMA ALTERNATIVA.
+     *
+     * ⚠️ FALSO POR PADRÃO, E O PADRÃO É O IMPORTANTE. Ligado, uma resposta que
+     * não casa com alternativa nenhuma deixa de repetir a pergunta e passa a
+     * consultar a IA — o que custa uma chamada de modelo por resposta errada.
+     * Numa pergunta de "1, 2 ou 3" isso é desperdício puro: quem digitou "8"
+     * não escreveu uma frase para interpretar. Ligar é uma decisão de quem
+     * desenha, tomada na pergunta em que ela vale — tipicamente a primeira, a
+     * do menu de assuntos.
+     *
+     * ⚠️ E ELE NÃO DESLIGA O MENU. As alternativas continuam sendo lidas
+     * PRIMEIRO, e por igualdade exata: quem escreve "2" recebe a opção 2 sem
+     * modelo nenhum no caminho. A IA só entra depois de o casamento literal
+     * falhar. É por isso que o §16 pede os dois "simultaneamente" e não "um ou
+     * outro" — e é o que mantém o fluxo funcionando com a IA fora do ar.
+     *
+     * ⚠️ E ELE NÃO ESCOLHE NÓ. O que a leitura produz são as variáveis
+     * `sys_intent*` (ver `flow.intent.ts`); quem escolhe a seta são as
+     * transições de condição que o desenhador ligou nelas. Uma pergunta com
+     * isto ligado e nenhuma transição de variável simplesmente cai na
+     * retentativa, como antes.
+     */
+    interpretIntent: z.boolean().default(false),
   })
   .superRefine((config, ctx) => {
     // ⚠️ ZERO ALTERNATIVAS É RECUSADO; UMA, NÃO. A diferença é entre FORMA e
@@ -204,21 +285,29 @@ export const questionNodeConfigSchema = z
   });
 
 /**
- * A CONDIÇÃO (Prompt 2, §10). Os quatro operadores do escopo.
+ * A CONDIÇÃO — os doze operadores do §14 do Prompt 3.
  *
- * ⚠️ `gt`/`lt` COMPARAM NÚMERO, e é por isso que existe o tipo de pergunta
- * `number`. Comparar texto com `>` daria uma resposta — a ordem alfabética — e
- * ela estaria errada de um jeito plausível: "10" é MENOR que "9" em texto.
- * O motor converte os dois lados e recusa a comparação quando algum não é
- * número, em vez de decidir o caminho por uma ordenação que ninguém pediu.
+ * ⚠️ ELES SAÍRAM DAQUI. A lista e o comportamento de cada um moram em
+ * `flow.operators.ts`, porque um operador precisa dizer mais do que "casa ou
+ * não casa": se pede valor escrito à mão, se só fala de número e como se chama
+ * na tela. O reexport abaixo existe para os importadores antigos continuarem
+ * valendo — este arquivo deixou de ser o dono da lista, não a porta dela.
  */
-export const CONDITION_OPERATORS = ["eq", "neq", "contains", "gt", "lt"] as const;
-export type ConditionOperator = (typeof CONDITION_OPERATORS)[number];
+export {
+  CONDITION_OPERATORS,
+  CONDITION_OPERATOR_REGISTRY,
+  conditionOperatorDefinition,
+  operatorNeedsValue,
+  type ConditionOperator,
+} from "./flow.operators";
 
 export const conditionNodeConfigSchema = z.object({
   /** A variável avaliada. As comparações moram nas transições que saem daqui. */
   variable: variableNameSchema,
 });
+
+/** §25. O teto de tentativas de uma ação — o "não criar retry infinito". */
+export const MAX_ACTION_ATTEMPTS = 5;
 
 export const actionNodeConfigSchema = z.object({
   actionKey: z.enum(FLOW_ACTION_KEYS),
@@ -227,6 +316,21 @@ export const actionNodeConfigSchema = z.object({
    * registro; valor = nome da variável do contexto.
    */
   arguments: z.record(variableNameSchema).default({}),
+
+  /**
+   * §25. O teto de tentativas de uma falha TEMPORÁRIA.
+   *
+   * ⚠️ SÓ VALE PARA `retry`, E ESSA É A DISTINÇÃO INTEIRA. Uma consulta que
+   * respondeu "não encontrei" respondeu — repeti-la três vezes daria a mesma
+   * resposta, gastaria três vezes o serviço e atrasaria a pessoa em segundos
+   * sem mudar nada. Quem pede nova tentativa é o handler, devolvendo
+   * `reason: "retry"`; o motor não adivinha isso a partir de um erro genérico.
+   *
+   * Um é o padrão porque a maioria das ações lê o próprio banco: ali, uma falha
+   * é um defeito, e insistir apenas o esconde. Quem chama serviço de terceiro
+   * sobe o número.
+   */
+  maxAttempts: z.number().int().min(1).max(MAX_ACTION_ATTEMPTS).default(1),
 });
 
 /** As três prioridades da fila (Prompt 2, §12). */
@@ -309,16 +413,43 @@ export const flowTransitionConditionSchema = z.discriminatedUnion("type", [
   // ⚠️ `optionKey`, e NUNCA um índice. Ver o comentário do tipo
   // `FlowTransitionCondition` e o §9 do escopo.
   z.object({ type: z.literal("answer"), optionKey: stableKeySchema }),
-  // Os quatro operadores do §10 do Prompt 2, mais o "diferente" — que sai de
-  // graça e evita desenhar a negação com duas setas.
+  // Os doze operadores do §14 do Prompt 3. Ver `flow.operators.ts`.
+  //
+  // ⚠️ SEM `min(1)` NO VALOR, PORQUE QUATRO OPERADORES NÃO TÊM VALOR. "foi
+  // respondida" e "é sim" perguntam sobre a variável, não a comparam com nada —
+  // exigir um valor deles obrigaria o inspetor a inventar um texto qualquer
+  // para conseguir gravar, e esse texto ficaria no jsonb parecendo uma regra.
+  //
+  // ⚠️ E O REFINE NÃO PODE MORAR AQUI: `discriminatedUnion` exige objetos, e
+  // um `.superRefine` devolveria um `ZodEffects`, que ela recusa. Quem cobra o
+  // valor dos outros oito é `flowTransitionFormSchema`, logo abaixo — e é o
+  // lugar certo, porque é o formulário que precisa da frase.
   z.object({
     type: z.literal("variable"),
     name: variableNameSchema,
     operator: z.enum(CONDITION_OPERATORS).default("eq"),
-    value: z.string().trim().min(1).max(200),
+    value: z.string().trim().max(200).default(""),
   }),
 ]);
 
+/**
+ * ⚠️ ELE NÃO COBRA O VALOR DA COMPARAÇÃO, E ISSO É A REGRA DO MÓDULO, NÃO UM
+ * DESCUIDO — a mesma que o Builder já tinha ensinado uma vez.
+ *
+ * Trocar a condição de uma seta para "quando uma informação bater" grava na
+ * hora, com o campo de valor ainda em branco: a pessoa acabou de escolher o
+ * tipo e vai digitar em seguida. Exigir o valor aqui faria o auto save recusar
+ * com "dados inválidos" no instante entre um clique e o outro — que é
+ * exatamente o defeito que fez `messageTextSchema` perder o `min(1)`.
+ *
+ *   Zod          confere a FORMA — campo existe, tipo bate, teto de tamanho
+ *   Publicação   confere se está COMPLETO — `condition_without_value`, em
+ *                `validateFlowGraph` e em `validate_flow_version`
+ *
+ * Uma condição sem valor não quebra nada na gravação; ela quebra no
+ * ATENDIMENTO, onde nunca casa e leva a conversa a `no_matching_transition`. É
+ * por isso que a barreira é a publicação, e não o teclado.
+ */
 export const flowTransitionFormSchema = z.object({
   sourceNodeId: z.string().uuid(),
   targetNodeId: z.string().uuid(),

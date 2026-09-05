@@ -1,10 +1,24 @@
-import { normalizeForSearch } from "@/lib/utils";
+import { nodeExecutor } from "./flow.executors";
+import {
+  interpolate,
+  isNumericText,
+  isOpenQuestion,
+  matchOption,
+  nodeText,
+  questionInterpretsIntent,
+  questionOptions,
+  questionRetryPolicy,
+  textField,
+} from "./flow.node-config";
+import { resolveTransition } from "./flow.transitions";
 import type {
   CompiledFlowNode,
-  CompiledFlowTransition,
-  FlowConversationStatus,
   FlowDefinition,
-  FlowRunStatus,
+  FlowEffect,
+  FlowEngineFailure,
+  FlowEngineInput,
+  FlowEngineResult,
+  FlowEngineState,
   FlowVariables,
 } from "./flow.types";
 
@@ -15,7 +29,8 @@ import type {
  * acontecer, e devolve O QUE FAZER. Não tem I/O, não chama LLM, não toca no
  * banco: dá para testar cada regra isoladamente.
  *
- * ⚠️ ESTA É A REGRA ARQUITETURAL OBRIGATÓRIA DO §25, E ELA É UMA AUSÊNCIA.
+ * ⚠️ ESTA É A REGRA ARQUITETURAL OBRIGATÓRIA DO §2 DO PROMPT 3, E ELA É UMA
+ * AUSÊNCIA.
  *
  * A IA não aparece neste arquivo. Ela entrega intenção e confiança — que ficam
  * em `flow_runs.intent` / `intent_confidence` e podem alimentar uma CONDIÇÃO
@@ -25,94 +40,36 @@ import type {
  * livre que o motor invente: todo texto que sai daqui foi ESCRITO por alguém na
  * configuração de um nó.
  *
- * É o mesmo desenho de `src/modules/intelligence/router.ts`, e pelo mesmo
- * motivo: a única forma de "a IA interpreta e o CRM responde" ser verdade, e não
- * intenção, é a decisão sair de um lugar onde texto gerado não entra.
+ * ⚠️ O QUE ESTE ARQUIVO DEIXOU DE FAZER NO PROMPT 3. Ele não sabe mais executar
+ * um tipo de nó: quem sabe é `flow.executors.ts`. Ele não sabe mais comparar
+ * valores: quem sabe é `flow.operators.ts`. Ele não sabe mais ler o jsonb de uma
+ * configuração: quem sabe é `flow.node-config.ts`. O que sobrou aqui é a única
+ * coisa que é genuinamente do motor — a TRAVESSIA, e as três portas por onde se
+ * entra nela.
  */
 
 /* -------------------------------------------------------------------------- */
-/* O estado e o que entra                                                     */
+/* A superfície pública                                                       */
 /* -------------------------------------------------------------------------- */
 
-export interface FlowEngineState {
-  currentNodeId: string | null;
-  variables: FlowVariables;
-  status: FlowRunStatus;
-  conversationStatus: FlowConversationStatus;
-  /** A chave do TIME, nunca a de uma pessoa (§11). */
-  assignedTeamKey: string | null;
-}
+// Os tipos moram em `flow.types.ts` para os executores poderem falar deles sem
+// importar o motor (ver o aviso lá). Reexportados aqui porque a assinatura
+// pública do motor é feita deles — e porque o simulador já os importava daqui.
+export type {
+  FlowEffect,
+  FlowEffectTrigger,
+  FlowEngineFailure,
+  FlowEngineInput,
+  FlowEngineResult,
+  FlowEngineState,
+  FlowQuestionOption,
+  FlowActionStatus,
+} from "./flow.types";
 
-export type FlowEngineInput =
-  /** A conversa começou. Entra pelo nó inicial. */
-  | { kind: "start" }
-  /** A pessoa respondeu. Só faz sentido parado num nó QUESTION. */
-  | { kind: "reply"; text: string }
-  /**
-   * O handler de uma ação terminou. É o retorno do `runAction` que o motor
-   * emitiu e parou esperando — ver `FlowEffect`.
-   */
-  | { kind: "actionResult"; ok: boolean; variables: FlowVariables };
-
-/* -------------------------------------------------------------------------- */
-/* O que o motor manda fazer                                                  */
-/* -------------------------------------------------------------------------- */
-
-export interface FlowQuestionOption {
-  key: string;
-  label: string;
-}
-
-/**
- * ⚠️ EFEITOS, E NÃO EXECUÇÃO. O motor NÃO envia mensagem, NÃO grava no banco e
- * NÃO chama serviço nenhum: ele descreve o que precisa acontecer e devolve.
- *
- * É o que torna o Prompt 2 (simulador) e o Prompt 4 (WhatsApp de verdade)
- * possíveis sobre o MESMO motor — um imprime os efeitos na tela, o outro os
- * executa. Se o envio morasse aqui, o simulador teria de reimplementar a
- * travessia, e as duas versões divergiriam na primeira manutenção.
- */
-export type FlowEffect =
-  | {
-      kind: "sendMessage";
-      nodeId: string;
-      text: string;
-      /** Pausa antes de enviar, em segundos (Prompt 2, §7). */
-      delaySeconds: number;
-      imageUrl: string | null;
-      pdfUrl: string | null;
-    }
-  | { kind: "askQuestion"; nodeId: string; text: string; options: FlowQuestionOption[] }
-  | { kind: "runAction"; nodeId: string; actionKey: string; arguments: Record<string, string> }
-  | {
-      kind: "assignTeam";
-      nodeId: string;
-      teamKey: string;
-      message: string | null;
-      slaMinutes: number | null;
-      priority: string;
-    }
-  | { kind: "complete"; nodeId: string; message: string | null }
-  /**
-   * A pessoa respondeu algo que não casa com alternativa nenhuma. O motor NÃO
-   * inventa uma frase: devolve o efeito e o texto da própria pergunta, para que
-   * quem entrega repita o que já estava escrito.
-   */
-  | { kind: "repeatQuestion"; nodeId: string; text: string; options: FlowQuestionOption[] }
-  /** O desenho está quebrado em execução. Ver `FlowEngineFailure`. */
-  | { kind: "fail"; nodeId: string | null; reason: FlowEngineFailure };
-
-export type FlowEngineFailure =
-  | "no_start_node"
-  | "node_not_found"
-  | "no_matching_transition"
-  | "not_waiting_reply"
-  | "hop_limit";
-
-export interface FlowEngineResult {
-  state: FlowEngineState;
-  effects: FlowEffect[];
-}
+// `interpolate` e `matchOption` mudaram de arquivo no Prompt 3. Os nomes antigos
+// continuam valendo: eles estão em testes e no simulador, e renomear os dois
+// não paga o diff.
+export { interpolate as interpolar, matchOption as casarAlternativa } from "./flow.node-config";
 
 /**
  * O teto de saltos numa única passada.
@@ -132,6 +89,27 @@ export interface FlowEngineResult {
  */
 const LIMITE_DE_SALTOS = 20;
 
+/**
+ * §10 do Prompt 5. Quantos nós UMA CONVERSA pode atravessar, somando os turnos.
+ *
+ * ⚠️ ELE RESOLVE O LAÇO QUE `LIMITE_DE_SALTOS` NÃO ENXERGA, e a diferença é a
+ * razão de existirem dois números. Ver o comentário longo em
+ * `FlowEngineState.nodeExecutions`: o teto de saltos pega o laço FECHADO, que
+ * trava um turno; este pega o laço LENTO — duas perguntas que se apontam, uma
+ * mensagem por turno, cada turno perfeitamente válido, para sempre.
+ *
+ * ⚠️ DUZENTOS, E O NÚMERO TEM OS DOIS LADOS PENSADOS. Uma triagem real gasta
+ * entre cinco e quinze nós; um atendimento longo, com o associado voltando
+ * várias vezes ao menu, talvez cinquenta. Duzentos é folgado o bastante para
+ * nunca alcançar quem está sendo atendido de verdade, e curto o bastante para
+ * o laço aparecer no mesmo dia em vez de virar uma conversa de mil mensagens.
+ *
+ * O CHECK no banco (`flow_runs_node_executions_range`) é 2000, dez vezes isto,
+ * de propósito: quem recusa é esta constante, com um motivo legível; o banco é
+ * só a rede embaixo, e ajustar o número aqui não pode virar erro de constraint.
+ */
+const LIMITE_DE_NOS_POR_CONVERSA = 200;
+
 /* -------------------------------------------------------------------------- */
 /* A entrada                                                                  */
 /* -------------------------------------------------------------------------- */
@@ -149,6 +127,20 @@ export function advanceFlow(
     case "actionResult":
       return retomarDepoisDaAcao(definition, state, input);
   }
+}
+
+/** O estado de uma execução que ainda não começou. */
+export function initialFlowState(): FlowEngineState {
+  return {
+    currentNodeId: null,
+    variables: {},
+    status: "running",
+    conversationStatus: "new",
+    assignedTeamKey: null,
+    attemptCount: 0,
+    // §10. A conversa nasce sem nenhum nó atravessado. Ver `LIMITE_DE_NOS_POR_CONVERSA`.
+    nodeExecutions: 0,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -180,7 +172,7 @@ function responder(
   const node = acharNode(definition, state.currentNodeId);
   if (!node) return falhar(state, state.currentNodeId, "node_not_found");
 
-  const variavelDoNo = campoTexto(node, "variable");
+  const variavelDoNo = textField(node, "variable");
 
   /* ---------------------------------------------------------------------- */
   /* Pergunta ABERTA — texto livre e número (Prompt 2, §8)                    */
@@ -188,97 +180,247 @@ function responder(
   // ⚠️ AQUI NÃO HÁ CHAVE A CASAR: o que a pessoa escreveu É a resposta. O nó
   // grava a variável e segue pela única saída — a bifurcação, se houver, é de
   // um nó de CONDIÇÃO adiante, que sabe comparar.
-  if (perguntaAberta(node)) {
+  if (isOpenQuestion(node)) {
     const resposta = texto.trim();
 
-    if (resposta === "" || (tipoDaPergunta(node) === "number" && !ehNumero(resposta))) {
-      // Um "abc" onde se pediu um número não avança e não vira variável. Repetir
-      // a pergunta escrita é a única resposta honesta — gravar lixo faria a
-      // condição seguinte comparar contra nada.
-      return {
-        state,
-        effects: [
-          {
-            kind: "repeatQuestion",
-            nodeId: node.id,
-            text: textoDoNo(node, state.variables),
-            options: [],
-          },
-        ],
-      };
+    // §10 do Prompt 3: a validação do tipo acontece AQUI, no servidor, e não na
+    // tela que fez a pergunta. Um "abc" onde se pediu um número não avança e
+    // não vira variável — gravar lixo faria a condição seguinte comparar contra
+    // nada, e o fluxo escolheria um caminho por acidente.
+    if (resposta === "" || (questionKindIsNumber(node) && !isNumericText(resposta))) {
+      return tentarDeNovo(definition, state, node);
     }
 
     const comAberta: FlowVariables = variavelDoNo
       ? { ...state.variables, [variavelDoNo]: resposta }
       : state.variables;
 
-    const saidaAberta = escolherTransicao(definition, node.id, comAberta, null);
-    if (!saidaAberta) {
-      return falhar({ ...state, variables: comAberta }, node.id, "no_matching_transition");
-    }
-
-    return percorrer(
-      definition,
-      { ...state, variables: comAberta, status: "running" },
-      saidaAberta.targetNodeId,
-      [],
-    );
+    return percorrerDaPergunta(definition, state, node, comAberta, null);
   }
 
-  const options = alternativas(node);
-  const escolhida = casarAlternativa(texto, options);
+  /* ---------------------------------------------------------------------- */
+  /* Pergunta de ESCOLHA                                                      */
+  /* ---------------------------------------------------------------------- */
+  const escolhida = matchOption(texto, questionOptions(node));
 
   if (!escolhida) {
-    // ⚠️ NÃO AVANÇA E NÃO INVENTA FRASE. Repetir a pergunta que já está escrita
-    // é a única resposta honesta: o motor não sabe o que a pessoa quis dizer, e
-    // adivinhar aqui seria decidir o atendimento por um palpite.
-    return {
-      state,
-      effects: [
-        {
-          kind: "repeatQuestion",
-          nodeId: node.id,
-          text: textoDoNo(node, state.variables),
-          options,
-        },
-      ],
-    };
+    /**
+     * §16 do Prompt 4 — MENU E TEXTO LIVRE NA MESMA PERGUNTA.
+     *
+     * ⚠️ A ORDEM É A REGRA: a alternativa foi tentada PRIMEIRO, e por igualdade
+     * exata. Quem digita "2" já saiu daqui pela linha de cima, sem modelo
+     * nenhum no caminho — é o que mantém o menu funcionando com a IA fora do
+     * ar, e é o que o §16 quer dizer com "simultaneamente".
+     *
+     * ⚠️ E O MOTOR CONTINUA SEM SABER QUE A IA EXISTE. Nada aqui chama modelo:
+     * quando a pergunta está marcada com `interpretIntent`, quem já leu a frase
+     * foi a camada de cima (`lib/flow/intent.ts`), e o que ela deixou foram as
+     * variáveis `sys_intent*`. Este trecho só faz uma coisa: dar às transições
+     * de VARIÁVEL a chance de casar antes de a pergunta ser repetida.
+     *
+     * A escolha do caminho segue sendo de `resolveTransition`, sobre setas que
+     * uma pessoa desenhou. É o §13 — a IA interpreta, o desenho decide.
+     *
+     * ⚠️ E NÃO CASANDO NADA, REPETE — igualzinho a antes. Uma pergunta com
+     * `interpretIntent` ligado e nenhuma seta de condição se comporta como
+     * sempre se comportou, o que é a propriedade que torna esta mudança segura
+     * para os fluxos que já existem.
+     */
+    if (questionInterpretsIntent(node)) {
+      const porVariavel = resolveTransition(definition, node.id, state.variables, null);
+
+      if (porVariavel) {
+        return percorrer(
+          definition,
+          // ⚠️ A RESPOSTA NÃO VIRA A VARIÁVEL DO NÓ. Ela não é uma escolha: é
+          // uma frase que o modelo interpretou, e gravá-la em `variable` faria
+          // uma condição adiante comparar "quero saber o valor do suíno" com a
+          // chave `BOLSA_SUINOS` e não casar. O que a pessoa escreveu já está
+          // em `sys_intent_subject`, que é onde ele é utilizável.
+          { ...state, status: "running", attemptCount: 0 },
+          porVariavel.targetNodeId,
+          [],
+        );
+      }
+    }
+
+    // ⚠️ NÃO AVANÇA E NÃO INVENTA FRASE. O motor não sabe o que a pessoa quis
+    // dizer, e adivinhar aqui seria decidir o atendimento por um palpite.
+    return tentarDeNovo(definition, state, node);
   }
 
-  // §15. A resposta vira variável ANTES de a transição ser avaliada — assim uma
-  // condição pode olhar o que acabou de ser respondido.
+  // §9 do Prompt 2. A resposta vira variável ANTES de a transição ser avaliada —
+  // assim uma condição pode olhar o que acabou de ser respondido.
   const variables: FlowVariables = variavelDoNo
     ? { ...state.variables, [variavelDoNo]: escolhida.key }
     : state.variables;
 
-  const saida = escolherTransicao(definition, node.id, variables, escolhida.key);
-  if (!saida) return falhar({ ...state, variables }, node.id, "no_matching_transition");
-
-  return percorrer(definition, { ...state, variables, status: "running" }, saida.targetNodeId, []);
+  return percorrerDaPergunta(definition, state, node, variables, escolhida.key);
 }
 
+/**
+ * Sai de um nó de pergunta com a resposta já gravada.
+ *
+ * ⚠️ `attemptCount: 0` PORQUE A PESSOA ACERTOU. Ela pode ter errado duas vezes
+ * antes; o que chega à pergunta seguinte é um contador limpo. Ver o campo em
+ * `FlowEngineState`.
+ */
+function percorrerDaPergunta(
+  definition: FlowDefinition,
+  state: FlowEngineState,
+  node: CompiledFlowNode,
+  variables: FlowVariables,
+  answerKey: string | null,
+): FlowEngineResult {
+  const saida = resolveTransition(definition, node.id, variables, answerKey);
+  if (!saida) {
+    return falhar({ ...state, variables }, node.id, "no_matching_transition");
+  }
+
+  // ⚠️ A CHAVE DA RESPOSTA NÃO ATRAVESSA. Ela vale para UMA avaliação — a da
+  // saída do próprio nó de pergunta, feita na linha acima — e depois disso é
+  // `null`. Levá-la adiante faria uma condição `answer` encontrada mais à
+  // frente no caminho casar com uma escolha que não está mais sendo feita: um
+  // nó de condição logo depois do menu passaria a decidir pela resposta
+  // ANTERIOR, e o desenho não diria isso em lugar nenhum.
+  return percorrer(
+    definition,
+    { ...state, variables, status: "running", attemptCount: 0 },
+    saida.targetNodeId,
+    [],
+  );
+}
+
+/**
+ * A RESPOSTA NÃO SERVIU — §10, §11 e §26 do Prompt 3.
+ *
+ * ⚠️ ESTE É O ÚNICO PONTO DO MOTOR QUE PODE PRENDER ALGUÉM NUM LAÇO, e é por
+ * isso que ele conta. Antes do Prompt 3 a resposta inválida repetia a pergunta
+ * indefinidamente: quem não entendesse o menu ficava recebendo a mesma
+ * pergunta para sempre, e nenhuma pessoa da APCS ficaria sabendo. O contador e
+ * o desfecho existem para que "não consegui responder" acabe em alguém — ou
+ * acabe, e não em silêncio.
+ */
+function tentarDeNovo(
+  definition: FlowDefinition,
+  state: FlowEngineState,
+  node: CompiledFlowNode,
+): FlowEngineResult {
+  const politica = questionRetryPolicy(node);
+  const tentativa = state.attemptCount + 1;
+
+  if (tentativa < politica.maxAttempts) {
+    return {
+      state: { ...state, attemptCount: tentativa },
+      effects: [
+        {
+          kind: "repeatQuestion",
+          nodeId: node.id,
+          // A frase de "não entendi", quando o nó tem uma. Sem ela, repete a
+          // pergunta como está escrita — que é o que o motor sempre fez.
+          text: politica.invalidText
+            ? interpolate(politica.invalidText, state.variables)
+            : nodeText(node, state.variables),
+          options: questionOptions(node),
+          attempt: tentativa,
+          maxAttempts: politica.maxAttempts,
+        },
+      ],
+      // §10. UM NÓ FOI TRABALHADO, ainda que a conversa não tenha avançado — e
+      // contar é o certo: uma conversa que gira em retentativa turno após turno
+      // é exatamente o "não vai a lugar nenhum" que a trava existe para achar.
+      // O `maxAttempts` já impede o laço curto; este contador enxerga o padrão
+      // maior, de alguém que erra, é transferido, volta e erra de novo.
+      nodesWalked: 1,
+    };
+  }
+
+  /* --- as tentativas acabaram --- */
+
+  const mensagem = politica.exhaustedText
+    ? interpolate(politica.exhaustedText, state.variables)
+    : null;
+
+  if (politica.onExhausted === "transfer") {
+    if (!politica.fallbackTeamKey) {
+      // A publicação recusa isto; um retrato congelado ANTES de o campo existir
+      // não foi recusado por ninguém. Falhar alto é melhor do que transferir
+      // para lugar nenhum e deixar a conversa parada sem fila.
+      return falhar({ ...state, attemptCount: tentativa }, node.id, "fallback_without_team");
+    }
+
+    return {
+      state: {
+        ...state,
+        attemptCount: tentativa,
+        status: "handed_off",
+        conversationStatus: "in_service",
+        assignedTeamKey: politica.fallbackTeamKey,
+      },
+      effects: [
+        {
+          kind: "assignTeam",
+          nodeId: node.id,
+          teamKey: politica.fallbackTeamKey,
+          message: mensagem,
+          slaMinutes: null,
+          priority: "normal",
+          // ⚠️ É ISTO QUE SEPARA, NA TRILHA, A TRANSFERÊNCIA DESENHADA DA
+          // TRANSFERÊNCIA POR DESISTÊNCIA. Ver `FlowEffectTrigger`.
+          trigger: "fallback",
+        },
+      ],
+      nodesWalked: 1,
+    };
+  }
+
+  return {
+    state: {
+      ...state,
+      attemptCount: tentativa,
+      status: "completed",
+      conversationStatus: "resolved",
+    },
+    effects: [{ kind: "complete", nodeId: node.id, message: mensagem, trigger: "fallback" }],
+    nodesWalked: 1,
+  };
+}
+
+/**
+ * A ação terminou — §16 do Prompt 3.
+ *
+ * ⚠️ O RESULTADO ENTRA COMO VARIÁVEL, INCLUSIVE O FRACASSO, e são DUAS: o
+ * `_ok` de sempre e o `_status` novo. A diferença entre elas é a diferença
+ * entre "deu certo?" e "o que aconteceu?", e o §16 precisa da segunda:
+ *
+ *     CONSULTAR_NORMATIVA → NOT_FOUND → fallback
+ *     CONSULTAR_NORMATIVA → FAILURE   → "estamos com um problema"
+ *
+ * Com um booleano só, os dois caminhos seriam o mesmo, e o associado ouviria
+ * "ocorreu um erro" quando a verdade era "não achei normativa sobre isso" — que
+ * é uma resposta útil, e não uma falha.
+ */
 function retomarDepoisDaAcao(
   definition: FlowDefinition,
   state: FlowEngineState,
-  input: { ok: boolean; variables: FlowVariables },
+  input: { status: string; variables: FlowVariables },
 ): FlowEngineResult {
   if (state.currentNodeId === null) return falhar(state, null, "node_not_found");
 
   const node = acharNode(definition, state.currentNodeId);
   if (!node) return falhar(state, state.currentNodeId, "node_not_found");
 
-  // ⚠️ O RESULTADO DA AÇÃO ENTRA COMO VARIÁVEL, INCLUSIVE O FRACASSO. Gravar
-  // `<acao>_ok = "false"` é o que permite ao desenho ter um caminho para quando
-  // a consulta não achou nada — sem isso, a única saída seria um erro genérico,
-  // e a pessoa receberia "ocorreu um erro" no lugar de "não encontrei a
-  // normativa sobre esse assunto".
+  const chave = textField(node, "actionKey") ?? "acao";
+  const deuCerto = input.status === "success";
+
   const variables: FlowVariables = {
     ...state.variables,
     ...input.variables,
-    [`${campoTexto(node, "actionKey") ?? "acao"}_ok`]: input.ok ? "true" : "false",
+    [`${chave}_ok`]: deuCerto ? "true" : "false",
+    [`${chave}_status`]: input.status,
   };
 
-  const saida = escolherTransicao(definition, node.id, variables, null);
+  const saida = resolveTransition(definition, node.id, variables, null);
   if (!saida) return falhar({ ...state, variables }, node.id, "no_matching_transition");
 
   return percorrer(definition, { ...state, variables, status: "running" }, saida.targetNodeId, []);
@@ -295,6 +437,10 @@ function retomarDepoisDaAcao(
  * Os quatro motivos de parada — perguntar, executar uma ação, transferir e
  * encerrar — são exatamente os quatro efeitos que exigem alguém de fora fazer
  * algo antes de continuar.
+ *
+ * ⚠️ ESTE LAÇO NÃO SABE O QUE É UMA MENSAGEM OU UMA PERGUNTA, e é o ponto do
+ * §6. Ele pergunta ao registro quem executa aquele tipo, recebe um dos três
+ * desfechos e reage a eles. Um tipo de nó novo não o toca.
  */
 function percorrer(
   definition: FlowDefinition,
@@ -302,118 +448,73 @@ function percorrer(
   primeiroNo: string,
   efeitosAcumulados: FlowEffect[],
 ): FlowEngineResult {
-  const effects = [...efeitosAcumulados];
+  let effects = [...efeitosAcumulados];
   let state = estadoInicial;
   let noAtual: string | null = primeiroNo;
+  let andados = 0;
 
   for (let salto = 0; salto < LIMITE_DE_SALTOS; salto += 1) {
     if (noAtual === null) break;
 
-    const node = acharNode(definition, noAtual);
-    if (!node) {
+    /**
+     * §10 do Prompt 5. A TRAVA DA CONVERSA, e ela vem ANTES de executar o nó.
+     *
+     * ⚠️ ANTES, E NÃO DEPOIS: parar depois faria a conversa executar o nó de
+     * número 201 — que, num laço, é justamente mais uma mensagem repetida para
+     * alguém que já recebeu duzentas.
+     *
+     * ⚠️ E ELA PARA COM `loop_detected`, SEM INVENTAR FRASE. O §10 pede
+     * "fallback seguro", e o seguro aqui é o mesmo silêncio que o motor já
+     * pratica em toda falha: a execução vira `failed`, o robô se cala e a
+     * conversa fica acesa na caixa de entrada — onde uma PESSOA a vê. A
+     * alternativa seria o motor escolher um texto de despedida, e ele não tem
+     * de onde tirar um que a APCS tenha escrito.
+     */
+    if (state.nodeExecutions + andados >= LIMITE_DE_NOS_POR_CONVERSA) {
       return {
-        state: { ...state, currentNodeId: noAtual },
-        effects: [...effects, erro(noAtual, "node_not_found")],
+        state: { ...state, status: "failed", nodeExecutions: state.nodeExecutions + andados },
+        effects: [...effects, erro(noAtual, "loop_detected")],
+        nodesWalked: andados,
       };
     }
 
+    const node = acharNode(definition, noAtual);
+    if (!node) {
+      return {
+        state: { ...state, currentNodeId: noAtual, status: "failed" },
+        effects: [...effects, erro(noAtual, "node_not_found")],
+        nodesWalked: andados,
+      };
+    }
+
+    andados += 1;
     state = { ...state, currentNodeId: node.id };
 
-    switch (node.type) {
-      case "message": {
-        // ⚠️ O NÓ DESLIGADO É ATRAVESSADO, NÃO IGNORADO. Ele não emite mensagem
-        // e o fluxo segue pela saída dele — que é o que permite calar um aviso
-        // temporário sem desmontar o desenho em volta. Ver `enabled` em
-        // `flow.schema.ts`.
-        if (habilitado(node)) {
-          effects.push({
-            kind: "sendMessage",
-            nodeId: node.id,
-            text: textoDoNo(node, state.variables),
-            delaySeconds: numero(node, "delaySeconds") ?? 0,
-            imageUrl: campoTexto(node, "imageUrl"),
-            pdfUrl: campoTexto(node, "pdfUrl"),
-          });
-        }
-        const saida = escolherTransicao(definition, node.id, state.variables, null);
-        if (!saida) {
-          return { state, effects: [...effects, erro(node.id, "no_matching_transition")] };
-        }
-        noAtual = saida.targetNodeId;
+    // `answerKey: null` — dentro da travessia nenhuma escolha está "em curso".
+    // Ver o aviso em `percorrerDaPergunta`.
+    const resultado = nodeExecutor(node.type).execute({
+      definition,
+      node,
+      state,
+      answerKey: null,
+    });
+    effects = [...effects, ...resultado.effects];
+
+    switch (resultado.kind) {
+      case "continue":
+        state = resultado.state;
+        noAtual = resultado.nextNodeId;
         break;
-      }
 
-      case "question": {
-        effects.push({
-          kind: "askQuestion",
-          nodeId: node.id,
-          text: textoDoNo(node, state.variables),
-          options: alternativas(node),
-        });
+      case "halt":
+        return { state: resultado.state, effects, nodesWalked: andados };
+
+      case "fail":
         return {
-          state: { ...state, status: "waiting_reply", conversationStatus: "waiting_reply" },
+          state: { ...resultado.state, status: "failed" },
           effects,
+          nodesWalked: andados,
         };
-      }
-
-      case "condition": {
-        // ⚠️ O NÓ DE CONDIÇÃO NÃO AVALIA NADA SOZINHO. Quem carrega a comparação
-        // é a TRANSIÇÃO (`{type:"variable", name, operator, value}`) — o nó só marca o
-        // ponto do desenho em que a bifurcação acontece. Assim acrescentar um
-        // terceiro caminho é acrescentar uma seta, não editar o nó.
-        const saida = escolherTransicao(definition, node.id, state.variables, null);
-        if (!saida) {
-          return { state, effects: [...effects, erro(node.id, "no_matching_transition")] };
-        }
-        noAtual = saida.targetNodeId;
-        break;
-      }
-
-      case "action": {
-        effects.push({
-          kind: "runAction",
-          nodeId: node.id,
-          actionKey: campoTexto(node, "actionKey") ?? "",
-          arguments: argumentos(node, state.variables),
-        });
-        // Para e espera o handler. A retomada é `advanceFlow(..., {kind:
-        // "actionResult"})`.
-        return { state: { ...state, status: "running" }, effects };
-      }
-
-      case "attendant": {
-        const teamKey = campoTexto(node, "teamKey") ?? "";
-        effects.push({
-          kind: "assignTeam",
-          nodeId: node.id,
-          teamKey,
-          message: campoTexto(node, "message"),
-          // O compromisso de prazo e a posição na fila (Prompt 2, §12). Quem
-          // cobra os dois é a tela de atendimento — o motor só os carrega.
-          slaMinutes: numero(node, "slaMinutes"),
-          priority: campoTexto(node, "priority") ?? "normal",
-        });
-        return {
-          state: {
-            ...state,
-            status: "handed_off",
-            // §13. As duas dimensões andam juntas AQUI e só aqui: o motor sai de
-            // cena e uma pessoa entra. Em qualquer outro ponto elas são
-            // independentes.
-            conversationStatus: "in_service",
-            assignedTeamKey: teamKey,
-          },
-          effects,
-        };
-      }
-
-      case "end": {
-        effects.push({ kind: "complete", nodeId: node.id, message: campoTexto(node, "message") });
-        return {
-          state: { ...state, status: "completed", conversationStatus: "resolved" },
-          effects,
-        };
-      }
     }
   }
 
@@ -421,240 +522,21 @@ function percorrer(
   return {
     state: { ...state, status: "failed" },
     effects: [...effects, erro(noAtual, "hop_limit")],
+    nodesWalked: andados,
   };
 }
 
 /* -------------------------------------------------------------------------- */
-/* A escolha da saída                                                         */
-/* -------------------------------------------------------------------------- */
-
-/**
- * A primeira transição cuja condição casa, na ordem de prioridade.
- *
- * ⚠️ A ORDEM É PARTE DO CONTRATO, e ela vem do jsonb congelado — que
- * `compile_flow_definition()` gravou ordenado por `(source, priority, id)`. Sem
- * uma ordem estável, duas condições que casassem produziriam caminhos
- * diferentes em execuções idênticas, e o defeito seria irreproduzível.
- *
- * O desempate final pelo `id` existe para o caso de duas transições com a mesma
- * prioridade: continua arbitrário, mas deixa de ser aleatório.
- */
-function escolherTransicao(
-  definition: FlowDefinition,
-  sourceNodeId: string,
-  variables: FlowVariables,
-  respostaEscolhida: string | null,
-): CompiledFlowTransition | null {
-  const saidas = definition.transitions
-    .filter((t) => t.sourceNodeId === sourceNodeId)
-    .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id));
-
-  for (const transicao of saidas) {
-    if (condicaoCasa(transicao, variables, respostaEscolhida)) return transicao;
-  }
-
-  return null;
-}
-
-function condicaoCasa(
-  transicao: CompiledFlowTransition,
-  variables: FlowVariables,
-  respostaEscolhida: string | null,
-): boolean {
-  switch (transicao.condition.type) {
-    case "always":
-      return true;
-    case "answer":
-      // §9. Compara CHAVE com CHAVE. Nunca um índice, nunca o rótulo.
-      return respostaEscolhida !== null && transicao.condition.optionKey === respostaEscolhida;
-    case "variable":
-      return comparar(
-        variables[transicao.condition.name],
-        transicao.condition.operator,
-        transicao.condition.value,
-      );
-  }
-}
-
-/**
- * Os cinco operadores de condição (Prompt 2, §10).
- *
- * ⚠️ `gt`/`lt` SÓ COMPARAM NÚMERO, E RECUSAM O RESTO. Deixar `>` cair na
- * comparação de texto daria sempre uma resposta — a ordem alfabética —, e ela
- * estaria errada de um jeito plausível: em texto, "10" é MENOR que "9". Um
- * fluxo que mandasse pedidos acima de 9 unidades para outro time atenderia
- * errado sem nunca falhar.
- *
- * Diante de um valor não numérico a condição simplesmente não casa, e o desenho
- * segue para a saída padrão — que é o comportamento previsível.
- *
- * ⚠️ VARIÁVEL AUSENTE NUNCA CASA, nem em `neq`. É tentador dizer que "não
- * definido é diferente de X" — mas isso faria uma pergunta que a pessoa ainda
- * não respondeu escolher um caminho, o que é adivinhação com cara de regra.
- */
-function comparar(atual: string | undefined, operador: string, esperado: string): boolean {
-  if (atual === undefined) return false;
-
-  switch (operador) {
-    case "eq":
-      return atual === esperado;
-    case "neq":
-      return atual !== esperado;
-    case "contains":
-      return normalizeForSearch(atual).includes(normalizeForSearch(esperado));
-    case "gt":
-    case "lt": {
-      const a = Number(atual.replace(",", "."));
-      const b = Number(esperado.replace(",", "."));
-      if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
-      return operador === "gt" ? a > b : a < b;
-    }
-    default:
-      // Um operador que este build não conhece não escolhe caminho nenhum. É a
-      // mesma postura do retrato congelado: um documento antigo pode citar algo
-      // que o código de hoje não entende, e a resposta certa é não decidir.
-      return false;
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/* A leitura da resposta                                                      */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Traduz o que a pessoa escreveu para a CHAVE de uma alternativa.
- *
- * ⚠️ O NÚMERO É ACEITO, E ISSO NÃO CONTRARIA O §9. Uma lista numerada é como uma
- * mensagem de WhatsApp apresenta opções — a pessoa responde "2" porque foi isso
- * que ela leu. O que o §9 proíbe é o número virar REGRA: aqui ele é traduzido
- * para `EVENTOS` na primeira linha em que é lido, e nada além desta função sabe
- * que existiu um número. Reordenar as alternativas na tela muda o número e não
- * muda a chave — que é a garantia que o §9 pede.
- *
- * A ordem das tentativas vai do mais específico ao mais tolerante: a chave
- * exata, o rótulo, e por fim a posição.
- */
-export function casarAlternativa(
-  texto: string,
-  options: readonly FlowQuestionOption[],
-): FlowQuestionOption | null {
-  const limpo = texto.trim();
-  if (limpo === "" || options.length === 0) return null;
-
-  const porChave = options.find((o) => o.key === limpo.toUpperCase());
-  if (porChave) return porChave;
-
-  const normalizado = normalizeForSearch(limpo);
-  const porRotulo = options.find((o) => normalizeForSearch(o.label) === normalizado);
-  if (porRotulo) return porRotulo;
-
-  // Só um número inteiro puro conta. "2 eventos" não é uma escolha de posição —
-  // é uma frase, e tratá-la como "2" mandaria a pessoa para um caminho que ela
-  // não pediu.
-  if (/^\d{1,2}$/.test(limpo)) {
-    const posicao = Number.parseInt(limpo, 10);
-    if (posicao >= 1 && posicao <= options.length) return options[posicao - 1] ?? null;
-  }
-
-  return null;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Leituras defensivas do jsonb congelado                                     */
+/* Miudezas                                                                   */
 /* -------------------------------------------------------------------------- */
 
 function acharNode(definition: FlowDefinition, id: string): CompiledFlowNode | null {
   return definition.nodes.find((n) => n.id === id) ?? null;
 }
 
-function campoTexto(node: CompiledFlowNode, campo: string): string | null {
-  const valor = node.configuration[campo];
-  return typeof valor === "string" && valor.trim() !== "" ? valor : null;
-}
-
-function numero(node: CompiledFlowNode, campo: string): number | null {
-  const valor = node.configuration[campo];
-  return typeof valor === "number" && Number.isFinite(valor) ? valor : null;
-}
-
-/** Ausente conta como LIGADO: um retrato antigo não tinha este campo. */
-function habilitado(node: CompiledFlowNode): boolean {
-  return node.configuration.enabled !== false;
-}
-
-/**
- * O texto do nó com as variáveis substituídas (Prompt 2, §7).
- *
- * ⚠️ ISTO NÃO É UM MOTOR DE TEMPLATE, E NÃO DEVE VIRAR UM. Ele troca
- * `{{nome}}` pelo que a conversa coletou, e nada mais — sem condicional, sem
- * laço, sem chamada. O texto que sai daqui foi ESCRITO por alguém na
- * configuração do nó; o que muda é só o buraco preenchido.
- *
- * ⚠️ UMA VARIÁVEL QUE NÃO EXISTE VIRA STRING VAZIA, e não fica como
- * `{{nome}}` na tela da pessoa. Mostrar a chave crua num WhatsApp é o tipo de
- * vazamento que faz a associação parecer quebrada — "Olá !" é feio, "Olá
- * {{nome}}!" é constrangedor.
- */
-export function interpolar(texto: string, variables: FlowVariables): string {
-  return texto.replace(/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/gi, (_, nome: string) => {
-    return variables[nome] ?? "";
-  });
-}
-
-/** O texto do nó, ou o nome dele. Nunca uma frase inventada aqui. */
-function textoDoNo(node: CompiledFlowNode, variables: FlowVariables): string {
-  return interpolar(campoTexto(node, "text") ?? node.name, variables);
-}
-
-/** O tipo da pergunta (Prompt 2, §8). Ausente = botões, como o schema. */
-function tipoDaPergunta(node: CompiledFlowNode): string {
-  return campoTexto(node, "kind") ?? "buttons";
-}
-
-/** Texto livre e número não têm alternativa a casar — a resposta É o valor. */
-function perguntaAberta(node: CompiledFlowNode): boolean {
-  const tipo = tipoDaPergunta(node);
-  return tipo === "free_text" || tipo === "number";
-}
-
-function ehNumero(texto: string): boolean {
-  return Number.isFinite(Number(texto.replace(",", ".")));
-}
-
-function alternativas(node: CompiledFlowNode): FlowQuestionOption[] {
-  // SIM/NÃO não guarda alternativa no desenho: as duas são fixas, com chave
-  // estável, para que todo fluxo do sistema use as MESMAS — e uma condição
-  // escrita como `SIM` continue valendo em qualquer lugar.
-  if (tipoDaPergunta(node) === "yes_no") {
-    return [
-      { key: "SIM", label: "Sim" },
-      { key: "NAO", label: "Não" },
-    ];
-  }
-
-  const bruto = node.configuration.options;
-  if (!Array.isArray(bruto)) return [];
-
-  return bruto.flatMap((item) => {
-    if (typeof item !== "object" || item === null) return [];
-    const { key, label } = item as { key?: unknown; label?: unknown };
-    if (typeof key !== "string" || typeof label !== "string") return [];
-    return [{ key, label }];
-  });
-}
-
-/** Os parâmetros da ação, resolvidos a partir das variáveis do contexto. */
-function argumentos(node: CompiledFlowNode, variables: FlowVariables): Record<string, string> {
-  const mapa = node.configuration.arguments;
-  if (typeof mapa !== "object" || mapa === null || Array.isArray(mapa)) return {};
-
-  const resolvidos: Record<string, string> = {};
-  for (const [parametro, variavel] of Object.entries(mapa as Record<string, unknown>)) {
-    if (typeof variavel !== "string") continue;
-    const valor = variables[variavel];
-    if (valor !== undefined) resolvidos[parametro] = valor;
-  }
-  return resolvidos;
+/** O tipo de pergunta é `number`? Só ele exige que a resposta seja numérica. */
+function questionKindIsNumber(node: CompiledFlowNode): boolean {
+  return textField(node, "kind") === "number";
 }
 
 function erro(nodeId: string | null, reason: FlowEngineFailure): FlowEffect {
@@ -666,16 +548,18 @@ function falhar(
   nodeId: string | null,
   reason: FlowEngineFailure,
 ): FlowEngineResult {
-  return { state: { ...state, status: "failed" }, effects: [erro(nodeId, reason)] };
-}
-
-/** O estado de uma execução que ainda não começou. */
-export function initialFlowState(): FlowEngineState {
+  /**
+   * ⚠️ `nodesWalked: 0` PORQUE FALHAR NÃO É ANDAR.
+   *
+   * As falhas que passam por aqui acontecem ANTES da travessia (a conversa não
+   * estava esperando resposta, o nó não existe no retrato) ou no lugar dela.
+   * Contar um nó aqui inflaria o contador de laço com turnos que não moveram a
+   * conversa — e a trava do §10 acabaria disparando por erro repetido, que é
+   * outro problema, com outro nome e outra correção.
+   */
   return {
-    currentNodeId: null,
-    variables: {},
-    status: "running",
-    conversationStatus: "new",
-    assignedTeamKey: null,
+    state: { ...state, status: "failed" },
+    effects: [erro(nodeId, reason)],
+    nodesWalked: 0,
   };
 }

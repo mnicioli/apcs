@@ -70,6 +70,11 @@ export const ADMIN_AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
   flow_node_changed: "Etapa do fluxo alterada",
   flow_transition_changed: "Ligação do fluxo alterada",
   flow_team_changed: "Time de atendimento alterado",
+  // §22 e §21 do Prompt 5. Os dois são verbos PRÓPRIOS, e não `flow_version_updated`
+  // com um campo no jsonb: "quantas versões foram reprovadas neste trimestre?" é
+  // uma consulta por ação, e não um filtro sobre a forma do metadata.
+  flow_version_rejected: "Versão de fluxo reprovada",
+  flow_version_checked: "Checklist de homologação atualizado",
 };
 
 /*
@@ -129,6 +134,39 @@ export const SETTING_KEYS = {
   // segundo lugar para guardar um interruptor seria um lugar a mais onde
   // procurar no dia em que ele precisar ser desligado às pressas.
   chatbotEnabled: "chatbot.enabled",
+
+  /* ------------------------------------------------------------------------ */
+  /* Fluxos de Atendimento (Prompt 4)                                          */
+  /* ------------------------------------------------------------------------ */
+
+  /**
+   * §14. AS DUAS BARRAS DE CONFIANÇA, e elas moram aqui e não no código porque
+   * onde fica o corte é uma decisão de operação: errar para o lado de perguntar
+   * demais irrita, errar para o lado de executar demais manda a Bolsa para quem
+   * perguntou o valor da anuidade. Qual dos dois incomoda mais a APCS é algo que
+   * só se descobre atendendo — e descobrir não pode custar um deploy.
+   *
+   * ⚠️ ELAS NÃO VALEM PARA O ROBÔ DE UM TURNO. Aquele executa no mesmo instante
+   * em que classifica, e as constantes dele (`CONFIDENCE_HIGH` e companhia)
+   * continuam intactas. Estas valem para o FLUXO, que consegue fazer uma
+   * pergunta de confirmação — e por isso pode se dar ao luxo de uma barra mais
+   * alta, já que o custo de duvidar é um turno a mais e não um "não entendi".
+   */
+  flowIntentHigh: "flow.intent_confidence_high",
+  flowIntentMedium: "flow.intent_confidence_medium",
+
+  /**
+   * §34. O EXPEDIENTE, como uma linha de texto.
+   *
+   * ⚠️ ELE NÃO DESVIA NADA SOZINHO. O que esta configuração produz é a variável
+   * `sys_horario_atendimento` ("sim"/"nao") dentro do fluxo; quem decide o que
+   * fazer fora do expediente é uma seta que alguém desenhou no Builder. Sem
+   * isso, existiria um caminho de atendimento que não aparece no desenho — e o
+   * desenho deixaria de ser a verdade sobre o que o robô faz.
+   *
+   * O formato aceito está em `src/modules/flow/flow.hours.ts`.
+   */
+  flowBusinessHours: "flow.business_hours",
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -173,6 +211,18 @@ export const SETTING_LABELS: Record<SettingKey, { title: string; help: string }>
   [SETTING_KEYS.chatbotEnabled]: {
     title: "Robô ligado",
     help: "Escreva “off” para o robô parar de responder no WhatsApp AGORA, sem deploy. Qualquer outro valor mantém ligado. As mensagens que chegarem continuam sendo gravadas na caixa de entrada — só não recebem resposta automática.",
+  },
+  [SETTING_KEYS.flowIntentHigh]: {
+    title: "Confiança para agir sozinho",
+    help: "De 0 a 1. Acima disto, o fluxo segue direto pelo assunto que a IA identificou. Padrão 0,90. Baixar faz o robô agir mais e perguntar menos — e errar mais alto também.",
+  },
+  [SETTING_KEYS.flowIntentMedium]: {
+    title: "Confiança para confirmar",
+    help: "De 0 a 1. Entre este valor e o anterior, o fluxo pode perguntar “você quer dizer X?” antes de agir. Abaixo dele, cai no caminho de não entendi. Padrão 0,70 — precisa ser MENOR que o de cima.",
+  },
+  [SETTING_KEYS.flowBusinessHours]: {
+    title: "Horário de atendimento",
+    help: "Ex.: “seg-sex 08:00-18:00” ou “seg-qui 08:00-18:00, sex 08:00-12:00”. Dias em seg ter qua qui sex sab dom. VAZIO significa atender sempre. Isto não muda nada sozinho: ele liga a condição “horário de atendimento” dentro dos fluxos, e o que acontece fora dele é você quem desenha.",
   },
 };
 

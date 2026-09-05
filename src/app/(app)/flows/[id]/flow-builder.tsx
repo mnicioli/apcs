@@ -29,6 +29,7 @@ import {
   duplicateFlowNodeAction,
   publishFlowVersionAction,
   saveNodePositionsAction,
+  setFlowVersionChecklistAction,
   setFlowStatusAction,
   upsertFlowNodeAction,
   upsertFlowTransitionAction,
@@ -71,6 +72,9 @@ import type {
   FlowValidationIssue,
   FlowVersion,
 } from "@/modules/flow/flow.types";
+import type { ConfidenceThresholds } from "@/modules/intelligence/intent.types";
+import type { FlowGraph } from "@/modules/flow/flow.rules";
+import type { AdminAuditEntry } from "@/modules/admin/admin.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,6 +82,13 @@ import { Input } from "@/components/ui/input";
 import { BuilderNode, type BuilderNodeData } from "./builder-node";
 import { NodeInspector } from "./node-inspector";
 import { FlowSimulator } from "./flow-simulator";
+import {
+  ChecklistCard,
+  HistoryCard,
+  PublishDialog,
+  RejectDialog,
+  RejectionNotice,
+} from "./flow-homologation";
 
 /**
  * O FLOW BUILDER — as quatro áreas do §2 do Prompt 2.
@@ -117,6 +128,23 @@ interface BuilderProps {
   teams: AttendanceTeam[];
   issues: FlowValidationIssue[];
   canWrite: boolean;
+  /**
+   * §14. As barras de confiança CONFIGURADAS — usadas só pelo simulador.
+   *
+   * ⚠️ ELAS VIAJAM DO SERVIDOR ATÉ AQUI porque o simulador é de CLIENTE e
+   * `app_settings` tem RLS. Sem isso ele usaria as constantes do código, e um
+   * fluxo homologado como "confiança média" atenderia como "alta" em produção.
+   */
+  thresholds: ConfidenceThresholds;
+  /**
+   * §23 e §39. O desenho que está NO AR, para o resumo antes de publicar.
+   *
+   * `null` quando esta é a primeira publicação do fluxo, ou quando a versão
+   * aberta JÁ É a publicada — nos dois casos não há com o que comparar.
+   */
+  publishedGraph: FlowGraph | null;
+  /** §38. A trilha deste fluxo. */
+  audit: AdminAuditEntry[];
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -130,6 +158,9 @@ function BuilderShell({
   teams,
   issues: problemasDoServidor,
   canWrite,
+  thresholds,
+  publishedGraph,
+  audit,
 }: BuilderProps) {
   const router = useRouter();
   const { screenToFlowPosition, fitView } = useReactFlow();
@@ -141,6 +172,9 @@ function BuilderShell({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [erro, setErro] = useState<string | null>(null);
   const [simulando, setSimulando] = useState(false);
+  /** §22 e §23. Os dois diálogos que o ciclo de vida abre. */
+  const [reprovando, setReprovando] = useState(false);
+  const [publicando, setPublicando] = useState(false);
   const [emTransicao, startTransition] = useTransition();
 
   // ⚠️ SOMENTE RASCUNHO SE EDITA. Quem impõe é o gatilho no banco (FL001); isto
@@ -788,8 +822,22 @@ function BuilderShell({
               problemas={problemas}
               flow={flow}
               pendente={emTransicao}
-              onAvancar={(para) => executar(() => advanceFlowVersionAction(version.id, para))}
-              onPublicar={() => executar(() => publishFlowVersionAction(version.id))}
+              /**
+               * §22. REPROVAR abre um diálogo; os outros avanços não.
+               *
+               * ⚠️ O DESVIO É AQUI, E NÃO DENTRO DE `LifecycleButtons`. Aquele
+               * componente só sabe QUAIS transições existem (`canAdvanceVersion`);
+               * saber que uma delas precisa de um motivo é regra desta tela.
+               */
+              onAvancar={(para) => {
+                if (version.status === "pending_approval" && para === "draft") {
+                  setReprovando(true);
+                  return;
+                }
+                executar(() => advanceFlowVersionAction(version.id, para));
+              }}
+              // §23. A publicação passa pela confirmação com o resumo do que muda.
+              onPublicar={() => setPublicando(true)}
               onNovaVersao={() => executar(() => createFlowVersionAction(flow.id, version.id))}
               onLigar={() =>
                 executar(() =>
@@ -806,6 +854,11 @@ function BuilderShell({
           {erro}
         </p>
       )}
+
+      {/* §22. O motivo da reprovação, no topo — antes de a pessoa começar a
+          mexer. Descobrir depois de meia hora que o problema era outro é o
+          desperdício que este aviso evita. */}
+      <RejectionNotice version={version} />
 
       {readOnly && (
         <p className="border-border bg-muted/30 text-muted-foreground rounded-md border px-3 py-2 text-sm">
@@ -991,12 +1044,58 @@ function BuilderShell({
         </Card>
       </div>
 
+      {/* ---- §21 e §38: homologação e histórico ----
+          ⚠️ ABAIXO DO CANVAS, e não numa aba. As duas coisas são lidas ENQUANTO
+          se confere o desenho — quem está marcando "mensagens revisadas" quer
+          poder olhar as mensagens sem trocar de tela. Uma aba faria a
+          conferência virar um exercício de memória. */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChecklistCard
+          version={version}
+          canWrite={canWrite}
+          pendente={emTransicao}
+          onSalvar={(checklist) =>
+            executar(() => setFlowVersionChecklistAction(version.id, checklist))
+          }
+        />
+        <HistoryCard entries={audit} />
+      </div>
+
       {simulando && (
         <FlowSimulator
           nodes={nodes}
           transitions={transitions}
           teams={teams}
+          thresholds={thresholds}
           onClose={() => setSimulando(false)}
+        />
+      )}
+
+      {/* §22. Reprovar exige motivo — a recusa de verdade é FL009, no banco. */}
+      {reprovando && (
+        <RejectDialog
+          pendente={emTransicao}
+          onFechar={() => setReprovando(false)}
+          onConfirmar={(motivo) => {
+            setReprovando(false);
+            executar(() => advanceFlowVersionAction(version.id, "draft", motivo));
+          }}
+        />
+      )}
+
+      {/* §23 e §39. O resumo do que muda, antes de ir ao ar. */}
+      {publicando && (
+        <PublishDialog
+          version={version}
+          flowName={flow.name}
+          rascunho={{ nodes, transitions }}
+          publicada={publishedGraph}
+          pendente={emTransicao}
+          onFechar={() => setPublicando(false)}
+          onConfirmar={() => {
+            setPublicando(false);
+            executar(() => publishFlowVersionAction(version.id));
+          }}
         />
       )}
     </div>
@@ -1094,9 +1193,22 @@ function LifecycleButtons({
           Aprovar
         </Button>
       )}
+      {/* ⚠️ O MESMO BOTÃO TEM DOIS NOMES, e não são sinônimos.
+
+          Sair de "aguardando aprovação" é REPROVAR: outra pessoa está devolvendo
+          o trabalho, e o §22 exige um motivo. Sair de "em teste" ou de
+          "aprovada" é quem desenhou decidindo mexer de novo, e não deve nada a
+          ninguém. Um rótulo só para os dois faria a pessoa que só queria
+          corrigir uma vírgula ser cobrada por uma justificativa — e, pior,
+          faria a reprovação de verdade parecer um passo administrativo. */}
       {canAdvanceVersion(version.status, "draft") && version.status !== "draft" && (
-        <Button variant="ghost" size="sm" loading={pendente} onClick={() => onAvancar("draft")}>
-          Voltar para rascunho
+        <Button
+          variant={version.status === "pending_approval" ? "outline" : "ghost"}
+          size="sm"
+          loading={pendente}
+          onClick={() => onAvancar("draft")}
+        >
+          {version.status === "pending_approval" ? "Reprovar" : "Voltar para rascunho"}
         </Button>
       )}
 

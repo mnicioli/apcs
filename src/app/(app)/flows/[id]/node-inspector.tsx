@@ -10,10 +10,17 @@ import { alternativas } from "@/modules/flow/flow.builder";
 import { FLOW_NODE_TYPE_LABELS } from "@/modules/flow/flow.labels";
 import {
   CONDITION_OPERATORS,
+  conditionOperatorDefinition,
+  type ConditionOperator,
+} from "@/modules/flow/flow.operators";
+import {
+  DEFAULT_QUESTION_MAX_ATTEMPTS,
   HANDOFF_PRIORITIES,
+  MAX_ACTION_ATTEMPTS,
+  QUESTION_FALLBACKS,
   QUESTION_KINDS,
   questionNeedsOptions,
-  type ConditionOperator,
+  type QuestionFallback,
   type QuestionKind,
 } from "@/modules/flow/flow.schema";
 import type { AttendanceTeam, FlowNode, FlowTransition } from "@/modules/flow/flow.types";
@@ -44,13 +51,10 @@ const QUESTION_KIND_LABELS: Record<QuestionKind, string> = {
   yes_no: "Sim / Não",
 };
 
-const OPERATOR_LABELS: Record<ConditionOperator, string> = {
-  eq: "é igual a",
-  neq: "é diferente de",
-  contains: "contém",
-  gt: "é maior que",
-  lt: "é menor que",
-};
+// ⚠️ SEM TABELA DE RÓTULOS AQUI (Prompt 3, §14). Ela existia com cinco entradas
+// escritas à mão; com doze operadores, ela seria uma segunda lista para
+// desatualizar. O rótulo, o "pede valor?" e o "só compara número?" saem todos de
+// `CONDITION_OPERATOR_REGISTRY` — a mesma fonte que o motor consulta.
 
 const PRIORITY_LABELS = { low: "Baixa", normal: "Normal", high: "Alta" } as const;
 
@@ -148,7 +152,7 @@ export function NodeInspector({
         <MessageFields node={node} readOnly={readOnly} onChange={onNodeChange} />
       )}
       {node.type === "question" && (
-        <QuestionFields node={node} readOnly={readOnly} onChange={onNodeChange} />
+        <QuestionFields node={node} teams={teams} readOnly={readOnly} onChange={onNodeChange} />
       )}
       {node.type === "condition" && (
         <Campo label="Informação avaliada" ajuda="O que as ligações que saem daqui vão comparar.">
@@ -287,17 +291,27 @@ function MessageFields({
 /* Pergunta (§8, §9)                                                          */
 /* -------------------------------------------------------------------------- */
 
+/** §11 do Prompt 3. Como o desfecho das tentativas se chama para quem desenha. */
+const QUESTION_FALLBACK_LABELS: Record<QuestionFallback, string> = {
+  end: "Encerrar a conversa",
+  transfer: "Transferir para um time",
+};
+
 function QuestionFields({
   node,
+  teams,
   readOnly,
   onChange,
 }: {
   node: FlowNode;
+  teams: AttendanceTeam[];
   readOnly: boolean;
   onChange: (patch: { configuration: Record<string, unknown> }) => void;
 }) {
   const kind = (texto(node, "kind") || "buttons") as QuestionKind;
   const opcoes = alternativas(node.configuration);
+  const desfecho = (texto(node, "onExhausted") || "end") as QuestionFallback;
+  const timesAtivos = teams.filter((t) => t.status === "active");
 
   function trocarOpcao(indice: number, campo: "key" | "label", valor: string) {
     const novas = opcoes.map((o, i) =>
@@ -416,6 +430,116 @@ function QuestionFields({
           )}
         </div>
       )}
+
+      {/* ------- §12 e §16 do Prompt 4: menu e texto livre na mesma pergunta --- */}
+      <div className="border-border space-y-3 border-t pt-3">
+        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          Quando a pessoa escreve em vez de escolher
+        </p>
+
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={node.configuration.interpretIntent === true}
+            disabled={readOnly}
+            onChange={(e) => onChangeConfig(node, onChange, { interpretIntent: e.target.checked })}
+          />
+          <span>
+            Entender o que ela quis dizer
+            <span className="text-muted-foreground block text-xs">
+              Marcada, uma resposta que não casa com nenhuma alternativa é lida pela IA, que grava o
+              assunto identificado em <code>sys_intent</code> e a segurança dessa leitura em{" "}
+              <code>sys_intent_band</code> (alta, média ou baixa).{" "}
+              <strong>A IA não escolhe o caminho</strong> — quem escolhe são as setas de condição
+              que você ligar nessas variáveis. Sem nenhuma seta assim, a pergunta simplesmente se
+              repete, como se a caixa estivesse desmarcada.
+            </span>
+          </span>
+        </label>
+      </div>
+
+      {/* ------- §10, §11 e §26 do Prompt 3: o que fazer quando não entende ---- */}
+      <div className="border-border space-y-3 border-t pt-3">
+        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          Quando a resposta não serve
+        </p>
+
+        <Campo
+          label="Quantas vezes perguntar"
+          ajuda="Depois disso o atendimento segue para o desfecho abaixo."
+        >
+          <Input
+            type="number"
+            min={1}
+            max={10}
+            value={numero(node, "maxAttempts") || DEFAULT_QUESTION_MAX_ATTEMPTS}
+            disabled={readOnly}
+            onChange={(e) =>
+              onChangeConfig(node, onChange, {
+                maxAttempts: Number(e.target.value) || DEFAULT_QUESTION_MAX_ATTEMPTS,
+              })
+            }
+          />
+        </Campo>
+
+        <Campo
+          label="Aviso de resposta inválida"
+          ajuda="Opcional. Em branco, a pergunta é repetida como está escrita."
+        >
+          <Textarea
+            rows={2}
+            value={texto(node, "invalidText")}
+            disabled={readOnly}
+            maxLength={1000}
+            onChange={(e) => onChangeConfig(node, onChange, { invalidText: e.target.value })}
+          />
+        </Campo>
+
+        <Campo label="Ao esgotar as tentativas">
+          <Select
+            value={desfecho}
+            disabled={readOnly}
+            onChange={(e) => onChangeConfig(node, onChange, { onExhausted: e.target.value })}
+          >
+            {QUESTION_FALLBACKS.map((f) => (
+              <option key={f} value={f}>
+                {QUESTION_FALLBACK_LABELS[f]}
+              </option>
+            ))}
+          </Select>
+        </Campo>
+
+        {desfecho === "transfer" && (
+          <Campo label="Time que recebe" obrigatorio>
+            <Select
+              value={texto(node, "fallbackTeamKey")}
+              disabled={readOnly}
+              onChange={(e) => onChangeConfig(node, onChange, { fallbackTeamKey: e.target.value })}
+            >
+              <option value="">Escolha um time…</option>
+              {timesAtivos.map((t) => (
+                <option key={t.id} value={t.key}>
+                  {t.name}
+                </option>
+              ))}
+            </Select>
+          </Campo>
+        )}
+
+        <Campo
+          label="Mensagem final"
+          ajuda="Opcional. O que a pessoa lê quando as tentativas acabam."
+        >
+          <Textarea
+            rows={2}
+            value={texto(node, "exhaustedText")}
+            disabled={readOnly}
+            maxLength={1000}
+            onChange={(e) => onChangeConfig(node, onChange, { exhaustedText: e.target.value })}
+          />
+        </Campo>
+      </div>
     </>
   );
 }
@@ -484,6 +608,31 @@ function ActionFields({
           etapas seguintes podem usar esses nomes numa condição.
         </p>
       )}
+
+      {/* §25 do Prompt 3. Só vale para falha TEMPORÁRIA — ver o schema. */}
+      <Campo
+        label="Tentativas em caso de falha"
+        ajuda="Só é usado quando a consulta falha por indisponibilidade. Um resultado vazio não é repetido."
+      >
+        <Input
+          type="number"
+          min={1}
+          max={MAX_ACTION_ATTEMPTS}
+          value={numero(node, "maxAttempts") || 1}
+          disabled={readOnly}
+          onChange={(e) =>
+            onChangeConfig(node, onChange, { maxAttempts: Number(e.target.value) || 1 })
+          }
+        />
+      </Campo>
+
+      <p className="text-muted-foreground text-xs">
+        Depois de executar, esta etapa grava{" "}
+        <span className="font-mono">{(chave || "acao") + "_status"}</span> com um destes valores:
+        <span className="font-mono"> success</span>, <span className="font-mono">failure</span>,
+        <span className="font-mono"> not_found</span>. Use numa condição para dar um caminho a cada
+        desfecho.
+      </p>
     </>
   );
 }
@@ -672,19 +821,29 @@ function TransitionPanel({
                 >
                   {CONDITION_OPERATORS.map((op) => (
                     <option key={op} value={op}>
-                      {OPERATOR_LABELS[op]}
+                      {conditionOperatorDefinition(op).label}
                     </option>
                   ))}
                 </Select>
               </Campo>
-              <Campo label="Valor">
-                <Input
-                  value={condicao.value}
-                  disabled={readOnly}
-                  onChange={(e) => onChange({ condition: { ...condicao, value: e.target.value } })}
-                />
-              </Campo>
-              {(condicao.operator === "gt" || condicao.operator === "lt") && (
+
+              {/* ⚠️ QUATRO OPERADORES NÃO TÊM VALOR, e o campo some para eles.
+                  "foi respondida" pergunta sobre a variável, não a compara com
+                  nada — deixar a caixa em cena convidaria a preencher algo que
+                  seria gravado, ficaria no jsonb e não valeria para nada. */}
+              {conditionOperatorDefinition(condicao.operator).needsValue && (
+                <Campo label="Valor">
+                  <Input
+                    value={condicao.value}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      onChange({ condition: { ...condicao, value: e.target.value } })
+                    }
+                  />
+                </Campo>
+              )}
+
+              {conditionOperatorDefinition(condicao.operator).numeric && (
                 <p className="text-muted-foreground text-xs">
                   Comparação numérica. Se a informação não for um número, esta ligação não é
                   seguida.

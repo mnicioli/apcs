@@ -123,6 +123,8 @@ export type ActionErrorCode =
   // A única do módulo que NÃO vem do banco: o handler de uma ação de negócio
   // ainda não foi ligado no código que está no ar. Ver `publishFlowVersionAction`.
   | "flowActionNotReady"
+  // §22 do Prompt 5. Reprovar uma versão sem dizer por quê.
+  | "flowRejectionNeedsReason"
   | "unexpected"; // erro não previsto (logar no servidor!)
 
 export interface ActionErrorBody {
@@ -291,6 +293,11 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   // com o módulo, e ela é trabalho de quem cuida do sistema.
   flowActionNotReady:
     "Uma das ações usadas neste fluxo ainda não está ligada ao sistema. O desenho está certo — fale com quem cuida do sistema para habilitá-la antes de publicar.",
+  // ⚠️ A FRASE DIZ PARA QUEM O MOTIVO SERVE. "Campo obrigatório" faria a pessoa
+  // escrever "não" só para passar da tela — e quem desenhou receberia a versão
+  // de volta sem saber o que corrigir, que é exatamente o que o §22 evita.
+  flowRejectionNeedsReason:
+    "Escreva o motivo da reprovação. Quem desenhou o fluxo vai ler essa frase para saber o que corrigir.",
   unexpected: "Ocorreu um erro inesperado. Tente novamente.",
 };
 
@@ -578,6 +585,12 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "flowNeedsPublishedVersion" };
     case "FL007":
       return { code: "flowHasHistory" };
+    // §21 e §22 do Prompt 5. Ver 20260920000200 — os dois nasceram como FL005 e
+    // FL006, que já estavam ocupados, e a correção foi uma migration própria.
+    case "FL008":
+      return { code: "flowVersionFrozen" };
+    case "FL009":
+      return { code: "flowRejectionNeedsReason" };
     default:
       return { code: "unexpected" };
   }

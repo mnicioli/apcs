@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { CONDITION_OPERATORS } from "./flow.operators";
 import {
   attendanceTeamFormSchema,
   flowDefinitionSchema,
   flowNodeFormSchema,
   flowTransitionConditionSchema,
+  flowTransitionFormSchema,
 } from "./flow.schema";
 
 /**
@@ -199,8 +201,14 @@ describe("a condição de uma transição (§9)", () => {
     ).toBe(true);
   });
 
-  it("aceita os cinco operadores do §10", () => {
-    for (const operator of ["eq", "neq", "contains", "gt", "lt"]) {
+  /**
+   * ⚠️ A LISTA VEM DO REGISTRO, e não escrita à mão aqui — de propósito. Ela
+   * cresceu de cinco (§10 do Prompt 2) para doze (§14 do Prompt 3), e uma cópia
+   * literal neste arquivo teria continuado verde cobrindo só os cinco antigos:
+   * um teste que passa e não guarda mais nada.
+   */
+  it("aceita os doze operadores do §14", () => {
+    for (const operator of CONDITION_OPERATORS) {
       const resultado = flowTransitionConditionSchema.safeParse({
         type: "variable",
         name: "quantidade",
@@ -209,6 +217,45 @@ describe("a condição de uma transição (§9)", () => {
       });
       expect(resultado.success, `operador ${operator}`).toBe(true);
     }
+  });
+
+  /**
+   * §14. Quatro operadores perguntam SOBRE a variável em vez de compará-la com
+   * algo — e para eles o campo de valor nem aparece na tela.
+   */
+  it("os operadores sem valor gravam sem valor", () => {
+    for (const operator of ["exists", "not_exists", "is_true", "is_false"]) {
+      const resultado = flowTransitionConditionSchema.safeParse({
+        type: "variable",
+        name: "associado",
+        operator,
+      });
+      expect(resultado.success, `operador ${operator}`).toBe(true);
+    }
+  });
+
+  /**
+   * ⚠️ E UM OPERADOR COMPARATIVO SEM VALOR É ACEITO NA GRAVAÇÃO — de propósito,
+   * e este teste existe para essa decisão não ser "consertada" por engano.
+   *
+   * Trocar a condição de uma seta para "quando uma informação bater" grava na
+   * hora, com o campo de valor ainda em branco: a pessoa acabou de escolher o
+   * tipo e vai digitar em seguida. Recusar aqui faria o auto save falhar com
+   * "dados inválidos" entre um clique e o outro — o mesmo defeito que fez
+   * `messageTextSchema` perder o `min(1)` no Prompt 2.
+   *
+   * Quem cobra é a PUBLICAÇÃO, com `condition_without_value`, em
+   * `validateFlowGraph` e em `validate_flow_version`.
+   */
+  it("um operador comparativo sem valor grava — quem cobra é a publicação", () => {
+    const resultado = flowTransitionFormSchema.safeParse({
+      sourceNodeId: "11111111-1111-4111-8111-111111111111",
+      targetNodeId: "22222222-2222-4222-8222-222222222222",
+      condition: { type: "variable", name: "assunto", operator: "eq", value: "" },
+      priority: 0,
+    });
+
+    expect(resultado.success).toBe(true);
   });
 
   it("recusa um operador que o motor não sabe avaliar", () => {

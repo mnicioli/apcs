@@ -362,6 +362,36 @@ export const SETTING_FALLBACKS: Record<SettingKey, string> = {
   // Um padrão "off" faria o robô nascer mudo em qualquer base onde a linha
   // sumisse — e o sintoma seria silêncio, que ninguém percebe.
   [SETTING_KEYS.chatbotEnabled]: "on",
+
+  /* ------------------------------------------------------------------------ */
+  /* Fluxos de Atendimento (Prompt 4)                                          */
+  /* ------------------------------------------------------------------------ */
+
+  /**
+   * §14. AS BARRAS PADRÃO SÃO AS DO PRÓPRIO §14 (0,90 e 0,70), e são MAIS ALTAS
+   * que as do robô de um turno (`CONFIDENCE_HIGH` = 0,75). A diferença não é
+   * descuido: é o que os dois podem fazer quando duvidam.
+   *
+   * O robô de um turno duvidando só sabe dizer "não entendi" — uma barra alta
+   * ali transforma pergunta legítima em recusa, e a pessoa vai embora. O fluxo
+   * duvidando consegue PERGUNTAR ("você quer dizer a Bolsa?"), porque a
+   * confirmação é um nó que o desenhador colocou. O custo de duvidar cai de
+   * "perdi o atendimento" para "gastei um turno", e com o custo menor a barra
+   * pode subir.
+   */
+  [SETTING_KEYS.flowIntentHigh]: "0.90",
+  [SETTING_KEYS.flowIntentMedium]: "0.70",
+
+  /**
+   * §34. VAZIO SIGNIFICA ATENDER SEMPRE, e é a ausência de configuração
+   * significando o comportamento de antes de o campo existir.
+   *
+   * ⚠️ E É O LADO SEGURO. Dizer "voltamos amanhã" com o time inteiro sentado à
+   * mesa manda a pessoa embora sem ninguém ficar sabendo; dizer "já chamei
+   * alguém" fora do expediente a faz esperar até de manhã, o que é ruim e é
+   * visível. Ver `isWithinBusinessHours`.
+   */
+  [SETTING_KEYS.flowBusinessHours]: "",
 };
 
 export function readSetting(settings: Map<string, string>, key: SettingKey): string {

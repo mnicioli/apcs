@@ -9,7 +9,10 @@ import {
   listFlowVersions,
   validateFlowVersion,
 } from "@/lib/services/flows";
+import { loadFlowConfidenceThresholds } from "@/lib/flow/intent";
+import { listFlowAudit } from "@/lib/services/flow-monitoring";
 import { FLOWS_PAGE_TITLE } from "@/modules/flow/flow.labels";
+import type { AdminAuditEntry } from "@/modules/admin/admin.types";
 import type { FlowValidationIssue } from "@/modules/flow/flow.types";
 import { FlowBuilder } from "./flow-builder";
 
@@ -73,12 +76,35 @@ export default async function FlowBuilderPage({
     );
   }
 
-  const [graph, issues] = await Promise.all([
+  /**
+   * §23 e §39. O desenho QUE ESTÁ NO AR, para o resumo antes de publicar.
+   *
+   * ⚠️ SÓ QUANDO ELE É OUTRO. Se a versão aberta já É a publicada, comparar
+   * daria uma lista vazia que se leria como "nada muda" — e o certo, nesse
+   * caso, é o diálogo dizer que não há com o que comparar.
+   */
+  const publicada = versions.find((v) => v.status === "published");
+  const comparar = publicada && publicada.id !== escolhida.id ? publicada.id : null;
+
+  const [graph, issues, thresholds, publishedGraph, audit] = await Promise.all([
     getFlowGraph(escolhida.id),
     // ⚠️ A VALIDAÇÃO VEM DO BANCO, não do espelho em TypeScript. É a mesma
     // função que `publish_flow_version` chama — assim a lista de pendências que
     // a tela mostra é, literalmente, a lista que vai impedir a publicação.
     validarComTolerancia(escolhida.id),
+    // §14. As barras que o SIMULADOR precisa mostrar. Elas moram em
+    // `app_settings`, que tem RLS, e o simulador é de cliente — por isso a
+    // leitura acontece aqui e desce como propriedade. Ver `FlowSimulator`.
+    loadFlowConfidenceThresholds(),
+    comparar ? getFlowGraph(comparar) : Promise.resolve(null),
+    /**
+     * §38. A trilha do fluxo.
+     *
+     * ⚠️ ELA NÃO PODE DERRUBAR O BUILDER — mesma razão de `validarComTolerancia`:
+     * quem veio arrastar uma caixinha não deve ficar sem tela porque a consulta
+     * de auditoria falhou. Lista vazia é a degradação certa.
+     */
+    listarTrilha(flow.name),
   ]);
 
   return (
@@ -91,6 +117,9 @@ export default async function FlowBuilderPage({
       teams={teams}
       issues={issues}
       canWrite={hasPermission(role, "flows.write")}
+      thresholds={thresholds}
+      publishedGraph={publishedGraph}
+      audit={audit}
     />
   );
 }
@@ -103,6 +132,20 @@ export default async function FlowBuilderPage({
  * Lista vazia é a degradação certa: o botão de publicar continua existindo, e a
  * barreira de verdade (`publish_flow_version`) continua de pé do outro lado.
  */
+/** §38. A trilha, com a mesma tolerância da validação. Ver o aviso na chamada. */
+async function listarTrilha(flowName: string): Promise<AdminAuditEntry[]> {
+  try {
+    return await listFlowAudit(flowName);
+  } catch (error) {
+    console.error(
+      `[flows] trilha de "${flowName}" indisponivel: ${
+        error instanceof Error ? error.message : error
+      }`,
+    );
+    return [];
+  }
+}
+
 async function validarComTolerancia(versionId: string): Promise<FlowValidationIssue[]> {
   try {
     return await validateFlowVersion(versionId);

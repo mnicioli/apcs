@@ -5,8 +5,29 @@ import { assertPermission } from "@/lib/auth/assert-permission";
 import { fail, failFromPostgres, ok, type ActionResult } from "@/lib/actions/errors";
 import { createClient } from "@/lib/supabase/server";
 import { getFlowGraph } from "@/lib/services/flows";
+/**
+ * ⚠️ IMPORT POR EFEITO COLATERAL, E ELE É INDISPENSÁVEL AQUI — não é cópia
+ * distraída do que `lib/flow/runtime.ts` faz.
+ *
+ * `publishFlowVersionAction` pergunta a `pendingFlowActions` quais ações do
+ * desenho ainda não têm handler ligado, e a resposta sai de
+ * `FLOW_ACTION_HANDLERS` — um objeto que nasce VAZIO no módulo puro e é
+ * preenchido por `action-handlers.ts`.
+ *
+ * Sem esta linha, a publicação enxergaria o registro vazio e RECUSARIA todo
+ * fluxo que usasse a Bolsa, uma normativa ou a agenda — com a mensagem "esta
+ * ação ainda não está pronta", sobre ações que estão prontas e funcionando em
+ * produção. O desenhador não teria como descobrir o porquê: o motor atenderia
+ * normalmente, e só o botão de publicar mentiria.
+ *
+ * ⚠️ E POR ISSO SÃO DOIS IMPORTS, EM DOIS ARQUIVOS. Os dois caminhos que
+ * dependem do registro (executar um turno e publicar uma versão) não se
+ * importam entre si, e nenhum dos dois é "o dono". Cada um carrega o que precisa.
+ */
+import { FLOW_ACTION_HANDLERS_LOADED } from "@/lib/flow/action-handlers";
 import { flowActionDefinition } from "@/modules/flow/flow.actions.registry";
 import { pendingFlowActions } from "@/modules/flow/flow.rules";
+import type { FlowChecklist } from "@/modules/flow/flow.checklist";
 import {
   attendanceTeamFormSchema,
   flowFormSchema,
@@ -19,6 +40,12 @@ import {
   type FlowTransitionFormData,
 } from "@/modules/flow/flow.schema";
 import type { FlowStatus, FlowVersionStatus } from "@/modules/flow/flow.types";
+
+// A âncora do import por efeito colateral — ver o comentário sobre ele acima.
+// Sem uma referência usada, o bundler pode podar o módulo e a publicação voltaria
+// a recusar ações que estão prontas. Não é export: um arquivo `"use server"` só
+// pode exportar função assíncrona.
+void FLOW_ACTION_HANDLERS_LOADED;
 
 /**
  * ACTION = escrita. Sempre `ActionResult`, nunca `throw`.
@@ -336,6 +363,19 @@ export async function createFlowVersionAction(
 export async function advanceFlowVersionAction(
   versionId: string,
   to: FlowVersionStatus,
+  /**
+   * §22 do Prompt 5. O motivo da REPROVAÇÃO.
+   *
+   * ⚠️ OPCIONAL AQUI E OBRIGATÓRIO NO BANCO, e a assimetria é deliberada. Só
+   * uma das cinco transições é reprovação (`pending_approval → draft`); as
+   * outras quatro não pedem motivo de ninguém. Exigir o parâmetro em todas
+   * obrigaria a tela a passar string vazia quatro vezes, e a quinta passaria
+   * despercebida.
+   *
+   * Quem sabe qual é qual é `advance_flow_version`, que recusa com FL009. A
+   * regra vale para todo caminho — inclusive um psql.
+   */
+  reason?: string,
 ): Promise<ActionResult<{ id: string }>> {
   const negado = await assertPermission<{ id: string }>("flows.write");
   if (negado) return negado;
@@ -345,6 +385,8 @@ export async function advanceFlowVersionAction(
     const { error } = await supabase.rpc("advance_flow_version", {
       p_version_id: versionId,
       p_to: to,
+      // `undefined` e não `null`: o parâmetro tem `default null` no SQL.
+      p_reason: reason?.trim() || undefined,
     } as never);
 
     if (error) return failFromPostgres("flows.advanceVersion", error, { versionId, to });
@@ -433,6 +475,82 @@ export async function updateFlowVersionNotesAction(
   } catch (error) {
     console.error(
       `[flows] updateFlowVersionNotes falhou: ${error instanceof Error ? error.message : error}`,
+    );
+    return fail("unexpected");
+  }
+}
+
+/**
+ * §21 do Prompt 5. Marca ou desmarca um item do checklist de homologação.
+ *
+ * ⚠️ ELE NÃO BLOQUEIA A PUBLICAÇÃO — ver o aviso no topo de
+ * `src/modules/flow/flow.checklist.ts`. Uma trava sobre afirmações que o
+ * sistema não consegue verificar produz o hábito de marcar sem ler, e a partir
+ * daí o registro deixa de significar alguma coisa.
+ *
+ * ⚠️ E O AUTOR NÃO VEM DAQUI. `set_flow_version_checklist` carimba a partir de
+ * `auth.uid()`; o `by` que esta action envia é só o NOME, para a tela não
+ * precisar resolver o id depois. Se alguém mandar o nome de outra pessoa, o
+ * banco continua sabendo quem foi — é por isso que a coluna não tem grant.
+ */
+export async function setFlowVersionChecklistAction(
+  versionId: string,
+  checklist: FlowChecklist,
+): Promise<ActionResult<{ id: string }>> {
+  const negado = await assertPermission<{ id: string }>("flows.write");
+  if (negado) return negado;
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("set_flow_version_checklist", {
+      p_version_id: versionId,
+      p_checklist: checklist,
+    } as never);
+
+    if (error) return failFromPostgres("flows.setChecklist", error, { versionId });
+
+    revalidateFlows();
+    return ok({ id: versionId });
+  } catch (error) {
+    console.error(
+      `[flows] setFlowVersionChecklist falhou: ${error instanceof Error ? error.message : error}`,
+    );
+    return fail("unexpected");
+  }
+}
+
+/**
+ * §35 do Prompt 5. O atendente encerrou a conversa.
+ *
+ * ⚠️ ELA CARIMBA `resolved_at`, QUE É METADE DO SLA. Sem este ponto, "tempo de
+ * resolução" não existe — só "tempo até a primeira resposta", que o gatilho
+ * `whatsapp_messages_flow_sla` já produz sozinho.
+ *
+ * ⚠️ E ELA É IDEMPOTENTE: a segunda chamada devolve `false` do banco, e aqui
+ * vira sucesso mesmo assim. Encerrar uma conversa já encerrada não é erro de
+ * ninguém — é dois atendentes com a mesma tela aberta.
+ */
+export async function resolveFlowRunAction(
+  runId: string,
+  status: "resolved" | "closed" = "resolved",
+): Promise<ActionResult<{ id: string }>> {
+  const negado = await assertPermission<{ id: string }>("flows.write");
+  if (negado) return negado;
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("flow_resolve_run", {
+      p_run_id: runId,
+      p_conversation_status: status,
+    } as never);
+
+    if (error) return failFromPostgres("flows.resolveRun", error, { runId });
+
+    revalidateFlows();
+    return ok({ id: runId });
+  } catch (error) {
+    console.error(
+      `[flows] resolveFlowRun falhou: ${error instanceof Error ? error.message : error}`,
     );
     return fail("unexpected");
   }

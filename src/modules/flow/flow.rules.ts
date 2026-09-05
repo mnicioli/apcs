@@ -1,4 +1,5 @@
 import { isFlowActionKey, isFlowActionReady, type FlowActionKey } from "./flow.actions.registry";
+import { operatorNeedsValue } from "./flow.operators";
 import { QUESTION_KINDS, questionNeedsOptions, type QuestionKind } from "./flow.schema";
 import type {
   Flow,
@@ -181,6 +182,20 @@ export function validateFlowGraph(
         });
       }
 
+      // §11 do Prompt 3. Transferir ao esgotar as tentativas exige dizer para
+      // qual time — e o caminho só executa quando alguém erra três vezes
+      // seguidas, ou seja, no pior momento possível e sem ninguém ficar
+      // sabendo. É a regra 9 de `validate_flow_version`.
+      if (leitura(node, "onExhausted") === "transfer") {
+        const timeDoFallback = leitura(node, "fallbackTeamKey");
+        if (timeDoFallback === null || !activeTeamKeys.includes(timeDoFallback)) {
+          problemas.push({
+            code: "fallback_without_team",
+            detail: `A pergunta "${node.key}" transfere ao esgotar as tentativas e não aponta para um time ativo.`,
+          });
+        }
+      }
+
       // A pergunta ABERTA grava a variável e segue pela única saída. Com duas,
       // a segunda nunca executa.
       if (tipo === "free_text" || tipo === "number") {
@@ -203,6 +218,25 @@ export function validateFlowGraph(
         });
       }
     }
+  }
+
+  /* ---- as setas ---- */
+
+  // §14 do Prompt 3. Uma comparação sem valor NUNCA CASA — e o efeito disso não
+  // é a seta ser ignorada: é a conversa morrer em `no_matching_transition`
+  // quando não houver outra saída. O Zod aceita de propósito (ver
+  // `flowTransitionFormSchema`); a cobrança é aqui.
+  for (const transition of transitions) {
+    const { condition } = transition;
+    if (condition.type !== "variable") continue;
+    if (!operatorNeedsValue(condition.operator)) continue;
+    if (condition.value.trim() !== "") continue;
+
+    const origem = nodes.find((n) => n.id === transition.sourceNodeId);
+    problemas.push({
+      code: "condition_without_value",
+      detail: `A ligação que sai de "${origem?.key ?? "?"}" compara ${condition.name} e não diz com o quê.`,
+    });
   }
 
   return problemas;

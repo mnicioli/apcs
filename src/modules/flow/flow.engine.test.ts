@@ -110,6 +110,7 @@ describe("o motor de fluxos", () => {
       delaySeconds: 0,
       imageUrl: null,
       pdfUrl: null,
+      trigger: "flow",
     });
     expect(effects[1]).toMatchObject({ kind: "askQuestion", nodeId: "n2" });
 
@@ -144,6 +145,11 @@ describe("o motor de fluxos", () => {
         message: null,
         slaMinutes: null,
         priority: "normal",
+        // §22 do Prompt 3. É este campo que separa, na trilha, a transferência
+        // DESENHADA da transferência por tentativas esgotadas — as duas produzem
+        // o mesmo efeito para o WhatsApp e leituras opostas para quem depois
+        // pergunta por que tanta gente cai num time.
+        trigger: "flow",
       },
     ]);
     expect(state.status).toBe("handed_off");
@@ -174,7 +180,9 @@ describe("o motor de fluxos", () => {
       text: "FILIACAO",
     });
 
-    expect(effects).toEqual([{ kind: "complete", nodeId: "n4", message: "Até logo!" }]);
+    expect(effects).toEqual([
+      { kind: "complete", nodeId: "n4", message: "Até logo!", trigger: "flow" },
+    ]);
     expect(state.status).toBe("completed");
     expect(state.conversationStatus).toBe("resolved");
   });
@@ -326,6 +334,10 @@ describe("o motor de fluxos", () => {
           nodeId: "a1",
           actionKey: "consultar_normativa",
           arguments: { assunto: "transporte" },
+          // §25 do Prompt 3. Um é o padrão do schema — "não insistir" — porque a
+          // maioria das ações lê o próprio banco, e ali uma falha é defeito, não
+          // indisponibilidade. Quem chama serviço de terceiro sobe o número.
+          maxAttempts: 1,
         },
       ]);
       // Continua "running": quem para o relógio é o handler, não o motor.
@@ -344,20 +356,28 @@ describe("o motor de fluxos", () => {
 
       const sucesso = advanceFlow(COM_ACAO, parado, {
         kind: "actionResult",
-        ok: true,
+        status: "success",
         variables: { normativa_url: "https://exemplo" },
       });
       expect(sucesso.state.variables).toEqual({
         normativa_url: "https://exemplo",
         consultar_normativa_ok: "true",
+        consultar_normativa_status: "success",
       });
 
       const vazio = advanceFlow(COM_ACAO, parado, {
         kind: "actionResult",
-        ok: false,
+        status: "not_found",
         variables: {},
       });
-      expect(vazio.state.variables).toEqual({ consultar_normativa_ok: "false" });
+      // §16 do Prompt 3: `_ok` continua respondendo "deu certo?" e `_status`
+      // passa a responder O QUE aconteceu. Sem ele, "não achei" e "falhou"
+      // seriam o mesmo caminho, e a pessoa leria "ocorreu um erro" para uma
+      // busca que apenas não teve resultado.
+      expect(vazio.state.variables).toEqual({
+        consultar_normativa_ok: "false",
+        consultar_normativa_status: "not_found",
+      });
       expect(vazio.state.status).toBe("completed");
     });
   });
@@ -391,12 +411,16 @@ describe("o motor de fluxos", () => {
         { ...initialFlowState(), variables: { associado: "true" } },
         { kind: "start" },
       );
-      expect(effects).toEqual([{ kind: "complete", nodeId: "c2", message: "bem-vindo" }]);
+      expect(effects).toEqual([
+        { kind: "complete", nodeId: "c2", message: "bem-vindo", trigger: "flow" },
+      ]);
     });
 
     it("cai no padrão quando nenhuma variável casa", () => {
       const { effects } = advanceFlow(COM_CONDICAO, initialFlowState(), { kind: "start" });
-      expect(effects).toEqual([{ kind: "complete", nodeId: "c3", message: "cadastre-se" }]);
+      expect(effects).toEqual([
+        { kind: "complete", nodeId: "c3", message: "cadastre-se", trigger: "flow" },
+      ]);
     });
   });
 });

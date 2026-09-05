@@ -4,6 +4,7 @@ import { ZApiProvider } from "@/lib/messaging/providers/z-api";
 import { logWhatsAppEvent, newCorrelationId } from "@/lib/messaging/telemetry";
 import { downloadPendingMedia, recordInboundEvents } from "@/lib/services/whatsapp-inbox";
 import { processInboundEvents } from "@/lib/services/survey-inbox";
+import { processFlowMessages } from "@/lib/services/flow-inbox";
 import { processChatbotMessages } from "@/lib/services/intelligence-inbox";
 import { processOptOutRequests } from "@/lib/services/notification-optout";
 import type { InboundEvent } from "@/lib/messaging/messaging.types";
@@ -26,10 +27,17 @@ import type { RecordedMessage } from "@/lib/services/whatsapp-inbox";
  *         ↓
  *     enquetes     um "3" dentro de uma enquete é voto, não pergunta
  *         ↓
- *     robô         o resto — e só depois do 200 (§39)
+ *     FLUXOS       continua a triagem de onde ela parou (Prompt 4, §6)
+ *         ↓
+ *     robô         o resto, um turno de cada vez — só depois do 200 (§39)
  *
  * ⚠️ A ORDEM É A REGRA, e cada passo tira eventos do seguinte. Trocar dois de
  * lugar não é refatoração: é mudar o que a APCS responde a uma pessoa.
+ *
+ * ⚠️ OS FLUXOS ENTRARAM ANTES DO ROBÔ, e não depois. Uma conversa parada numa
+ * pergunta de triagem precisa continuar de onde parou; o robô de um turno
+ * trataria a resposta como pergunta nova e abandonaria a triagem no meio. Ver
+ * o bloco de comentário no `after`, no fim do arquivo.
  *
  * ----------------------------------------------------------------------------
  * ⚠️ POR QUE O SEGREDO ESTÁ NO CAMINHO DA URL
@@ -221,10 +229,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ se
     }
   }
 
-  // ⚠️ O ROBÔ É O ÚLTIMO DA FILA, e cada um dos três anteriores tem precedência
-  // por uma razão própria: quem pediu para sair não recebe nada, um "3" dentro
-  // de uma enquete é voto, e conversa humana em andamento não se atravessa
-  // (esta última mora em `whatsapp_bot_should_answer`).
+  // ⚠️ O ATENDIMENTO AUTOMÁTICO É O ÚLTIMO DA FILA, e cada um dos três
+  // anteriores tem precedência por uma razão própria: quem pediu para sair não
+  // recebe nada, um "3" dentro de uma enquete é voto, e conversa humana em
+  // andamento não se atravessa (esta última mora em `whatsapp_bot_should_answer`).
   //
   // ⚠️ E ELE RESPONDE DEPOIS DO 200. A classificação chama um modelo, e a
   // resposta da Bolsa são duas chamadas ao fornecedor (imagem e PDF), cada uma
@@ -233,15 +241,67 @@ export async function POST(request: NextRequest, context: { params: Promise<{ se
   // nossa própria resposta. É o §39, e o `after` já era usado aqui pelo mesmo
   // motivo com os anexos.
   //
-  // O robô vem ANTES do download de anexo nesta ordem de propósito: há uma
-  // pessoa esperando a resposta, e não há ninguém esperando a foto aparecer na
-  // caixa de entrada.
-  const paraRobo = gravadas.filter((m) => !tratados.has(m.eventId));
+  // Ele vem ANTES do download de anexo nesta ordem de propósito: há uma pessoa
+  // esperando a resposta, e não há ninguém esperando a foto aparecer na caixa
+  // de entrada.
+  const paraAtendimento = gravadas.filter((m) => !tratados.has(m.eventId));
   const jaTratados = new Set([...tratados, ...enquetes.handled]);
 
-  if (paraRobo.length > 0) {
+  if (paraAtendimento.length > 0) {
     after(async () => {
-      await processChatbotMessages(paraRobo, jaTratados, provider, correlationId);
+      /**
+       * ------------------------------------------------------------------
+       * O FLUXO PRIMEIRO, O ROBÔ DE UM TURNO COM O QUE SOBRAR (Prompt 4, §6)
+       * ------------------------------------------------------------------
+       *
+       * ⚠️ A ORDEM DOS DOIS É A REGRA, e ela existe por um caso concreto: uma
+       * conversa PARADA numa pergunta de triagem ("é sobre pagamento, cobrança
+       * ou outro assunto?"). Se o robô de um turno visse "cobrança" primeiro,
+       * ele classificaria aquilo como uma pergunta nova e responderia sobre
+       * cobrança — abandonando a triagem no meio, com as variáveis já
+       * coletadas, sem nada falhar. A pessoa recomeçaria do zero sem entender.
+       *
+       * ⚠️ E SEM FLUXO PUBLICADO, NADA DISTO MUDA O COMPORTAMENTO DE ONTEM.
+       * `processFlowMessages` devolve `handled` vazio quando não há fluxo de
+       * entrada ativo para o canal — que é o estado até alguém publicar o
+       * primeiro. Todas as mensagens caem no robô, como sempre caíram. Ligar o
+       * Flow Engine passa a ser uma decisão tomada na tela de Fluxos, e não um
+       * deploy.
+       *
+       * ⚠️ E SE O FLUXO FALHAR, O ROBÔ NÃO ASSUME. `processFlowMessages` já
+       * captura por mensagem e nunca lança; o `catch` aqui é a rede de
+       * segurança do improvável. Ele esvazia a lista do robô pelo mesmo motivo
+       * que o `catch` das enquetes esvazia: sem saber o que o fluxo tratou, a
+       * única suposição segura é "tudo". Uma resposta a mais, por cima de uma
+       * triagem em andamento, é pior que uma a menos — a pessoa reescreve.
+       */
+      let doFluxo: string[] = [];
+      let paraRobo = paraAtendimento;
+
+      try {
+        const fluxo = await processFlowMessages(
+          paraAtendimento,
+          jaTratados,
+          provider,
+          correlationId,
+        );
+        doFluxo = fluxo.handled;
+      } catch (error) {
+        logWhatsAppEvent("error", "inbox.webhook_received", {
+          correlationId,
+          provider: provider.name,
+          outcome: "fluxos falhou",
+          reason: error instanceof Error ? error.message : String(error),
+        });
+        paraRobo = [];
+      }
+
+      const tratadosAgora = new Set([...jaTratados, ...doFluxo]);
+      const sobraram = paraRobo.filter((m) => !tratadosAgora.has(m.eventId));
+
+      if (sobraram.length > 0) {
+        await processChatbotMessages(sobraram, tratadosAgora, provider, correlationId);
+      }
     });
   }
 
@@ -259,9 +319,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ se
     events: eventos.length,
     surveys: enquetes.processed,
     optOuts: optOut.registered,
-    // Quantas ficaram PARA o robô. O que ele fez com elas acontece depois desta
-    // resposta e sai no log, com o mesmo `correlationId`.
-    chatbot: paraRobo.length,
+    // Quantas ficaram para o ATENDIMENTO AUTOMÁTICO — fluxos e robô somados. A
+    // divisão entre os dois acontece depois desta resposta (dentro do `after`)
+    // e sai no log, com o mesmo `correlationId`.
+    chatbot: paraAtendimento.length,
   });
 }
 

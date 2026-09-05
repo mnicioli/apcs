@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Activity, Plus } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import { listAttendanceTeams, listFlows } from "@/lib/services/flows";
@@ -74,14 +74,26 @@ export default async function FlowsPage({
           <h1 className="text-2xl font-semibold tracking-tight">{FLOWS_PAGE_TITLE}</h1>
           <p className="text-muted-foreground text-sm">{FLOWS_PAGE_DESCRIPTION}</p>
         </div>
-        {canWrite && (
-          <Button asChild>
-            <Link href="/flows/new">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Novo fluxo
+        <div className="flex items-center gap-2">
+          {/* §28. O monitoramento é de LEITURA, então quem só consulta também o
+              alcança — é ele que responde "o atendimento está indo bem?", e essa
+              pergunta não é privilégio de quem edita. */}
+          <Button asChild variant="outline">
+            <Link href="/flows/monitoring">
+              <Activity className="h-4 w-4" aria-hidden="true" />
+              Monitoramento
             </Link>
           </Button>
-        )}
+
+          {canWrite && (
+            <Button asChild>
+              <Link href="/flows/new">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Novo fluxo
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Só com fluxos na lista: vazia, quem responde é o quadro abaixo — e ele

@@ -121,6 +121,39 @@ const SEM_GRANT_DE_PROPOSITO: Record<string, string> = {
   "lectures.idempotency_key":
     "Escrita só por `create_lecture_request`, chamada com service_role pelo chatbot " +
     "(src/lib/services/lecture-chatbot.ts). Nenhuma tela interna toca nela.",
+
+  /* ------------------------------------------------------------------------ */
+  /* Homologação dos fluxos — 20260920000100 (§21 e §22 do Prompt 5)          */
+  /* ------------------------------------------------------------------------ */
+  //
+  // ⚠️ AS QUATRO REGISTRAM **QUEM AFIRMOU O QUÊ**, e é exatamente por isso que
+  // elas não podem ter grant.
+  //
+  // Um `grant update (checklist)` abriria o caminho do PostgREST, onde o corpo
+  // do PATCH é escolhido por quem chama — e alguém poderia gravar
+  // `{"lgpd": {"checked": true, "by": "Maria"}}` sem a Maria ter visto nada. O
+  // registro de homologação viraria um campo de texto que qualquer um preenche
+  // com o nome de qualquer um, o que é pior que não existir: parece prova.
+  //
+  // Elas são escritas por funções SECURITY DEFINER que carimbam o autor a
+  // partir de `auth.uid()`, que ninguém do lado de fora escolhe:
+  //
+  //   `checklist`                         → `set_flow_version_checklist`
+  //   `review_notes/reviewed_by/reviewed_at` → `advance_flow_version`
+  //
+  // ⚠️ E `flow_versions.notes` CONTINUA COM GRANT, o que parece incoerente e não
+  // é: `notes` é a anotação de quem DESENHA sobre o próprio rascunho — não
+  // afirma nada sobre terceiros, e não é prova de conferência de ninguém.
+  "flow_versions.checklist":
+    "Escrita só por `set_flow_version_checklist`, que carimba o autor a partir de auth.uid(). " +
+    "Com grant, qualquer um poderia gravar que outra pessoa conferiu o item.",
+  "flow_versions.review_notes":
+    "Escrita só por `advance_flow_version` (§22). O motivo da reprovação pertence a quem reprovou.",
+  "flow_versions.reviewed_by":
+    "Escrita só por `advance_flow_version`, a partir de auth.uid(). É a identidade de quem aprovou.",
+  "flow_versions.reviewed_at":
+    "Escrita só por `advance_flow_version`, com o relógio do BANCO. " +
+    "Um carimbo de tempo vindo do cliente não vale como registro.",
 };
 
 const grants = colunasComGrant();

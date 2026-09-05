@@ -227,34 +227,40 @@ export type Database = {
       };
       attendance_teams: {
         Row: {
+          business_hours: string | null;
           created_at: string;
           created_by: string | null;
           description: string | null;
           id: string;
           key: string;
           name: string;
+          sla_minutes: number | null;
           status: Database["public"]["Enums"]["attendance_team_status"];
           updated_at: string;
           updated_by: string | null;
         };
         Insert: {
+          business_hours?: string | null;
           created_at?: string;
           created_by?: string | null;
           description?: string | null;
           id?: string;
           key: string;
           name: string;
+          sla_minutes?: number | null;
           status?: Database["public"]["Enums"]["attendance_team_status"];
           updated_at?: string;
           updated_by?: string | null;
         };
         Update: {
+          business_hours?: string | null;
           created_at?: string;
           created_by?: string | null;
           description?: string | null;
           id?: string;
           key?: string;
           name?: string;
+          sla_minutes?: number | null;
           status?: Database["public"]["Enums"]["attendance_team_status"];
           updated_at?: string;
           updated_by?: string | null;
@@ -1276,39 +1282,95 @@ export type Database = {
           },
         ];
       };
-      flow_run_steps: {
+      flow_run_events: {
         Row: {
           created_at: string;
           flow_run_id: string;
           id: number;
-          idempotency_key: string;
-          inbound_message_id: string | null;
-          input: Json;
           node_id: string | null;
-          output: Json;
-          seq: number;
+          payload: Json;
+          type: Database["public"]["Enums"]["flow_event_type"];
         };
         Insert: {
           created_at?: string;
           flow_run_id: string;
           id?: never;
-          idempotency_key: string;
-          inbound_message_id?: string | null;
-          input?: Json;
           node_id?: string | null;
-          output?: Json;
-          seq: number;
+          payload?: Json;
+          type: Database["public"]["Enums"]["flow_event_type"];
         };
         Update: {
           created_at?: string;
           flow_run_id?: string;
           id?: never;
+          node_id?: string | null;
+          payload?: Json;
+          type?: Database["public"]["Enums"]["flow_event_type"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "flow_run_events_flow_run_id_fkey";
+            columns: ["flow_run_id"];
+            isOneToOne: false;
+            referencedRelation: "flow_runs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      flow_run_steps: {
+        Row: {
+          completed_at: string | null;
+          created_at: string;
+          duration_ms: number | null;
+          error: string | null;
+          flow_run_id: string;
+          id: number;
+          idempotency_key: string;
+          inbound_message_id: string | null;
+          input: Json;
+          metadata: Json;
+          node_id: string | null;
+          node_type: Database["public"]["Enums"]["flow_node_type"] | null;
+          output: Json;
+          seq: number;
+          started_at: string;
+          status: Database["public"]["Enums"]["flow_step_status"];
+        };
+        Insert: {
+          completed_at?: string | null;
+          created_at?: string;
+          duration_ms?: number | null;
+          error?: string | null;
+          flow_run_id: string;
+          id?: never;
+          idempotency_key: string;
+          inbound_message_id?: string | null;
+          input?: Json;
+          metadata?: Json;
+          node_id?: string | null;
+          node_type?: Database["public"]["Enums"]["flow_node_type"] | null;
+          output?: Json;
+          seq: number;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["flow_step_status"];
+        };
+        Update: {
+          completed_at?: string | null;
+          created_at?: string;
+          duration_ms?: number | null;
+          error?: string | null;
+          flow_run_id?: string;
+          id?: never;
           idempotency_key?: string;
           inbound_message_id?: string | null;
           input?: Json;
+          metadata?: Json;
           node_id?: string | null;
+          node_type?: Database["public"]["Enums"]["flow_node_type"] | null;
           output?: Json;
           seq?: number;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["flow_step_status"];
         };
         Relationships: [
           {
@@ -1329,16 +1391,26 @@ export type Database = {
       };
       flow_runs: {
         Row: {
+          assigned_at: string | null;
           assigned_team_id: string | null;
           assigned_user_id: string | null;
+          attempt_count: number;
+          automation_paused_until: string | null;
           completed_at: string | null;
           conversation_status: Database["public"]["Enums"]["flow_conversation_status"];
           current_node_id: string | null;
+          failure_reason: string | null;
+          first_response_at: string | null;
           flow_id: string;
           flow_version_id: string;
           id: string;
           intent: string | null;
           intent_confidence: number | null;
+          last_activity_at: string;
+          lock_version: number;
+          node_executions: number;
+          resolved_at: string | null;
+          sla_minutes: number | null;
           started_at: string;
           status: Database["public"]["Enums"]["flow_run_status"];
           updated_at: string;
@@ -1346,16 +1418,26 @@ export type Database = {
           whatsapp_chat_id: string | null;
         };
         Insert: {
+          assigned_at?: string | null;
           assigned_team_id?: string | null;
           assigned_user_id?: string | null;
+          attempt_count?: number;
+          automation_paused_until?: string | null;
           completed_at?: string | null;
           conversation_status?: Database["public"]["Enums"]["flow_conversation_status"];
           current_node_id?: string | null;
+          failure_reason?: string | null;
+          first_response_at?: string | null;
           flow_id: string;
           flow_version_id: string;
           id?: string;
           intent?: string | null;
           intent_confidence?: number | null;
+          last_activity_at?: string;
+          lock_version?: number;
+          node_executions?: number;
+          resolved_at?: string | null;
+          sla_minutes?: number | null;
           started_at?: string;
           status?: Database["public"]["Enums"]["flow_run_status"];
           updated_at?: string;
@@ -1363,16 +1445,26 @@ export type Database = {
           whatsapp_chat_id?: string | null;
         };
         Update: {
+          assigned_at?: string | null;
           assigned_team_id?: string | null;
           assigned_user_id?: string | null;
+          attempt_count?: number;
+          automation_paused_until?: string | null;
           completed_at?: string | null;
           conversation_status?: Database["public"]["Enums"]["flow_conversation_status"];
           current_node_id?: string | null;
+          failure_reason?: string | null;
+          first_response_at?: string | null;
           flow_id?: string;
           flow_version_id?: string;
           id?: string;
           intent?: string | null;
           intent_confidence?: number | null;
+          last_activity_at?: string;
+          lock_version?: number;
+          node_executions?: number;
+          resolved_at?: string | null;
+          sla_minutes?: number | null;
           started_at?: string;
           status?: Database["public"]["Enums"]["flow_run_status"];
           updated_at?: string;
@@ -1481,6 +1573,7 @@ export type Database = {
       };
       flow_versions: {
         Row: {
+          checklist: Json;
           created_at: string;
           created_by: string | null;
           definition: Json | null;
@@ -1489,12 +1582,16 @@ export type Database = {
           notes: string | null;
           published_at: string | null;
           published_by: string | null;
+          review_notes: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
           status: Database["public"]["Enums"]["flow_version_status"];
           updated_at: string;
           updated_by: string | null;
           version: number;
         };
         Insert: {
+          checklist?: Json;
           created_at?: string;
           created_by?: string | null;
           definition?: Json | null;
@@ -1503,12 +1600,16 @@ export type Database = {
           notes?: string | null;
           published_at?: string | null;
           published_by?: string | null;
+          review_notes?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
           status?: Database["public"]["Enums"]["flow_version_status"];
           updated_at?: string;
           updated_by?: string | null;
           version: number;
         };
         Update: {
+          checklist?: Json;
           created_at?: string;
           created_by?: string | null;
           definition?: Json | null;
@@ -1517,6 +1618,9 @@ export type Database = {
           notes?: string | null;
           published_at?: string | null;
           published_by?: string | null;
+          review_notes?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
           status?: Database["public"]["Enums"]["flow_version_status"];
           updated_at?: string;
           updated_by?: string | null;
@@ -1545,6 +1649,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "flow_versions_reviewed_by_fkey";
+            columns: ["reviewed_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "flow_versions_updated_by_fkey";
             columns: ["updated_by"];
             isOneToOne: false;
@@ -1564,6 +1675,10 @@ export type Database = {
           is_entry: boolean;
           name: string;
           status: Database["public"]["Enums"]["flow_status"];
+          timeout_action: Database["public"]["Enums"]["flow_timeout_action"];
+          timeout_message: string | null;
+          timeout_minutes: number | null;
+          timeout_team_id: string | null;
           updated_at: string;
           updated_by: string | null;
         };
@@ -1577,6 +1692,10 @@ export type Database = {
           is_entry?: boolean;
           name: string;
           status?: Database["public"]["Enums"]["flow_status"];
+          timeout_action?: Database["public"]["Enums"]["flow_timeout_action"];
+          timeout_message?: string | null;
+          timeout_minutes?: number | null;
+          timeout_team_id?: string | null;
           updated_at?: string;
           updated_by?: string | null;
         };
@@ -1590,6 +1709,10 @@ export type Database = {
           is_entry?: boolean;
           name?: string;
           status?: Database["public"]["Enums"]["flow_status"];
+          timeout_action?: Database["public"]["Enums"]["flow_timeout_action"];
+          timeout_message?: string | null;
+          timeout_minutes?: number | null;
+          timeout_team_id?: string | null;
           updated_at?: string;
           updated_by?: string | null;
         };
@@ -1606,6 +1729,13 @@ export type Database = {
             columns: ["created_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flows_timeout_team_id_fkey";
+            columns: ["timeout_team_id"];
+            isOneToOne: false;
+            referencedRelation: "attendance_teams";
             referencedColumns: ["id"];
           },
           {
@@ -3611,10 +3741,12 @@ export type Database = {
       };
       advance_flow_version: {
         Args: {
+          p_reason?: string;
           p_to: Database["public"]["Enums"]["flow_version_status"];
           p_version_id: string;
         };
         Returns: {
+          checklist: Json;
           created_at: string;
           created_by: string | null;
           definition: Json | null;
@@ -3623,6 +3755,9 @@ export type Database = {
           notes: string | null;
           published_at: string | null;
           published_by: string | null;
+          review_notes: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
           status: Database["public"]["Enums"]["flow_version_status"];
           updated_at: string;
           updated_by: string | null;
@@ -4075,6 +4210,7 @@ export type Database = {
       create_flow_version: {
         Args: { p_copy_from?: string; p_flow_id: string; p_notes?: string };
         Returns: {
+          checklist: Json;
           created_at: string;
           created_by: string | null;
           definition: Json | null;
@@ -4083,6 +4219,9 @@ export type Database = {
           notes: string | null;
           published_at: string | null;
           published_by: string | null;
+          review_notes: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
           status: Database["public"]["Enums"]["flow_version_status"];
           updated_at: string;
           updated_by: string | null;
@@ -4570,8 +4709,117 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      flow_begin_run: {
+        Args: {
+          p_channel: Database["public"]["Enums"]["flow_channel"];
+          p_chat_id: string;
+        };
+        Returns: string;
+      };
+      flow_claim_step: {
+        Args: {
+          p_inbound_message_id?: string;
+          p_input?: Json;
+          p_key: string;
+          p_node_id: string;
+          p_node_type: Database["public"]["Enums"]["flow_node_type"];
+          p_run_id: string;
+        };
+        Returns: number;
+      };
+      flow_commit_step: {
+        Args: {
+          p_attempt_count: number;
+          p_conversation_status: Database["public"]["Enums"]["flow_conversation_status"];
+          p_current_node_id: string;
+          p_error?: string;
+          p_events?: Json;
+          p_failure_reason?: string;
+          p_intent?: string;
+          p_intent_confidence?: number;
+          p_lock_version: number;
+          p_nodes_walked?: number;
+          p_output?: Json;
+          p_run_status: Database["public"]["Enums"]["flow_run_status"];
+          p_step_id: number;
+          p_step_status?: Database["public"]["Enums"]["flow_step_status"];
+          p_team_key?: string;
+          p_variables: Json;
+        };
+        Returns: boolean;
+      };
+      flow_error_totals: {
+        Args: { p_days?: number; p_limit?: number };
+        Returns: {
+          failure_reason: string;
+          flow_id: string;
+          flow_name: string;
+          last_seen: string;
+          node_id: string;
+          node_type: Database["public"]["Enums"]["flow_node_type"];
+          occurrences: number;
+        }[];
+      };
       flow_is_reader: { Args: never; Returns: boolean };
       flow_is_writer: { Args: never; Returns: boolean };
+      flow_metrics: {
+        Args: { p_days?: number; p_flow_id?: string };
+        Returns: {
+          abandoned: number;
+          avg_confidence: number;
+          avg_duration_seconds: number;
+          completed: number;
+          failed: number;
+          fallback_runs: number;
+          flow_id: string;
+          flow_name: string;
+          handed_off: number;
+          identified_intent: number;
+          started: number;
+        }[];
+      };
+      flow_resolve_run: {
+        Args: {
+          p_conversation_status?: Database["public"]["Enums"]["flow_conversation_status"];
+          p_run_id: string;
+        };
+        Returns: boolean;
+      };
+      flow_set_automation_pause: {
+        Args: { p_run_id: string; p_until: string };
+        Returns: boolean;
+      };
+      flow_sla_queue: {
+        Args: { p_limit?: number };
+        Returns: {
+          assigned_at: string;
+          breached: boolean;
+          first_response_at: string;
+          flow_name: string;
+          minutes_waiting: number;
+          resolved_at: string;
+          run_id: string;
+          sla_minutes: number;
+          team_key: string;
+          team_name: string;
+          whatsapp_chat_id: string;
+        }[];
+      };
+      flow_timeout_due: {
+        Args: { p_limit?: number };
+        Returns: {
+          current_node_id: string;
+          flow_id: string;
+          flow_version_id: string;
+          lock_version: number;
+          run_id: string;
+          silent_minutes: number;
+          timeout_action: Database["public"]["Enums"]["flow_timeout_action"];
+          timeout_message: string;
+          timeout_team_key: string;
+          whatsapp_chat_id: string;
+        }[];
+      };
       get_survey_for_chatbot: {
         Args: { p_survey_id: string };
         Returns: {
@@ -4791,6 +5039,7 @@ export type Database = {
       publish_flow_version: {
         Args: { p_version_id: string };
         Returns: {
+          checklist: Json;
           created_at: string;
           created_by: string | null;
           definition: Json | null;
@@ -4799,6 +5048,9 @@ export type Database = {
           notes: string | null;
           published_at: string | null;
           published_by: string | null;
+          review_notes: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
           status: Database["public"]["Enums"]["flow_version_status"];
           updated_at: string;
           updated_by: string | null;
@@ -5218,12 +5470,43 @@ export type Database = {
           is_entry: boolean;
           name: string;
           status: Database["public"]["Enums"]["flow_status"];
+          timeout_action: Database["public"]["Enums"]["flow_timeout_action"];
+          timeout_message: string | null;
+          timeout_minutes: number | null;
+          timeout_team_id: string | null;
           updated_at: string;
           updated_by: string | null;
         };
         SetofOptions: {
           from: "*";
           to: "flows";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_flow_version_checklist: {
+        Args: { p_checklist: Json; p_version_id: string };
+        Returns: {
+          checklist: Json;
+          created_at: string;
+          created_by: string | null;
+          definition: Json | null;
+          flow_id: string;
+          id: string;
+          notes: string | null;
+          published_at: string | null;
+          published_by: string | null;
+          review_notes: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          status: Database["public"]["Enums"]["flow_version_status"];
+          updated_at: string;
+          updated_by: string | null;
+          version: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "flow_versions";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -6060,7 +6343,9 @@ export type Database = {
         | "flow_version_rolled_back"
         | "flow_node_changed"
         | "flow_transition_changed"
-        | "flow_team_changed";
+        | "flow_team_changed"
+        | "flow_version_rejected"
+        | "flow_version_checked";
       app_role: "admin" | "ceo" | "pm" | "tech_lead" | "comercial" | "financeiro" | "viewer";
       attendance_team_status: "active" | "inactive";
       broadcast_recipient_status: "pending" | "sending" | "sent" | "error" | "blocked";
@@ -6117,6 +6402,23 @@ export type Database = {
         | "waiting_customer"
         | "resolved"
         | "closed";
+      flow_event_type:
+        | "conversation_started"
+        | "flow_started"
+        | "node_started"
+        | "node_completed"
+        | "message_sent"
+        | "question_sent"
+        | "answer_received"
+        | "answer_rejected"
+        | "condition_evaluated"
+        | "action_executed"
+        | "transferred_to_team"
+        | "flow_completed"
+        | "flow_failed"
+        | "flow_timeout"
+        | "automation_paused"
+        | "automation_resumed";
       flow_node_type: "message" | "question" | "condition" | "action" | "attendant" | "end";
       flow_run_status:
         | "running"
@@ -6126,6 +6428,8 @@ export type Database = {
         | "failed"
         | "cancelled";
       flow_status: "active" | "inactive";
+      flow_step_status: "succeeded" | "failed" | "skipped";
+      flow_timeout_action: "none" | "remind" | "close" | "transfer";
       flow_version_status:
         | "draft"
         | "testing"
@@ -6411,6 +6715,8 @@ export const Constants = {
         "flow_node_changed",
         "flow_transition_changed",
         "flow_team_changed",
+        "flow_version_rejected",
+        "flow_version_checked",
       ],
       app_role: ["admin", "ceo", "pm", "tech_lead", "comercial", "financeiro", "viewer"],
       attendance_team_status: ["active", "inactive"],
@@ -6473,6 +6779,24 @@ export const Constants = {
         "resolved",
         "closed",
       ],
+      flow_event_type: [
+        "conversation_started",
+        "flow_started",
+        "node_started",
+        "node_completed",
+        "message_sent",
+        "question_sent",
+        "answer_received",
+        "answer_rejected",
+        "condition_evaluated",
+        "action_executed",
+        "transferred_to_team",
+        "flow_completed",
+        "flow_failed",
+        "flow_timeout",
+        "automation_paused",
+        "automation_resumed",
+      ],
       flow_node_type: ["message", "question", "condition", "action", "attendant", "end"],
       flow_run_status: [
         "running",
@@ -6483,6 +6807,8 @@ export const Constants = {
         "cancelled",
       ],
       flow_status: ["active", "inactive"],
+      flow_step_status: ["succeeded", "failed", "skipped"],
+      flow_timeout_action: ["none", "remind", "close", "transfer"],
       flow_version_status: [
         "draft",
         "testing",

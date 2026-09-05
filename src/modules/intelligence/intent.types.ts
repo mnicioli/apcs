@@ -111,15 +111,55 @@ export const CONFIDENCE_HIGH_SENSITIVE = 0.85;
 /** Em qual faixa esta leitura caiu. */
 export type ConfidenceBand = "high" | "medium" | "low";
 
-export function confidenceBand(confidence: number, sensitive: boolean): ConfidenceBand {
-  const teto = sensitive ? CONFIDENCE_HIGH_SENSITIVE : CONFIDENCE_HIGH;
+/**
+ * Os dois cortes que separam as três faixas.
+ *
+ * ⚠️ ELES VIRARAM PARÂMETRO NO PROMPT 4 (§14), e a razão é que o Flow Engine
+ * precisa deles CONFIGURÁVEIS — um fluxo de triagem que erra para o lado de
+ * perguntar demais irrita; um que erra para o lado de executar demais manda a
+ * Bolsa para quem perguntou o valor da anuidade. Onde fica o corte é decisão de
+ * operação, e operação não faz deploy.
+ *
+ * ⚠️ E A REGRA CONTINUOU SENDO UMA SÓ. A tentação era escrever um segundo
+ * `faixaDeConfianca` dentro do módulo de fluxos, com os limites vindos de
+ * `app_settings`. Seriam duas verdades sobre o que é "confiança alta", e a
+ * segunda envelheceria calada. Aqui o parâmetro é OPCIONAL: quem não passa nada
+ * — o robô de um turno, que sempre funcionou assim — recebe exatamente o
+ * comportamento de antes, byte por byte.
+ */
+export interface ConfidenceThresholds {
+  /** A partir daqui, executa. */
+  high: number;
+  /** A partir daqui, confirma antes. Abaixo, pede para reformular. */
+  medium: number;
+}
+
+export function confidenceBand(
+  confidence: number,
+  sensitive: boolean,
+  thresholds?: ConfidenceThresholds,
+): ConfidenceBand {
+  const configurado = thresholds?.high ?? (sensitive ? CONFIDENCE_HIGH_SENSITIVE : CONFIDENCE_HIGH);
+  const medio = thresholds?.medium ?? CONFIDENCE_MEDIUM;
+
+  // ⚠️ O AJUSTE SENSÍVEL SOBREVIVE AO LIMITE CONFIGURADO, e é o detalhe que
+  // impede um campo de configuração de virar uma porta dos fundos.
+  //
+  // A barra mais alta existe porque a ação sensível DEIXA RASTRO FORA DO ROBÔ
+  // (ver `CONFIDENCE_HIGH_SENSITIVE`) — abrir uma solicitação de palestra por
+  // engano custa o tempo de quem for atendê-la, e não se desfaz. Isso continua
+  // verdade depois de alguém baixar o limite geral para 0,60 numa tela chamada
+  // "confiança mínima": quem mexeu naquele campo estava pensando em consultar a
+  // Bolsa, e não em autorizar chamadas telefônicas erradas.
+  const teto =
+    sensitive && thresholds ? Math.max(configurado, CONFIDENCE_HIGH_SENSITIVE) : configurado;
 
   // ⚠️ `NaN` E VALOR FORA DE FAIXA CAEM EM `low`. O número vem de um modelo, e
   // "não sei ler esta confiança" tem de falhar para o lado que pergunta de
   // novo — nunca para o que executa.
   if (!Number.isFinite(confidence)) return "low";
   if (confidence >= teto) return "high";
-  if (confidence >= CONFIDENCE_MEDIUM) return "medium";
+  if (confidence >= medio) return "medium";
   return "low";
 }
 

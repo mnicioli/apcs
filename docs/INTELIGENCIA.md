@@ -361,11 +361,23 @@ Z-API → /api/webhooks/zapi/[secret]
             ↓
         enquetes         um "3" dentro de uma enquete é voto, não pergunta
             ↓
+        FLUXOS           continua a triagem de onde ela parou
+            ↓
         robô             o resto — e só DEPOIS do 200
 ```
 
 **A ordem é a regra.** Cada passo tira eventos do seguinte, e trocar dois de
 lugar não é refatoração: é mudar o que a APCS responde a uma pessoa.
+
+> **Os Fluxos de Atendimento entraram na frente do robô** (Prompt 4 daquele
+> módulo). Uma conversa parada numa pergunta de triagem precisa continuar de
+> onde parou: o robô de um turno trataria a resposta como pergunta nova e
+> abandonaria a triagem no meio, com as variáveis coletadas e sem nada falhar.
+>
+> **Isto não desligou nada.** Sem fluxo de entrada publicado — que é o estado
+> padrão — `processFlowMessages` não marca nenhuma mensagem como tratada, e
+> todas chegam aqui como sempre chegaram. O robô passou a ser o caminho de quem
+> não está num fluxo. Ver [docs/FLUXOS.md](./FLUXOS.md).
 
 O que tornou a costura possível foi pequeno: `recordInboundEvents` passou a
 devolver **quais** mensagens gravou (`RecordedMessage[]`), e
