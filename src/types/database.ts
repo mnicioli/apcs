@@ -1033,6 +1033,168 @@ export type Database = {
           },
         ];
       };
+      event_landing_pages: {
+        Row: {
+          closes_at: string | null;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          event_id: string;
+          form_fields: Json;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          max_participants: number | null;
+          published_at: string | null;
+          published_by: string | null;
+          slug: string;
+          status: Database["public"]["Enums"]["event_landing_page_status"];
+          success_footer: string | null;
+          success_message: string | null;
+          success_title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          closes_at?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          event_id: string;
+          form_fields?: Json;
+          id?: string;
+          image_mime?: string | null;
+          image_path?: string | null;
+          image_size_bytes?: number | null;
+          max_participants?: number | null;
+          published_at?: string | null;
+          published_by?: string | null;
+          slug: string;
+          status?: Database["public"]["Enums"]["event_landing_page_status"];
+          success_footer?: string | null;
+          success_message?: string | null;
+          success_title?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          closes_at?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          event_id?: string;
+          form_fields?: Json;
+          id?: string;
+          image_mime?: string | null;
+          image_path?: string | null;
+          image_size_bytes?: number | null;
+          max_participants?: number | null;
+          published_at?: string | null;
+          published_by?: string | null;
+          slug?: string;
+          status?: Database["public"]["Enums"]["event_landing_page_status"];
+          success_footer?: string | null;
+          success_message?: string | null;
+          success_title?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_landing_pages_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_landing_pages_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: true;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_landing_pages_published_by_fkey";
+            columns: ["published_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_landing_pages_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_participants: {
+        Row: {
+          confirmation: Database["public"]["Enums"]["event_participant_confirmation"];
+          created_at: string;
+          email: string;
+          event_id: string;
+          full_name: string;
+          id: string;
+          phone: string | null;
+          registration_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp: string | null;
+        };
+        Insert: {
+          confirmation?: Database["public"]["Enums"]["event_participant_confirmation"];
+          created_at?: string;
+          email: string;
+          event_id: string;
+          full_name: string;
+          id?: string;
+          phone?: string | null;
+          registration_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp?: string | null;
+        };
+        Update: {
+          confirmation?: Database["public"]["Enums"]["event_participant_confirmation"];
+          created_at?: string;
+          email?: string;
+          event_id?: string;
+          full_name?: string;
+          id?: string;
+          phone?: string | null;
+          registration_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_participants_registration_id_fkey";
+            columns: ["registration_id"];
+            isOneToOne: false;
+            referencedRelation: "event_registrations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_participants_registration_matches_event";
+            columns: ["registration_id", "event_id"];
+            isOneToOne: false;
+            referencedRelation: "event_registrations";
+            referencedColumns: ["id", "event_id"];
+          },
+          {
+            foreignKeyName: "event_participants_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       event_recipients: {
         Row: {
           attempts: number;
@@ -1096,6 +1258,145 @@ export type Database = {
             columns: ["member_id"];
             isOneToOne: false;
             referencedRelation: "members";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_registration_audit_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["event_registration_audit_action"];
+          actor_id: string | null;
+          created_at: string;
+          event_id: string | null;
+          id: number;
+          metadata: Json;
+          registration_id: string | null;
+        };
+        Insert: {
+          action: Database["public"]["Enums"]["event_registration_audit_action"];
+          actor_id?: string | null;
+          created_at?: string;
+          event_id?: string | null;
+          id?: never;
+          metadata?: Json;
+          registration_id?: string | null;
+        };
+        Update: {
+          action?: Database["public"]["Enums"]["event_registration_audit_action"];
+          actor_id?: string | null;
+          created_at?: string;
+          event_id?: string | null;
+          id?: never;
+          metadata?: Json;
+          registration_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_registration_audit_logs_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_registration_audit_logs_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_registration_audit_logs_registration_id_fkey";
+            columns: ["registration_id"];
+            isOneToOne: false;
+            referencedRelation: "event_registrations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_registrations: {
+        Row: {
+          company_name: string;
+          created_at: string;
+          created_by: string | null;
+          dedupe_key: string;
+          event_id: string;
+          id: string;
+          landing_page_id: string;
+          origin: Database["public"]["Enums"]["event_registration_origin"];
+          registered_at: string;
+          source_ip_hash: string | null;
+          status: Database["public"]["Enums"]["event_registration_status"];
+          updated_at: string;
+          updated_by: string | null;
+          user_agent: string | null;
+        };
+        Insert: {
+          company_name: string;
+          created_at?: string;
+          created_by?: string | null;
+          dedupe_key: string;
+          event_id: string;
+          id?: string;
+          landing_page_id: string;
+          origin?: Database["public"]["Enums"]["event_registration_origin"];
+          registered_at?: string;
+          source_ip_hash?: string | null;
+          status?: Database["public"]["Enums"]["event_registration_status"];
+          updated_at?: string;
+          updated_by?: string | null;
+          user_agent?: string | null;
+        };
+        Update: {
+          company_name?: string;
+          created_at?: string;
+          created_by?: string | null;
+          dedupe_key?: string;
+          event_id?: string;
+          id?: string;
+          landing_page_id?: string;
+          origin?: Database["public"]["Enums"]["event_registration_origin"];
+          registered_at?: string;
+          source_ip_hash?: string | null;
+          status?: Database["public"]["Enums"]["event_registration_status"];
+          updated_at?: string;
+          updated_by?: string | null;
+          user_agent?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_registrations_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_registrations_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_registrations_landing_matches_event";
+            columns: ["landing_page_id", "event_id"];
+            isOneToOne: false;
+            referencedRelation: "event_landing_pages";
+            referencedColumns: ["id", "event_id"];
+          },
+          {
+            foreignKeyName: "event_registrations_landing_page_id_fkey";
+            columns: ["landing_page_id"];
+            isOneToOne: false;
+            referencedRelation: "event_landing_pages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_registrations_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -3811,6 +4112,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      assert_event_landing_fields: {
+        Args: { p_fields: Json };
+        Returns: undefined;
+      };
       assert_event_segments: {
         Args: { p_segment_ids: string[] };
         Returns: undefined;
@@ -4207,6 +4512,62 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      create_event_landing_page: {
+        Args: {
+          p_closes_at?: string;
+          p_description?: string;
+          p_event_id: string;
+          p_form_fields?: Json;
+          p_max_participants?: number;
+          p_slug?: string;
+          p_success_footer?: string;
+          p_success_message?: string;
+          p_success_title?: string;
+        };
+        Returns: {
+          closes_at: string | null;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          event_id: string;
+          form_fields: Json;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          max_participants: number | null;
+          published_at: string | null;
+          published_by: string | null;
+          slug: string;
+          status: Database["public"]["Enums"]["event_landing_page_status"];
+          success_footer: string | null;
+          success_message: string | null;
+          success_title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_landing_pages";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_event_registration: {
+        Args: {
+          p_company_name: string;
+          p_dedupe_key: string;
+          p_landing_page_id: string;
+          p_participants: Json;
+          p_source_ip_hash?: string;
+          p_user_agent?: string;
+        };
+        Returns: {
+          duplicate: boolean;
+          participant_count: number;
+          registration_id: string;
+        }[];
+      };
       create_flow_version: {
         Args: { p_copy_from?: string; p_flow_id: string; p_notes?: string };
         Returns: {
@@ -4561,6 +4922,20 @@ export type Database = {
         Args: { p_criteria: Json };
         Returns: number;
       };
+      event_landing_field_keys: { Args: never; Returns: string[] };
+      event_landing_free_slug: {
+        Args: { p_desired: string; p_landing_page_id?: string };
+        Returns: string;
+      };
+      event_landing_participant_count: {
+        Args: { p_landing_page_id: string };
+        Returns: number;
+      };
+      event_landing_seats_left: {
+        Args: { p_landing_page_id: string };
+        Returns: number;
+      };
+      event_landing_slugify: { Args: { p_text: string }; Returns: string };
       event_segments_for_member: {
         Args: { p_member_id: string };
         Returns: string[];
@@ -4871,6 +5246,10 @@ export type Database = {
       };
       lock_document: { Args: { p_document_id: string }; Returns: undefined };
       lock_event: { Args: { p_event_id: string }; Returns: undefined };
+      lock_event_landing_page: {
+        Args: { p_landing_page_id: string };
+        Returns: undefined;
+      };
       lock_lecture: { Args: { p_lecture_id: string }; Returns: undefined };
       lock_market_bulletin: {
         Args: { p_bulletin_id: string };
@@ -5165,6 +5544,8 @@ export type Database = {
         };
         Returns: Database["public"]["Enums"]["survey_response_outcome"];
       };
+      registrations_is_reader: { Args: never; Returns: boolean };
+      registrations_is_writer: { Args: never; Returns: boolean };
       reject_membership_application: {
         Args: { p_application_id: string; p_reason: string };
         Returns: {
@@ -5428,6 +5809,73 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      set_event_landing_page_image: {
+        Args: {
+          p_image_mime: string;
+          p_image_path: string;
+          p_image_size_bytes: number;
+          p_landing_page_id: string;
+        };
+        Returns: {
+          closes_at: string | null;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          event_id: string;
+          form_fields: Json;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          max_participants: number | null;
+          published_at: string | null;
+          published_by: string | null;
+          slug: string;
+          status: Database["public"]["Enums"]["event_landing_page_status"];
+          success_footer: string | null;
+          success_message: string | null;
+          success_title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_landing_pages";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_event_landing_page_status: {
+        Args: { p_command: string; p_landing_page_id: string };
+        Returns: {
+          closes_at: string | null;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          event_id: string;
+          form_fields: Json;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          max_participants: number | null;
+          published_at: string | null;
+          published_by: string | null;
+          slug: string;
+          status: Database["public"]["Enums"]["event_landing_page_status"];
+          success_footer: string | null;
+          success_message: string | null;
+          success_title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_landing_pages";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       set_event_status: {
         Args: { p_command: string; p_event_id: string };
         Returns: {
@@ -5559,6 +6007,31 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "lectures";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_participant_confirmation: {
+        Args: {
+          p_confirmation: Database["public"]["Enums"]["event_participant_confirmation"];
+          p_participant_id: string;
+        };
+        Returns: {
+          confirmation: Database["public"]["Enums"]["event_participant_confirmation"];
+          created_at: string;
+          email: string;
+          event_id: string;
+          full_name: string;
+          id: string;
+          phone: string | null;
+          registration_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_participants";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -5940,6 +6413,76 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "events";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_event_landing_page: {
+        Args: {
+          p_closes_at: string;
+          p_description: string;
+          p_form_fields: Json;
+          p_landing_page_id: string;
+          p_max_participants: number;
+          p_slug: string;
+          p_success_footer: string;
+          p_success_message: string;
+          p_success_title: string;
+        };
+        Returns: {
+          closes_at: string | null;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          event_id: string;
+          form_fields: Json;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          max_participants: number | null;
+          published_at: string | null;
+          published_by: string | null;
+          slug: string;
+          status: Database["public"]["Enums"]["event_landing_page_status"];
+          success_footer: string | null;
+          success_message: string | null;
+          success_title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_landing_pages";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_event_registration: {
+        Args: {
+          p_company_name?: string;
+          p_registration_id: string;
+          p_status?: Database["public"]["Enums"]["event_registration_status"];
+        };
+        Returns: {
+          company_name: string;
+          created_at: string;
+          created_by: string | null;
+          dedupe_key: string;
+          event_id: string;
+          id: string;
+          landing_page_id: string;
+          origin: Database["public"]["Enums"]["event_registration_origin"];
+          registered_at: string;
+          source_ip_hash: string | null;
+          status: Database["public"]["Enums"]["event_registration_status"];
+          updated_at: string;
+          updated_by: string | null;
+          user_agent: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_registrations";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -6382,8 +6925,15 @@ export type Database = {
         | "event_image_replaced"
         | "event_segments_updated"
         | "event_dispatch_started"
-        | "event_dispatch_completed";
+        | "event_dispatch_completed"
+        | "landing_page_created"
+        | "landing_page_updated"
+        | "landing_page_published"
+        | "landing_page_closed"
+        | "landing_page_deactivated";
       event_dispatch_status: "running" | "completed" | "failed";
+      event_landing_page_status: "draft" | "published" | "closed" | "inactive";
+      event_participant_confirmation: "confirmed" | "not_confirmed";
       event_recipient_status:
         | "pending"
         | "sending"
@@ -6392,6 +6942,14 @@ export type Database = {
         | "read"
         | "error"
         | "blocked";
+      event_registration_audit_action:
+        | "registration_created"
+        | "registration_updated"
+        | "registration_cancelled"
+        | "registration_reactivated"
+        | "participant_confirmation_changed";
+      event_registration_origin: "landing_page" | "backoffice";
+      event_registration_status: "active" | "cancelled";
       event_status: "active" | "inactive";
       flow_channel: "whatsapp" | "web";
       flow_conversation_status:
@@ -6757,8 +7315,15 @@ export const Constants = {
         "event_segments_updated",
         "event_dispatch_started",
         "event_dispatch_completed",
+        "landing_page_created",
+        "landing_page_updated",
+        "landing_page_published",
+        "landing_page_closed",
+        "landing_page_deactivated",
       ],
       event_dispatch_status: ["running", "completed", "failed"],
+      event_landing_page_status: ["draft", "published", "closed", "inactive"],
+      event_participant_confirmation: ["confirmed", "not_confirmed"],
       event_recipient_status: [
         "pending",
         "sending",
@@ -6768,6 +7333,15 @@ export const Constants = {
         "error",
         "blocked",
       ],
+      event_registration_audit_action: [
+        "registration_created",
+        "registration_updated",
+        "registration_cancelled",
+        "registration_reactivated",
+        "participant_confirmation_changed",
+      ],
+      event_registration_origin: ["landing_page", "backoffice"],
+      event_registration_status: ["active", "cancelled"],
       event_status: ["active", "inactive"],
       flow_channel: ["whatsapp", "web"],
       flow_conversation_status: [

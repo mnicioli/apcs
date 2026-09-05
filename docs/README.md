@@ -15,6 +15,7 @@ gerais) e pelo [SETUP.md](../SETUP.md) (como rodar).
 | Entender leitura vs escrita                     | [SERVICE-ACTION-PATTERN.md](./SERVICE-ACTION-PATTERN.md) |
 | Mexer nas normativas / documentos               | [DOCUMENTS.md](./DOCUMENTS.md)                           |
 | Mexer nos eventos / segmentação                 | [EVENTS.md](./EVENTS.md)                                 |
+| Mexer nas inscrições / landing page do evento   | [INSCRICOES.md](./INSCRICOES.md)                         |
 | Mexer na Bolsa / boletins de preço              | [BOLSA.md](./BOLSA.md)                                   |
 | Mexer nas palestras / calendário                | [PALESTRAS.md](./PALESTRAS.md)                           |
 | Mexer nas enquetes / segmentação                | [ENQUETES.md](./ENQUETES.md)                             |

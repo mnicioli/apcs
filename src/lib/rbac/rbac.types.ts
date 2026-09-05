@@ -77,6 +77,11 @@ export type Permission =
   // Eventos da APCS
   | "events.read"
   | "events.write"
+  // Inscrições — quem vai aos eventos, pela página pública ou pelo backoffice.
+  // Chave separada de `events.*` por causa de DADO PESSOAL: ver o comentário na
+  // matriz.
+  | "registrations.read"
+  | "registrations.write"
   // Bolsa — os boletins de preço (submenu de Documentos)
   | "market.read"
   | "market.write"

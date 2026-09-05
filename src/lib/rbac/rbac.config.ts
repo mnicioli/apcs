@@ -77,6 +77,31 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "events.read": ["admin", "comercial"],
   "events.write": ["admin"],
 
+  // Inscrições — as Landing Pages são `events.*`; QUEM SE INSCREVEU é isto.
+  //
+  // ⚠️ CHAVE PRÓPRIA POR CAUSA DE DADO PESSOAL, e é a única razão. A Landing
+  // Page é a fachada do evento: mesma tela, mesma pessoa decidindo, nenhum dado
+  // de terceiro — ela usa `events.*`, e inventar uma chave para ela seria
+  // inventar uma decisão de negócio que não existe. As INSCRIÇÕES são outra
+  // coisa: nome, e-mail, telefone e WhatsApp de centenas de pessoas que não são
+  // usuárias do sistema e nunca autorizaram nada além de ir a um evento.
+  //
+  // Hoje as duas listas de papéis coincidem. O que a chave separada compra é
+  // poderem deixar de coincidir sem mexer em Eventos — um Atendente que precisa
+  // consultar a agenda não precisa, pelo mesmo ato, da lista de contatos de
+  // quem vai.
+  //
+  // O §21 do escopo pedia Administrador, Gestor e Atendente. O GESTOR não
+  // existe mais (aposentado em 20260902000000), então é o recorte dos outros
+  // módulos de conteúdo: o Administrador administra, o Atendente consulta. Um
+  // "Gestor de Inscrições" continua possível sem papel novo — é um CARGO criado
+  // em /permissions com base `admin` e só estas duas chaves.
+  //
+  // Devem bater com `registrations_is_reader()` / `registrations_is_writer()`
+  // em supabase/migrations/20260922000100_event_landing.sql.
+  "registrations.read": ["admin", "comercial"],
+  "registrations.write": ["admin"],
+
   // Bolsa — os boletins de preço da APCS.
   // Mesmo recorte da gestão documental, e pelo mesmo motivo: quem atende
   // (`comercial`, o "Atendente") precisa CONSULTAR e BAIXAR o boletim vigente

@@ -57,7 +57,14 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "market.write": "Publicar versões do boletim",
 
   "events.read": "Ver a agenda de eventos",
+  // ⚠️ A PÁGINA DE INSCRIÇÃO ENTRA AQUI, e o rótulo não cabe dizendo isso —
+  // `rbac.labels.test.ts` limita a 50 caracteres, para a matriz caber numa
+  // linha. Quem precisa da regra inteira lê o comentário de `registrations.*`
+  // em rbac.config.ts; o que a tela precisa é do nome curto.
   "events.write": "Criar, editar e divulgar eventos",
+
+  "registrations.read": "Ver quem se inscreveu nos eventos",
+  "registrations.write": "Inscrever, cancelar e confirmar participantes",
 
   "lectures.read": "Ver as palestras e o calendário",
   "lectures.write": "Agendar, atribuir e decidir status",
@@ -108,6 +115,19 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
   { title: "Documentos", status: "live", permissions: ["documents.read", "documents.write"] },
   { title: "Bolsa", status: "live", permissions: ["market.read", "market.write"] },
   { title: "Eventos", status: "live", permissions: ["events.read", "events.write"] },
+  /**
+   * ⚠️ GRUPO PRÓPRIO, e não uma quinta linha em "Eventos". Quem abre
+   * /permissions para decidir o que um cargo pode ver precisa ENXERGAR a
+   * separação: a agenda é informação pública da associação; a lista de
+   * inscritos é nome, e-mail e telefone de centenas de pessoas. Empilhar as
+   * duas no mesmo bloco faria a segunda passar despercebida na hora de marcar
+   * as caixas.
+   */
+  {
+    title: "Inscrições em eventos",
+    status: "live",
+    permissions: ["registrations.read", "registrations.write"],
+  },
   { title: "Palestras", status: "live", permissions: ["lectures.read", "lectures.write"] },
   { title: "Enquetes", status: "live", permissions: ["surveys.read", "surveys.write"] },
   { title: "Associados", status: "live", permissions: ["members.read", "members.write"] },

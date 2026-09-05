@@ -34,6 +34,22 @@ export type ActionErrorCode =
   | "eventExpiredForDispatch"
   | "eventWithoutSegments"
   | "invalidDispatchBatch"
+  // Landing Pages e Inscrições. Mesmo raciocínio dos outros módulos: cada
+  // código existe porque a frase precisa ser diferente. "Dados inválidos" numa
+  // inscrição de quatro participantes mandaria procurar o campo errado em
+  // dezesseis caixas — e "lotou" e "o prazo venceu" pedem providências opostas
+  // de quem administra o evento.
+  | "landingNotAcceptingRegistrations"
+  | "landingTransitionNotAllowed"
+  | "landingSlugTaken"
+  | "landingInvalidFields"
+  | "eventAlreadyHasLandingPage"
+  | "registrationsClosed"
+  | "registrationsFull"
+  | "participantAlreadyRegistered"
+  | "participantRepeatedInRequest"
+  | "participantNeedsPhone"
+  | "registrationNeedsParticipant"
   // Regras de negócio da Bolsa. Mesmo raciocínio: cada uma tem um texto que diz
   // O QUE FAZER em seguida.
   | "bulletinNeedsActiveVersion"
@@ -177,6 +193,23 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   eventExpiredForDispatch: "Este evento já passou e não pode ser divulgado.",
   eventWithoutSegments: "Defina o público-alvo do evento antes de divulgar.",
   invalidDispatchBatch: "O lote de divulgação está fora do tamanho permitido.",
+  landingNotAcceptingRegistrations:
+    "As inscrições para este evento não estão abertas. Publique a página de inscrição antes.",
+  landingTransitionNotAllowed: "Esta página não pode passar para essa situação.",
+  landingSlugTaken: "Não foi possível gerar um endereço para esta página. Escolha outro endereço.",
+  landingInvalidFields:
+    "A configuração do formulário está inválida. Granja/Empresa, E-mail e Nome do Participante são obrigatórios, e é preciso incluir Telefone ou WhatsApp.",
+  eventAlreadyHasLandingPage: "Este evento já tem uma página de inscrição.",
+  registrationsClosed: "O prazo de inscrição para este evento já encerrou.",
+  // ⚠️ NÃO DIZ "tente novamente": não há o que tentar. O texto manda a pessoa
+  // procurar a APCS, que é a única coisa que ainda pode mudar o resultado.
+  registrationsFull:
+    "Não há vagas suficientes para esta inscrição. Fale com a APCS para saber se haverá mais lugares.",
+  participantAlreadyRegistered:
+    "Este e-mail já está inscrito neste evento. Cada pessoa se inscreve uma vez só.",
+  participantRepeatedInRequest: "Há um e-mail repetido entre os participantes desta inscrição.",
+  participantNeedsPhone: "Informe telefone ou WhatsApp para cada participante.",
+  registrationNeedsParticipant: "Inclua ao menos um participante na inscrição.",
   bulletinNeedsActiveVersion:
     "A Bolsa não pode ficar sem uma publicação ativa. Para trocar a publicação oficial, ative a desejada — a atual sai do ar automaticamente.",
   versionNotInBulletin: "Esta publicação não pertence a esta Bolsa.",
@@ -368,6 +401,21 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
 
   switch (e.code) {
     case "23505":
+      /**
+       * ⚠️ UMA CONSTRAINT COM NOME PRÓPRIO, E ELA É O §12 GANHANDO A CORRIDA.
+       *
+       * `create_event_registration` já confere "este e-mail já está inscrito" e
+       * dá o texto certo (RG003). Mas duas requisições simultâneas passam AS
+       * DUAS por aquela conferência, e quem recusa a segunda é o índice único —
+       * pelo caminho genérico, ela chegaria à pessoa como "Já existe um
+       * registro com esses dados", que não diz qual dado nem o que fazer.
+       *
+       * É exatamente o caso que a checagem em SQL não consegue cobrir, e é por
+       * isso que ele merece uma linha aqui em vez de cair no genérico.
+       */
+      if (e.constraint === "event_participants_event_email_idx") {
+        return { code: "participantAlreadyRegistered", constraint: e.constraint };
+      }
       return { code: "uniqueViolation", constraint: e.constraint };
     case "23503":
       return { code: "hasRelated", constraint: e.constraint };
@@ -454,6 +502,31 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "eventWithoutSegments" };
     case "EV007":
       return { code: "invalidDispatchBatch" };
+    // Classe `LP` — Landing Pages, e `RG` — Inscrições. Classes próprias pela
+    // mesma razão da `EV`: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
+    // supabase/migrations/20260922000100_event_landing.sql.
+    case "LP001":
+      return { code: "landingNotAcceptingRegistrations" };
+    case "LP002":
+      return { code: "landingTransitionNotAllowed" };
+    case "LP003":
+      return { code: "landingSlugTaken" };
+    case "LP004":
+      return { code: "landingInvalidFields" };
+    case "LP005":
+      return { code: "eventAlreadyHasLandingPage" };
+    case "RG001":
+      return { code: "registrationsClosed" };
+    case "RG002":
+      return { code: "registrationsFull" };
+    case "RG003":
+      return { code: "participantAlreadyRegistered" };
+    case "RG004":
+      return { code: "participantRepeatedInRequest" };
+    case "RG005":
+      return { code: "participantNeedsPhone" };
+    case "RG006":
+      return { code: "registrationNeedsParticipant" };
     // Classe `MB` — regras de negócio da Bolsa, pela mesma razão da `EV`: a
     // classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260814000000_create_market_bulletins.sql.
