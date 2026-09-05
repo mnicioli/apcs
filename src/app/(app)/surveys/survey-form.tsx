@@ -6,6 +6,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarClock, Save } from "lucide-react";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
+// ⚠️ MORAVAM NO FIM DESTE ARQUIVO. Saíram quando o Builder da Landing Page
+// precisou da mesma travessia instante ↔ campo local — duas cópias desta
+// conversão é como uma tela passa a mostrar 23h e a outra 02h do dia seguinte.
+import { fromLocalInput, toLocalInput } from "@/lib/time/local-input";
 import {
   createSurveyAction,
   scheduleSurveyAction,
@@ -667,29 +671,4 @@ function publicoMudou(
   const antes = (survey?.audience ?? []).map(chave).sort().join(SEPARADOR);
   const depois = criteria.map(chave).sort().join(SEPARADOR);
   return antes !== depois;
-}
-
-/**
- * ⚠️ A PONTE ENTRE O INSTANTE E O CAMPO — e é onde um fuso vira um bug.
- *
- * O banco guarda `timestamptz` (um instante absoluto). O
- * `<input type="datetime-local">` fala em HORA LOCAL, sem fuso. Converter com
- * `.slice(0, 16)` no ISO — que é a tentação — mostraria a hora em UTC: uma
- * enquete que fecha às 23h de São Paulo apareceria como 02h do dia seguinte.
- *
- * `toLocaleString` com `sv-SE` dá o formato ISO curto já no fuso do navegador,
- * que é exatamente o que o campo espera.
- */
-function toLocalInput(instant: string | null | undefined): string {
-  if (!instant) return "";
-  const data = new Date(instant);
-  if (Number.isNaN(data.getTime())) return "";
-  return data.toLocaleString("sv-SE", { hour12: false }).slice(0, 16).replace(" ", "T");
-}
-
-/** E a volta: o que a pessoa digitou (hora local) vira instante absoluto. */
-function fromLocalInput(local: string | undefined): string {
-  if (!local) return "";
-  const data = new Date(local);
-  return Number.isNaN(data.getTime()) ? "" : data.toISOString();
 }

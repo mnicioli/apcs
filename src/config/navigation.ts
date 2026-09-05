@@ -4,11 +4,13 @@ import {
   Brain,
   CalendarClock,
   CalendarDays,
+  ClipboardCheck,
   ClipboardList,
   Contact,
   FileText,
   Inbox,
   LayoutDashboard,
+  LayoutTemplate,
   LineChart,
   ListOrdered,
   Megaphone,
@@ -228,6 +230,36 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: CalendarDays,
         permission: "events.read",
         available: true,
+      },
+      {
+        // ⚠️ A ROTA É FILHA DE `/events`, E A LATERAL SABE LIDAR COM ISSO. O
+        // destaque do item ativo já resolve prefixo aninhado: estando em
+        // `/events/landing-pages`, o item "Eventos" NÃO acende, porque existe
+        // um item cujo href é um prefixo mais longo e casa com a rota. É a
+        // mesma situação de Palestras × Calendário, e o código está lá.
+        //
+        // Permissão de EVENTOS, e não de inscrições: a página é a fachada do
+        // evento — quem edita o evento edita a página dele. Ver o comentário de
+        // `registrations.*` em rbac.config.ts.
+        title: "Landing Pages",
+        href: "/events/landing-pages",
+        icon: LayoutTemplate,
+        permission: "events.read",
+        available: true,
+      },
+      {
+        // ⚠️ "EM BREVE" DE PROPÓSITO. A tela é o Prompt 4; o que existe hoje é
+        // só o domínio. Deixá-la fora do menu esconderia metade da estrutura
+        // que o escopo desenha (Eventos → Eventos, Landing Pages, Inscrições);
+        // deixá-la clicável levaria a uma rota que não existe.
+        //
+        // `available: false` é exatamente o terceiro caminho: aparece apagada,
+        // com o selo "Em breve", e não promete nada que não esteja de pé.
+        title: "Inscrições",
+        href: "/events/registrations",
+        icon: ClipboardCheck,
+        permission: "registrations.read",
+        available: false,
       },
     ],
   },

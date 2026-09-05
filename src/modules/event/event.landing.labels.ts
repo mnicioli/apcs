@@ -1,3 +1,4 @@
+import type { LandingTemplateVariable } from "./event.landing.rules";
 import type {
   LandingFieldKey,
   LandingPageStatus,
@@ -165,3 +166,42 @@ export const LANDING_INSTITUTIONAL_CONTEXT = {
   /** Como as duas aparecem juntas no cabeçalho e no rodapé da página. */
   signature: "APCS · CSPI",
 } as const;
+
+/* -------------------------------------------------------------------------- */
+/* Builder (§6 a §28 do Prompt 2)                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * As variáveis da mensagem de confirmação, com o que cada uma significa.
+ *
+ * ⚠️ EXISTE PARA A LISTA APARECER NA TELA. O §18 proíbe variável arbitrária —
+ * e a única forma de isso não virar tentativa e erro é o Builder MOSTRAR quais
+ * existem, ao lado do campo em que se digita.
+ */
+export const LANDING_TEMPLATE_VARIABLE_LABELS: Record<LandingTemplateVariable, string> = {
+  event_name: "Nome do evento",
+  event_date: "Data do evento",
+  event_start_time: "Hora de início",
+  event_end_time: "Hora de término",
+};
+
+/** O que cada comando do Builder faz, dito antes de a pessoa confirmar. */
+export const LANDING_CONFIRMATION_COPY: Record<"publish" | "close" | "deactivate", string> = {
+  publish:
+    "A página fica no ar no endereço público e passa a aceitar inscrições. Confira a prévia antes.",
+  close:
+    "A página continua no ar, mas para de aceitar inscrições. Quem já se inscreveu não é afetado.",
+  deactivate:
+    "A página sai do ar e o endereço deixa de abrir. Nada é apagado — as inscrições continuam no sistema.",
+};
+
+/**
+ * ⚠️ O AVISO DO §25, e ele é a regra inteira em duas frases.
+ *
+ * Não há versionamento de Landing Page (o Prompt 1 não criou um, e o §25 é
+ * explícito em não inventar um agora). O que protege o histórico é outra coisa:
+ * inscrição gravada é imutável. Editar a página muda o que os PRÓXIMOS verão,
+ * nunca o que os anteriores preencheram.
+ */
+export const LANDING_PUBLISHED_EDIT_WARNING =
+  "Esta página está no ar e já recebeu inscrições. Alterações valem para quem se inscrever a partir de agora — nada do que já foi preenchido muda.";

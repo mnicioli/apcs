@@ -25,6 +25,27 @@ export function buildImagePath(eventId: string, filename: string): string {
 }
 
 /**
+ * A arte da PÁGINA DE INSCRIÇÃO: `<event_id>/landing/<uuid>.<ext>`.
+ *
+ * ⚠️ MESMO BUCKET, PASTA DIFERENTE — e as duas metades importam.
+ *
+ * Mesmo bucket porque o §8 é explícito ("Se a plataforma já possuir serviço de
+ * storage, utilizar o serviço existente"): as policies, o teto de 5 MB e a
+ * lista de MIME já valem para `events`, e um bucket novo seria uma segunda
+ * configuração para manter em dia.
+ *
+ * Pasta `landing/` porque o cartaz do evento e a arte da página são arquivos
+ * distintos com ciclos de vida distintos — trocar um não pode apagar o outro.
+ * `discardReplacedImage` pergunta a QUAL TABELA o caminho pertence antes de
+ * remover, e o prefixo é o que torna a distinção óbvia para quem olhar o
+ * bucket.
+ */
+export function buildLandingImagePath(eventId: string, filename: string): string {
+  const extension = imageExtensionOf(filename) ?? ".jpg";
+  return `${eventId}/landing/${crypto.randomUUID()}${extension}`;
+}
+
+/**
  * Vida da URL assinada da imagem, em segundos.
  *
  * Uma hora, e não os 300 s das normativas. A diferença tem uma razão concreta:

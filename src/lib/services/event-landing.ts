@@ -76,8 +76,34 @@ const LANDING_COLUMNS =
   "creator:profiles!event_landing_pages_created_by_fkey (id, full_name), " +
   "editor:profiles!event_landing_pages_updated_by_fkey (id, full_name), " +
   "publisher:profiles!event_landing_pages_published_by_fkey (id, full_name), " +
-  "event:events!event_landing_pages_event_id_fkey (" +
-  "id, name, event_date, start_time, end_time, location, description, image_path)";
+  eventEmbed(false);
+
+/**
+ * A MESMA LISTA, COM JUNÇÃO INTERNA NO EVENTO.
+ *
+ * ⚠️ EXISTE PARA O FILTRO DE PERÍODO PODER IR AO SQL. O PostgREST só aceita
+ * `.gte("event.event_date", …)` quando o embed é uma junção INTERNA — com a
+ * externa (o padrão) ele não tem como filtrar a linha de fora pela de dentro.
+ *
+ * Seguro aqui porque `event_id` é `not null`: toda página tem evento, e a
+ * junção interna não descarta linha nenhuma.
+ */
+const LANDING_COLUMNS_INNER =
+  LANDING_COLUMNS.slice(0, LANDING_COLUMNS.indexOf("event:events")) + eventEmbed(true);
+
+/**
+ * O embed do evento, nas duas formas.
+ *
+ * Uma função, e não duas strings: a lista de colunas do evento é a mesma nos
+ * dois casos, e mantê-la escrita duas vezes é como uma delas fica para trás no
+ * dia em que o evento ganhar um campo.
+ */
+function eventEmbed(inner: boolean): string {
+  return (
+    `event:events!event_landing_pages_event_id_fkey${inner ? "!inner" : ""} (` +
+    "id, name, event_date, start_time, end_time, location, description, image_path)"
+  );
+}
 
 const REGISTRATION_COLUMNS =
   "id, event_id, landing_page_id, company_name, status, origin, registered_at, updated_at, " +
@@ -284,9 +310,32 @@ export async function listLandingPages(
 ): Promise<LandingPageListPage> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  /**
+   * ⚠️ O PERÍODO VAI PARA O SQL, e não é detalhe de desempenho — é o que faz o
+   * filtro do §4 funcionar de verdade.
+   *
+   * Com o recorte só em memória, procurar "eventos de outubro" leria as
+   * primeiras `LANDING_LIMIT` páginas por data de criação e filtraria o que
+   * viesse: uma página de outubro criada há muito tempo simplesmente não
+   * apareceria, e `truncated` avisaria que "pode faltar coisa" sem que ninguém
+   * soubesse o quê.
+   *
+   * O filtro é sobre a data do EVENTO, que mora na tabela vizinha — daí a
+   * junção interna, que é o que permite ao PostgREST filtrar por ela.
+   *
+   * O nome e a situação continuam em memória, pelos mesmos motivos de
+   * `listEvents`: `ilike` do Postgres é sensível a acento, e a situação efetiva
+   * é derivada — compará-la em SQL exigiria repetir a regra em dois lugares.
+   */
+  const temPeriodo = filters.from !== "" || filters.to !== "";
+
+  let query = supabase
     .from("event_landing_pages")
-    .select(LANDING_COLUMNS)
+    .select(temPeriodo ? LANDING_COLUMNS_INNER : LANDING_COLUMNS);
+  if (filters.from) query = query.gte("event.event_date", filters.from);
+  if (filters.to) query = query.lte("event.event_date", filters.to);
+
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .limit(LANDING_LIMIT)
     // Hint de tipo (descompasso de generics ssr/supabase-js). Ver CONVENTIONS.md.
@@ -544,4 +593,90 @@ export async function listRegistrationAuditLogs(
     createdAt: row.created_at,
     metadata: row.metadata ?? {},
   }));
+}
+
+/** Um evento que ainda pode receber uma página de inscrição. */
+export interface EventForLanding {
+  id: string;
+  name: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string | null;
+  location: string;
+}
+
+/**
+ * OS EVENTOS QUE PODEM GANHAR UMA LANDING PAGE (§5 do Prompt 2).
+ *
+ * ⚠️ DOIS RECORTES, E OS DOIS SÃO "EVENTO VÁLIDO" NO SENTIDO DO PROMPT 1:
+ *
+ *   1. **Ainda não tem página.** `event_landing_pages.event_id` é `unique`, e
+ *      `create_event_landing_page` recusa a segunda com LP005. Oferecer o
+ *      evento na lista e recusá-lo no clique seria mandar a pessoa descobrir a
+ *      regra por tentativa.
+ *
+ *   2. **A data não passou.** `set_event_landing_page_status` recusa publicar a
+ *      página de um evento vencido (EV001, a mesma regra de `set_event_status`).
+ *      Um rascunho que nunca poderá ir ao ar não é um começo de trabalho — é um
+ *      beco.
+ *
+ * ⚠️ A EXCLUSÃO É FEITA EM MEMÓRIA, e não com `not.in(...)`. A lista de ids de
+ * páginas existentes viraria query string — e o PostgREST cobra isso em
+ * tamanho de URL, que falha de uma vez em vez de degradar. Duas leituras
+ * pequenas e um `Set` custam menos e não têm teto escondido.
+ */
+export async function listEventsWithoutLandingPage(
+  today: string = todayInSaoPaulo(),
+): Promise<EventForLanding[]> {
+  const supabase = await createClient();
+
+  const [eventos, paginas] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, name, event_date, start_time, end_time, location")
+      .gte("event_date", today)
+      .order("event_date", { ascending: true })
+      .order("start_time", { ascending: true })
+      .limit(LANDING_LIMIT)
+      .returns<
+        {
+          id: string;
+          name: string;
+          event_date: string;
+          start_time: string;
+          end_time: string | null;
+          location: string;
+        }[]
+      >(),
+    supabase.from("event_landing_pages").select("event_id").returns<{ event_id: string }[]>(),
+  ]);
+
+  if (eventos.error) {
+    console.error(`[event-landing] listEventsWithoutLandingPage falhou: ${eventos.error.message}`);
+    throw eventos.error;
+  }
+
+  // ⚠️ FALHA AQUI NÃO ESCONDE EVENTO. Se a leitura das páginas der errado, o
+  // conjunto fica vazio e todos os eventos aparecem — a criação então é
+  // recusada pelo banco com a mensagem certa (LP005). O contrário — esconder
+  // tudo — faria a tela dizer "não há eventos disponíveis", que é uma mentira
+  // sobre o cadastro.
+  if (paginas.error) {
+    console.error(
+      `[event-landing] leitura das páginas existentes falhou: ${paginas.error.message}`,
+    );
+  }
+
+  const jaTem = new Set((paginas.data ?? []).map((linha) => linha.event_id));
+
+  return (eventos.data ?? [])
+    .filter((evento) => !jaTem.has(evento.id))
+    .map((evento) => ({
+      id: evento.id,
+      name: evento.name,
+      eventDate: evento.event_date,
+      startTime: formatTime(evento.start_time),
+      endTime: evento.end_time ? formatTime(evento.end_time) : null,
+      location: evento.location,
+    }));
 }

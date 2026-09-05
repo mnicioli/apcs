@@ -97,18 +97,33 @@ export function formatTimeRange(startTime: string | null, endTime: string | null
 }
 
 /**
- * Normaliza para busca: sem acento e sem caixa.
+ * Sem acento e sem caixa — E SEM MEXER NOS ESPAÇOS.
  *
- * Sem isto, procurar "camara" não acharia "Câmara" — e ninguém digita acento
- * numa caixa de busca. `NFD` separa a letra do acento e a faixa `\p{Diacritic}`
- * remove só os acentos, preservando "ç" → "c" e mantendo o resto intacto.
+ * `NFD` separa a letra do acento e a faixa `\p{Diacritic}` remove só os
+ * acentos, preservando "ç" → "c" e mantendo o resto intacto.
+ *
+ * ⚠️ FOI EXTRAÍDA DE `normalizeForSearch` POR CAUSA DE UM DEFEITO REAL. Aquela
+ * termina com `.trim()`, o que é certo para uma caixa de busca e errado para
+ * gerar um slug ENQUANTO SE DIGITA: "Encontro " chegava ao gerador já sem o
+ * espaço, o separador nunca era criado, e digitar um endereço de duas palavras
+ * produzia "encontrotecnico". A parte comum é esta; o `trim` é decisão de quem
+ * chama. Ver `slugWhileTyping` em event.landing.rules.ts.
  */
-export function normalizeForSearch(value: string): string {
+export function foldAccents(value: string): string {
   return value
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .trim();
+    .toLowerCase();
+}
+
+/**
+ * Normaliza para busca: sem acento, sem caixa e sem espaço nas pontas.
+ *
+ * Sem isto, procurar "camara" não acharia "Câmara" — e ninguém digita acento
+ * numa caixa de busca.
+ */
+export function normalizeForSearch(value: string): string {
+  return foldAccents(value).trim();
 }
 
 /**

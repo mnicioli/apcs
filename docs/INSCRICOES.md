@@ -10,9 +10,9 @@ EVENTOS
 └── Inscrições       ← quem se inscreveu
 ```
 
-> **Estado:** o Prompt 1 de 5 está implementado — banco, domínio, services,
-> actions e testes. **Não existe tela ainda.** O Builder é o Prompt 2, a página
-> pública é o Prompt 3.
+> **Estado:** Prompts 1 e 2 de 5 implementados — banco, domínio, services,
+> actions, **o menu, a listagem, a criação e o Builder com prévia**. A página
+> pública é o Prompt 3; a tela de Inscrições é o Prompt 4.
 
 ---
 
@@ -283,25 +283,30 @@ texto precisa poder mover o nome do evento de lugar na frase.
 
 ## 12. O que NÃO existe ainda
 
-| O quê                 | Quando   | Observação                                                                           |
-| --------------------- | -------- | ------------------------------------------------------------------------------------ |
-| Builder drag & drop   | Prompt 2 | `form_fields` é jsonb e já guarda a ordem                                            |
-| Tela de Landing Pages | Prompt 2 | services e actions prontos                                                           |
-| Tela de Inscrições    | Prompt 2 | `listRegistrations` pronto                                                           |
-| Página pública        | Prompt 3 | precisa de uma função `security definer` de LEITURA — ela não existe, e é deliberado |
-| Exportação Excel      | Prompt 4 | `REGISTRATION_LIMIT` é 1000; a exportação vai precisar ler em lotes                  |
+| O quê              | Quando   | Observação                                                                           |
+| ------------------ | -------- | ------------------------------------------------------------------------------------ |
+| Página pública     | Prompt 3 | precisa de uma função `security definer` de LEITURA — ela não existe, e é deliberado |
+| Inscrição real     | Prompt 3 | `create_event_registration` está pronta; falta a porta pública chamá-la              |
+| Tela de Inscrições | Prompt 4 | `listRegistrations` pronto                                                           |
+| Exportação Excel   | Prompt 4 | `REGISTRATION_LIMIT` é 1000; a exportação vai precisar ler em lotes                  |
 
 ### Pendências declaradas
 
-1. **`set_event_landing_page_image` não tem action.** A função Postgres existe
-   (o §4 pede o campo imagem), mas o fluxo de upload — URL assinada, inspeção
-   dos bytes, descarte do órfão — mora em `src/lib/actions/events.ts` e
-   **precisa ser extraído, não copiado**, quando o Builder o usar. Copiá-lo
-   seria a duplicação que o §33 manda procurar.
+1. **Não existe arquivo de logo do CSPI.** `public/` tem `logo-apcs.svg` e mais
+   nada. O §21 do Prompt 2 pede os dois logos; a prévia identifica o CSPI por
+   **assinatura tipográfica** enquanto o arquivo não chega. Desenhar um
+   substituto seria inventar a marca de terceiro. Quando o SVG existir, o
+   caminho é `CabecalhoInstitucional` em `landing-preview.tsx` — um lugar só.
 
 2. **`events.registration_url` continua sendo um link externo livre.** É a
-   decisão arquitetural que o §34 manda reportar antes de resolver por conta
-   própria — veja abaixo.
+   decisão arquitetural que o §34 do Prompt 1 manda reportar antes de resolver
+   por conta própria — veja a seção 13.
+
+3. **`beforeunload` não intercepta navegação interna.** O Builder avisa ao
+   fechar a aba ou recarregar com alterações pendentes, mas clicar num item do
+   menu ainda perde o rascunho. É o mesmo limite de `event-form.tsx`: o App
+   Router não expõe gancho para bloquear rota, e inventar um interceptador de
+   `<Link>` para esta tela seria uma solução paralela ao padrão da plataforma.
 
 ---
 
@@ -325,3 +330,76 @@ caminhos, e nenhum é obviamente certo:
 **Nada foi feito.** A fundação não depende disso, e escolher por conta própria
 mudaria o comportamento de um disparo de WhatsApp que já está em produção.
 A decisão é do Prompt 3, quando a página pública existir e o endereço for real.
+
+---
+
+## 14. O backoffice (Prompt 2)
+
+```
+Eventos
+├── Eventos            /events
+├── Landing Pages      /events/landing-pages     ← este prompt
+└── Inscrições         (Em breve — Prompt 4)
+```
+
+| Tela            | Rota                         | Permissão                                          |
+| --------------- | ---------------------------- | -------------------------------------------------- |
+| Listagem        | `/events/landing-pages`      | `events.read`                                      |
+| Escolher evento | `/events/landing-pages/new`  | `events.write`                                     |
+| Builder         | `/events/landing-pages/[id]` | `events.read` para ver, `events.write` para editar |
+
+### O Builder em uma frase
+
+**Todo o estado mora num `useState` só e desce para as duas colunas por props.**
+É isso que faz a prévia em tempo real (§19) ser consequência do desenho em vez
+de um recurso: digitar redesenha a coluna da direita no mesmo quadro, porque as
+duas leem o mesmo objeto.
+
+### ⚠️ A prévia não cria inscrição, e isso é estrutural
+
+O §34 proíbe. A garantia não é uma promessa: `landing-preview.tsx` **não importa
+Server Action nenhuma, nenhum cliente Supabase e nenhum módulo `server-only`**.
+Os campos são caixas desenhadas (não `<input>`), o botão de confirmar é um
+`<div>`, e "adicionar participante" mexe num contador local.
+
+O sinal de que essa garantia se perdeu seria um `vi.mock` de action aparecendo
+em `landing-preview.test.tsx`. Hoje não há nenhum.
+
+### Drag & drop com alternativa de teclado (§13, §31)
+
+`draggable` + três manipuladores nativos, **sem biblioteca** — uma dependência
+de ~30 kB para reordenar cinco itens não se paga. E ao lado de cada campo, duas
+setas que fazem exatamente a mesma coisa, com rótulo que nomeia o campo ("Mover
+E-mail para cima").
+
+> "Não fazer o Drag & Drop depender exclusivamente do mouse." As setas são a
+> garantia; o arrastar é o atalho por cima dela. Os testes atacam as setas.
+
+### A obrigatoriedade é mostrada, não editada (§14)
+
+Selos, não caixas de seleção. `landing-field-list.test.tsx` cobra que não exista
+`checkbox` nem `switch` na lista — porque o §14 é explícito em não deixar o
+administrador desconfigurar as regras nesta versão.
+
+### O endereço enquanto se digita
+
+⚠️ **Um defeito que um teste encontrou.** O campo normaliza a cada tecla. Com
+`slugPreview` ali, digitar "Encontro Técnico" produzia `encontrotecnico`:
+
+1. `normalizeForSearch` termina com `.trim()` → "Encontro " chegava sem o espaço;
+2. `slugPreview` corta hífen das pontas → mesmo criado, ele sumia antes da
+   próxima tecla.
+
+A correção separou as duas perguntas: `slugWhileTyping` (sem cortar as pontas)
+enquanto se digita, `slugPreview` ao sair do campo e ao salvar. E `foldAccents`
+saiu de `normalizeForSearch` para que o `trim` seja decisão de quem chama.
+
+### §25 — não há versionamento, e o Prompt 2 não inventou um
+
+O que protege o histórico é outra coisa: **inscrição gravada é imutável**.
+Editar a página muda o que os próximos verão, nunca o que os anteriores
+preencheram. O Builder diz isso na tela quando a página está no ar com
+inscritos.
+
+A única edição que poderia criar inconsistência — reduzir a capacidade abaixo de
+quem já está inscrito — já era recusada pelo banco desde o Prompt 1 (LP004).

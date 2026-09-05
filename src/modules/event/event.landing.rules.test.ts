@@ -16,6 +16,7 @@ import {
   resolveSuccessMessage,
   seatsLeft,
   slugPreview,
+  slugWhileTyping,
   validateLandingFields,
   type LandingStatusInput,
 } from "./event.landing.rules";
@@ -270,7 +271,12 @@ describe("mensagem de confirmação (§18)", () => {
     footer: "Esperamos você! Nos vemos no evento.",
   };
 
-  const EVENTO = { name: "Encontro Técnico", eventDate: "2026-09-18" };
+  const EVENTO = {
+    name: "Encontro Técnico",
+    eventDate: "2026-09-18",
+    startTime: "08:00",
+    endTime: "13:00",
+  };
 
   it("usa o padrão da plataforma quando a página não define nada", () => {
     const resolvido = resolveSuccessMessage(
@@ -316,7 +322,7 @@ describe("mensagem de confirmação (§18)", () => {
     const resolvido = resolveSuccessMessage(
       { successTitle: null, successMessage: "<DATA>", successFooter: null },
       PADRAO,
-      { name: "X", eventDate: "2026-01-01" },
+      { name: "X", eventDate: "2026-01-01", startTime: "08:00", endTime: null },
     );
     expect(resolvido.message).toBe("01/01/2026");
   });
@@ -511,5 +517,49 @@ describe("contagem por confirmação", () => {
     expect(contagem.all).toBe(2);
     expect(contagem.confirmed).toBe(1);
     expect(contagem.not_confirmed).toBe(1);
+  });
+});
+
+/**
+ * ============================================================================
+ * ⚠️ O DEFEITO QUE UM TESTE DE COMPONENTE ENCONTROU, GUARDADO AQUI EM BAIXO.
+ * ============================================================================
+ * O campo de endereço do Builder normaliza a cada tecla. Com `slugPreview` ali,
+ * digitar "Encontro Técnico" produzia **"encontrotecnico"** — o separador
+ * desaparecia no instante entre a barra de espaço e a letra seguinte, e um
+ * endereço de duas palavras ficava impossível de escrever.
+ *
+ * Eram DUAS causas somadas, e as duas estão cobertas abaixo:
+ *
+ *   1. `normalizeForSearch` termina com `.trim()`, então "Encontro " chegava ao
+ *      gerador já sem o espaço — o hífen nunca era criado.
+ *   2. `slugPreview` corta hífen das pontas, então mesmo criado ele seria
+ *      apagado antes da próxima tecla.
+ */
+describe("slug enquanto se digita", () => {
+  it("preserva o separador de uma palavra que ainda não terminou", () => {
+    expect(slugWhileTyping("Encontro ")).toBe("encontro-");
+    expect(slugWhileTyping("Encontro T")).toBe("encontro-t");
+    expect(slugWhileTyping("Encontro Técnico")).toBe("encontro-tecnico");
+  });
+
+  it("digitar letra a letra chega ao mesmo lugar que digitar de uma vez", () => {
+    const alvo = "Encontro Técnico e Comercial";
+    let digitado = "";
+    for (const letra of alvo) digitado = slugWhileTyping(digitado + letra);
+
+    expect(digitado).toBe(slugWhileTyping(alvo));
+    expect(digitado).toBe("encontro-tecnico-e-comercial");
+  });
+
+  it("a versão final corta as pontas; a de digitação não", () => {
+    expect(slugWhileTyping("  Encontro  ")).toBe("-encontro-");
+    expect(slugPreview("  Encontro  ")).toBe("encontro");
+  });
+
+  it("as duas concordam em tudo o que não é ponta", () => {
+    for (const entrada of ["Ação Ñandu", "Reunião — 2026", "APCS/CSPI"]) {
+      expect(slugPreview(entrada)).toBe(slugWhileTyping(entrada).replace(/^-+|-+$/g, ""));
+    }
   });
 });

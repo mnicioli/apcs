@@ -7,15 +7,28 @@ import { assertPermission } from "@/lib/auth/assert-permission";
 import { clientIpHashFromHeaders } from "@/lib/security/client-ip";
 import { createClient } from "@/lib/supabase/server";
 import {
+  discardOrphan,
+  discardReplacedImage,
+  inspectUploadedImage,
+} from "@/lib/events/image-upload";
+import { buildLandingImagePath, EVENTS_BUCKET } from "@/lib/events/storage";
+import { validateImageCandidate } from "@/lib/files/image";
+import {
   createLandingPageSchema,
   createRegistrationSchema,
   landingCommandSchema,
+  landingImageSchema,
+  landingImageTicketSchema,
+  landingPageIdSchema,
   participantConfirmationSchema,
   updateLandingPageSchema,
   updateRegistrationSchema,
   type CreateLandingPageInput,
   type CreateRegistrationInput,
   type LandingCommandInput,
+  type LandingImageInput,
+  type LandingImageTicketInput,
+  type LandingPageIdInput,
   type ParticipantConfirmationInput,
   type UpdateLandingPageInput,
   type UpdateRegistrationInput,
@@ -371,4 +384,194 @@ export async function setParticipantConfirmationAction(
 
   revalidateLanding();
   return ok({ id: (data as { id: string }).id });
+}
+
+/* -------------------------------------------------------------------------- */
+/* 3. A imagem da página (§8 do Prompt 2) — exige `events.write`              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Passo 1: autoriza e devolve um endereço para o navegador enviar a arte DIRETO
+ * ao Supabase Storage.
+ *
+ * ⚠️ MESMO DESENHO DE `requestEventImageUploadAction`, E PELO MESMO MOTIVO
+ * MECÂNICO: a Vercel corta o corpo de requisições serverless em 4,5 MB e o
+ * limite é 5 MB. Uma imagem grande não passa por Server Action. O que trafega
+ * aqui são algumas centenas de bytes.
+ *
+ * ⚠️ O `eventId` VEM DO BANCO, NUNCA DO CLIENTE. O caminho no bucket é
+ * `<event_id>/landing/<uuid>.<ext>`; aceitar o id de fora deixaria alguém
+ * escrever na pasta de outro evento. A página é lida aqui exatamente para
+ * descobrir a qual evento ela pertence.
+ */
+export async function requestLandingImageUploadAction(
+  input: LandingImageTicketInput,
+): Promise<ActionResult<{ bucket: string; path: string; token: string }>> {
+  type Ticket = { bucket: string; path: string; token: string };
+
+  const parsed = landingImageTicketSchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const negado = await assertPermission<Ticket>("events.write");
+  if (negado) return negado;
+
+  // `type: ""` porque o servidor não vê o MIME que o navegador declarou — aqui
+  // só dá para conferir extensão e tamanho. O que o arquivo REALMENTE é fica
+  // para o passo 2, depois de ele existir.
+  const problema = validateImageCandidate({
+    name: parsed.data.filename,
+    size: parsed.data.sizeBytes,
+    type: "",
+  });
+  if (problema) return fail(problema);
+
+  const supabase = await createClient();
+
+  const { data: pagina, error: erroLeitura } = await supabase
+    .from("event_landing_pages")
+    .select("id, event_id")
+    .eq("id", parsed.data.landingPageId)
+    .returns<{ id: string; event_id: string }[]>()
+    .maybeSingle();
+
+  if (erroLeitura) {
+    console.error(`[landing] leitura da página falhou: ${erroLeitura.message}`);
+    return failFromPostgres("landing.image.ticket", erroLeitura, {
+      landingPageId: parsed.data.landingPageId,
+    });
+  }
+  if (!pagina) return fail("notFound");
+
+  const path = buildLandingImagePath(pagina.event_id, parsed.data.filename);
+
+  const { data, error } = await supabase.storage.from(EVENTS_BUCKET).createSignedUploadUrl(path);
+
+  if (error || !data) {
+    console.error(`[landing] URL de upload falhou: ${error?.message ?? "sem dados"}`);
+    return fail("unexpected");
+  }
+
+  return ok({ bucket: EVENTS_BUCKET, path: data.path, token: data.token });
+}
+
+/**
+ * Passo 2: confere os BYTES do que subiu e grava o caminho na página.
+ *
+ * ⚠️ A ORDEM IMPORTA. A imagem nova é validada ANTES de a linha ser alterada.
+ * Se for recusada, o objeto novo é apagado e a página continua exatamente como
+ * estava, apontando para a arte que sempre funcionou. A antiga só é descartada
+ * DEPOIS que a troca já está gravada — nunca há um instante em que o banco
+ * aponte para um arquivo que não existe. É a mesma coreografia de
+ * `updateEventAction`.
+ */
+export async function setLandingPageImageAction(
+  input: LandingImageInput,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = landingImageSchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const negado = await assertPermission<{ id: string }>("events.write");
+  if (negado) return negado;
+
+  const { landingPageId, storagePath } = parsed.data;
+
+  const supabase = await createClient();
+
+  const { data: pagina, error: erroLeitura } = await supabase
+    .from("event_landing_pages")
+    .select("id, event_id, image_path")
+    .eq("id", landingPageId)
+    .returns<{ id: string; event_id: string; image_path: string | null }[]>()
+    .maybeSingle();
+
+  if (erroLeitura) {
+    return failFromPostgres("landing.image", erroLeitura, { landingPageId });
+  }
+  if (!pagina) return fail("notFound");
+
+  // ⚠️ O CAMINHO VOLTA PELO CLIENTE, ENTÃO NÃO É CONFIÁVEL. Confiná-lo à pasta
+  // do próprio evento impede uma página de apontar para a arte de outra — ou
+  // pior, para o cartaz de um evento alheio.
+  if (!storagePath.startsWith(`${pagina.event_id}/landing/`)) return fail("invalidInput");
+
+  const imagem = await inspectUploadedImage(storagePath);
+  if ("issue" in imagem) {
+    await discardOrphan(storagePath);
+    return fail(imagem.issue);
+  }
+
+  const { data, error } = await supabase.rpc("set_event_landing_page_image", {
+    p_landing_page_id: landingPageId,
+    p_image_path: storagePath,
+    p_image_mime: imagem.mime,
+    p_image_size_bytes: imagem.sizeBytes,
+  } as never);
+
+  if (error || !data) {
+    await discardOrphan(storagePath);
+    return error ? failFromPostgres("landing.image", error, { landingPageId }) : fail("unexpected");
+  }
+
+  if (pagina.image_path && pagina.image_path !== storagePath) {
+    await discardReplacedImage(pagina.image_path, "event_landing_pages");
+  }
+
+  revalidateLanding();
+  return ok({ id: (data as LandingRpcResult).id });
+}
+
+/**
+ * Remove a arte própria da página.
+ *
+ * ⚠️ ISSO NÃO DEIXA A PÁGINA SEM IMAGEM. Sem arte própria, ela usa o CARTAZ DO
+ * EVENTO, que é obrigatório e sempre existe. É por isso que remover é uma
+ * operação segura aqui e não seria em Eventos — lá a imagem é o único cartaz.
+ */
+export async function removeLandingPageImageAction(
+  input: LandingPageIdInput,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = landingPageIdSchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const negado = await assertPermission<{ id: string }>("events.write");
+  if (negado) return negado;
+
+  const supabase = await createClient();
+
+  const { data: pagina, error: erroLeitura } = await supabase
+    .from("event_landing_pages")
+    .select("id, image_path")
+    .eq("id", parsed.data.landingPageId)
+    .returns<{ id: string; image_path: string | null }[]>()
+    .maybeSingle();
+
+  if (erroLeitura) {
+    return failFromPostgres("landing.image.remove", erroLeitura, {
+      landingPageId: parsed.data.landingPageId,
+    });
+  }
+  if (!pagina) return fail("notFound");
+
+  const { data, error } = await supabase.rpc("set_event_landing_page_image", {
+    p_landing_page_id: parsed.data.landingPageId,
+    p_image_path: null,
+    p_image_mime: null,
+    p_image_size_bytes: null,
+  } as never);
+
+  if (error || !data) {
+    return error
+      ? failFromPostgres("landing.image.remove", error, {
+          landingPageId: parsed.data.landingPageId,
+        })
+      : fail("unexpected");
+  }
+
+  // Só DEPOIS de a linha já não apontar mais para o arquivo.
+  if (pagina.image_path) {
+    await discardReplacedImage(pagina.image_path, "event_landing_pages");
+  }
+
+  revalidateLanding();
+  return ok({ id: (data as LandingRpcResult).id });
 }

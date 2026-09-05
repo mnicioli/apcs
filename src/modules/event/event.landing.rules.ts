@@ -1,4 +1,4 @@
-import { normalizeForSearch } from "@/lib/utils";
+import { foldAccents, normalizeForSearch } from "@/lib/utils";
 import type {
   ConfirmationFilter,
   LandingFieldKey,
@@ -187,17 +187,42 @@ export function canDeactivateLanding(page: { status: LandingPageStatus }): boole
  * que a tela relê depois de salvar.
  */
 export function slugPreview(value: string): string {
-  return (
-    // ⚠️ REUSA `normalizeForSearch`, e não repete a remoção de acento. Ela já
-    // faz NFD + `\p{Diacritic}` + minúsculas, que são exatamente os três
-    // primeiros passos de `event_landing_slugify` no Postgres. Uma segunda
-    // implementação de "tirar acento" no mesmo repositório é como as duas
-    // passam a discordar sobre "ç".
-    normalizeForSearch(value)
-      .replace(/[^a-z0-9-]+/g, "-")
-      .replace(/-{2,}/g, "-")
-      .replace(/^-+|-+$/g, "")
-  );
+  return slugWhileTyping(value).replace(/^-+|-+$/g, "");
+}
+
+/**
+ * A MESMA NORMALIZAÇÃO, MENOS O CORTE DAS PONTAS.
+ *
+ * ============================================================================
+ * ⚠️ EXISTE POR CAUSA DE UM DEFEITO REAL, ENCONTRADO POR UM TESTE.
+ * ============================================================================
+ * O campo de endereço do Builder normaliza a cada tecla — é o que faz o que a
+ * pessoa vê ser o que vai ser enviado. Com `slugPreview` ali, digitar
+ * "Encontro Técnico" produzia **"encontrotecnico"**:
+ *
+ *   "Encontro"    → "encontro"
+ *   "Encontro "   → "encontro-"  → o corte tira o hífen → "encontro"
+ *   "Encontro T"  → "encontrot"
+ *
+ * O separador era apagado no instante entre a barra de espaço e a letra
+ * seguinte. Digitar um endereço de duas palavras ficava impossível, e a causa
+ * era invisível: cada tecla individualmente parecia funcionar.
+ *
+ * A correção é separar as duas perguntas. ENQUANTO SE DIGITA, um hífen no fim é
+ * uma palavra que ainda não terminou. NO FIM, ele é lixo — e é `slugPreview`
+ * que decide isso, na hora de salvar e ao sair do campo.
+ *
+ * ⚠️ USA `foldAccents`, E NÃO `normalizeForSearch`, e essa é a segunda metade
+ * do mesmo defeito. `normalizeForSearch` termina com `.trim()` — o que é certo
+ * para uma caixa de busca e fatal aqui: "Encontro " chegava já sem o espaço, e
+ * o separador nunca era criado. `foldAccents` é a parte comum (NFD +
+ * `\p{Diacritic}` + minúsculas, exatamente os três primeiros passos de
+ * `event_landing_slugify` no Postgres) sem a decisão que não é nossa.
+ */
+export function slugWhileTyping(value: string): string {
+  return foldAccents(value)
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-{2,}/g, "-");
 }
 
 /** O formato que o CHECK `event_landing_pages_slug_format` aceita. */
@@ -274,6 +299,67 @@ export function readLandingFields(value: unknown): LandingFieldKey[] {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * As variáveis que a mensagem de confirmação aceita (§18).
+ *
+ * ⚠️ A LISTA É FECHADA, E É ISSO QUE O §18 PEDE ("Não permitir variáveis
+ * arbitrárias"). Um `{{qualquer_coisa}}` que não esteja aqui fica LITERAL no
+ * texto — não vira string vazia. A diferença importa: um marcador que some sem
+ * deixar rastro faz a frase ficar truncada e ninguém descobre por quê; um
+ * marcador que aparece cru na prévia é visível no segundo em que se digita.
+ */
+export const LANDING_TEMPLATE_VARIABLES = [
+  "event_name",
+  "event_date",
+  "event_start_time",
+  "event_end_time",
+] as const;
+
+export type LandingTemplateVariable = (typeof LANDING_TEMPLATE_VARIABLES)[number];
+
+/** Os dados do evento de que a substituição precisa. */
+export interface LandingTemplateEvent {
+  name: string;
+  /** AAAA-MM-DD. */
+  eventDate: string;
+  /** "HH:MM". */
+  startTime: string;
+  endTime: string | null;
+}
+
+/**
+ * Troca os marcadores pelos dados reais do evento.
+ *
+ * ⚠️ DUAS SINTAXES, E A ANTIGA NÃO PODE MORRER. O Prompt 1 semeou `<EVENTO>` e
+ * `<DATA>`; o §18 do Prompt 2 pede `{{event_name}}` e companhia. A migration
+ * 20260923000000 trocou o texto SEMEADO, mas qualquer Landing Page que já
+ * tenha gravado `<EVENTO>` no override dela continuaria mostrando o marcador
+ * cru se esta função só entendesse a forma nova.
+ *
+ * A nova é a que se oferece daqui para a frente; a antiga é reconhecida para
+ * não quebrar o que já existe.
+ */
+export function applyTemplateVariables(texto: string, event: LandingTemplateEvent): string {
+  const valores: Record<LandingTemplateVariable, string> = {
+    event_name: event.name,
+    event_date: formatEventDate(event.eventDate),
+    event_start_time: event.startTime,
+    event_end_time: event.endTime ?? "",
+  };
+
+  return (
+    texto
+      // `{{ nome }}` com espaços também casa: quem digita à mão põe espaço, e
+      // recusar por causa disso seria pedantismo com custo real.
+      .replace(/\{\{\s*(\w+)\s*\}\}/g, (cru, nome: string) =>
+        nome in valores ? valores[nome as LandingTemplateVariable] : cru,
+      )
+      // A sintaxe do Prompt 1, mantida viva. Ver o aviso acima.
+      .replaceAll("<EVENTO>", valores.event_name)
+      .replaceAll("<DATA>", valores.event_date)
+  );
+}
+
+/**
  * O texto de confirmação, resolvido.
  *
  * ⚠️ DUAS FONTES, NUNCA DUAS VERDADES. A Landing Page pode sobrescrever cada um
@@ -282,9 +368,8 @@ export function readLandingFields(value: unknown): LandingFieldKey[] {
  * quando a específica não existe — e é por isso que não há hardcode em service
  * nem em controller, como o §18 exige.
  *
- * Os marcadores `<EVENTO>` e `<DATA>` são substituídos aqui, e não concatenados
- * no SQL, porque quem edita o texto precisa poder mover o nome do evento de
- * lugar na frase.
+ * A substituição acontece aqui, e não concatenada no SQL, porque quem edita o
+ * texto precisa poder mover o nome do evento de lugar na frase.
  */
 export function resolveSuccessMessage(
   page: {
@@ -293,18 +378,12 @@ export function resolveSuccessMessage(
     successFooter: string | null;
   },
   defaults: LandingSuccessMessage,
-  event: { name: string; eventDate: string },
+  event: LandingTemplateEvent,
 ): LandingSuccessMessage {
-  function preencher(texto: string): string {
-    return texto
-      .replaceAll("<EVENTO>", event.name)
-      .replaceAll("<DATA>", formatEventDate(event.eventDate));
-  }
-
   return {
-    title: preencher(page.successTitle ?? defaults.title),
-    message: preencher(page.successMessage ?? defaults.message),
-    footer: preencher(page.successFooter ?? defaults.footer),
+    title: applyTemplateVariables(page.successTitle ?? defaults.title, event),
+    message: applyTemplateVariables(page.successMessage ?? defaults.message, event),
+    footer: applyTemplateVariables(page.successFooter ?? defaults.footer, event),
   };
 }
 
@@ -368,7 +447,14 @@ export function matchesLandingFilters(
   const busca = normalizeForSearch(filters.query);
   if (!busca) return true;
 
-  return normalizeForSearch(page.event.name).includes(busca);
+  // ⚠️ O SLUG TAMBÉM (§4). Quem chega com o endereço na mão — colado de uma
+  // conversa de WhatsApp, de um relatório — procura por ele, não pelo nome do
+  // evento. Sem isto, colar `encontro-tecnico` na busca devolveria "nenhuma
+  // página encontrada" sobre a página que a pessoa está olhando.
+  return (
+    normalizeForSearch(page.event.name).includes(busca) ||
+    normalizeForSearch(page.slug).includes(busca)
+  );
 }
 
 /**

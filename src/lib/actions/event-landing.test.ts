@@ -72,6 +72,9 @@ vi.mock("@/lib/supabase/server", () => ({
 const {
   createLandingPageAction,
   createRegistrationAction,
+  removeLandingPageImageAction,
+  requestLandingImageUploadAction,
+  setLandingPageImageAction,
   setLandingPageStatusAction,
   setParticipantConfirmationAction,
   updateLandingPageAction,
@@ -435,5 +438,86 @@ describe("o erro não vaza dado pessoal para o log", () => {
     if (!resultado.ok) {
       expect(resultado.error.code).toBe("registrationsFull");
     }
+  });
+});
+
+/**
+ * ============================================================================
+ * ⚠️ A IMAGEM DA PÁGINA (§8 do Prompt 2) — TRÊS PORTAS, TRÊS ARMADILHAS.
+ * ============================================================================
+ * O upload é o único caminho deste módulo em que um arquivo chega ao servidor,
+ * e ele tem uma propriedade incômoda: o objeto sobe ao Storage ANTES de
+ * qualquer validação de conteúdo (a Vercel corta o corpo de Server Actions em
+ * 4,5 MB, e o limite é 5 MB). Os testes abaixo cobrem o que isso exige.
+ */
+describe("a imagem da página", () => {
+  it("o Atendente não pode pedir endereço de upload", async () => {
+    papelAtual = "comercial";
+
+    const resultado = await requestLandingImageUploadAction({
+      landingPageId: LANDING,
+      filename: "cartaz.jpg",
+      sizeBytes: 1024,
+    });
+
+    expect(resultado.ok).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("o Atendente não pode gravar nem remover a imagem", async () => {
+    papelAtual = "comercial";
+
+    const gravar = await setLandingPageImageAction({
+      landingPageId: LANDING,
+      storagePath: `${EVENTO}/landing/x.jpg`,
+    });
+    const remover = await removeLandingPageImageAction({ landingPageId: LANDING });
+
+    expect(gravar.ok).toBe(false);
+    expect(remover.ok).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ ARQUIVO GRANDE DEMAIS MORRE ANTES DE SUBIR. A validação por extensão e
+   * tamanho é o que se consegue fazer com o que o cliente declarou — e serve
+   * para não gastar uma volta ao Storage com um arquivo que seria recusado.
+   */
+  it("recusa arquivo acima do limite sem falar com o Storage", async () => {
+    papelAtual = "admin";
+
+    const resultado = await requestLandingImageUploadAction({
+      landingPageId: LANDING,
+      filename: "cartaz.jpg",
+      sizeBytes: 6 * 1024 * 1024,
+    });
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.error.code).toBe("fileTooLarge");
+  });
+
+  it("recusa extensão que não é de imagem", async () => {
+    papelAtual = "admin";
+
+    const resultado = await requestLandingImageUploadAction({
+      landingPageId: LANDING,
+      filename: "planilha.xlsx",
+      sizeBytes: 1024,
+    });
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.error.code).toBe("fileNotImage");
+  });
+
+  it("payload malformado não chega ao banco", async () => {
+    papelAtual = "admin";
+
+    const resultado = await setLandingPageImageAction({
+      landingPageId: "não-é-uuid",
+      storagePath: "x.jpg",
+    });
+
+    expect(resultado.ok).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

@@ -5,7 +5,14 @@ import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/errors";
-import { inspectImage } from "@/lib/files/image";
+// ⚠️ EXTRAÍDOS DAQUI, e não copiados para lá. As três funções eram privadas
+// deste arquivo; a Landing Page passou a precisar das mesmas (§8 do Prompt 2),
+// e duas versões de "o que conta como imagem válida" divergiriam.
+import {
+  discardOrphan,
+  discardReplacedImage,
+  inspectUploadedImage,
+} from "@/lib/events/image-upload";
 import { buildImagePath, EVENTS_BUCKET } from "@/lib/events/storage";
 import {
   createEventSchema,
@@ -126,87 +133,6 @@ export async function requestEventImageUploadAction(
   }
 
   return ok({ eventId, bucket: EVENTS_BUCKET, path: data.path, token: data.token });
-}
-
-/**
- * Baixa o que subiu e examina os BYTES.
- *
- * A validação de conteúdo acontece DEPOIS do upload físico — é o preço de não
- * poder trafegar 5 MB pelo servidor. Por isso todo caminho de recusa apaga o
- * objeto: um arquivo no bucket sem linha em `events` é lixo que ninguém
- * referencia e ninguém vai limpar depois.
- */
-async function inspectUploadedImage(
-  storagePath: string,
-): Promise<
-  { mime: string; sizeBytes: number } | { issue: "fileNotImage" | "fileTooLarge" | "notFound" }
-> {
-  const supabase = await createClient();
-
-  const { data: blob, error } = await supabase.storage.from(EVENTS_BUCKET).download(storagePath);
-
-  if (error || !blob) {
-    console.error(`[events] download para validação falhou: ${error?.message ?? "sem dados"}`);
-    return { issue: "notFound" };
-  }
-
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-
-  // O tamanho conferido é o dos BYTES QUE CHEGARAM, não o que o cliente disse
-  // ter enviado. O bucket já impõe o mesmo teto; esta é a checagem que não
-  // depende de nenhum limite estar configurado corretamente lá.
-  // A extensão conferida é a do CAMINHO NO BUCKET, que o servidor montou a
-  // partir da allowlist — não o nome que a pessoa enviou, que já não existe
-  // mais neste ponto.
-  const inspection = inspectImage(bytes, storagePath);
-  if (!inspection.ok) return { issue: inspection.issue };
-
-  return { mime: inspection.mime, sizeBytes: bytes.byteLength };
-}
-
-/**
- * Tira do bucket um arquivo que foi recusado.
- *
- * Best-effort: se a remoção falhar, o upload continua recusado — o que não pode
- * acontecer é um arquivo inválido virar o cartaz de um evento porque a limpeza
- * deu errado.
- */
-async function discardOrphan(storagePath: string): Promise<void> {
-  const supabase = await createClient();
-  const { error } = await supabase.storage.from(EVENTS_BUCKET).remove([storagePath]);
-
-  if (error) {
-    console.error(`[events] arquivo órfão não removido (${storagePath}): ${error.message}`);
-  }
-}
-
-/**
- * Descarta a imagem ANTIGA depois de uma substituição — e só se for seguro.
- *
- * "Seguro" tem uma definição precisa aqui: nenhum evento aponta mais para
- * aquele caminho. A conferência não é zelo excessivo — duas edições
- * simultâneas do mesmo evento são serializadas pelo lock consultivo, mas a
- * segunda pode ter reposto um caminho que a primeira ia apagar. Perguntar ao
- * banco antes troca "apagar a imagem viva de um evento" por "deixar um órfão",
- * que é o lado certo da troca.
- */
-async function discardReplacedImage(storagePath: string): Promise<void> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("events")
-    .select("id")
-    .eq("image_path", storagePath)
-    .returns<{ id: string }[]>()
-    .maybeSingle();
-
-  if (error) {
-    console.error(`[events] checagem antes de apagar imagem falhou: ${error.message}`);
-    return;
-  }
-  if (data) return; // ainda referenciada — não apaga
-
-  await discardOrphan(storagePath);
 }
 
 // ----------------------------------------------------------------------------
@@ -334,7 +260,7 @@ export async function updateEventAction(
   }
 
   if (previousPath && previousPath !== storagePath) {
-    await discardReplacedImage(previousPath);
+    await discardReplacedImage(previousPath, "events");
   }
 
   revalidateEvents();

@@ -313,3 +313,37 @@ export const participantConfirmationSchema = z.object({
 });
 
 export type ParticipantConfirmationInput = z.infer<typeof participantConfirmationSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Imagem da página (§8 do Prompt 2)                                          */
+/* -------------------------------------------------------------------------- */
+
+/** O identificador sozinho, para as operações que não recebem mais nada. */
+export const landingPageIdSchema = z.object({
+  landingPageId: z.string().uuid(),
+});
+
+export type LandingPageIdInput = z.infer<typeof landingPageIdSchema>;
+
+/**
+ * O pedido de endereço para enviar a arte.
+ *
+ * ⚠️ NÃO RECEBE `eventId`. O caminho no bucket é `<event_id>/landing/<uuid>`, e
+ * a action descobre o evento LENDO a página. Aceitar o id de fora deixaria
+ * alguém escrever na pasta de outro evento — é o mesmo cuidado que faz o
+ * `storagePath` ser conferido contra o prefixo no passo seguinte.
+ */
+export const landingImageTicketSchema = z.object({
+  landingPageId: z.string().uuid(),
+  filename: z.string().trim().min(1).max(255),
+  sizeBytes: z.number().int().positive(),
+});
+
+export type LandingImageTicketInput = z.infer<typeof landingImageTicketSchema>;
+
+export const landingImageSchema = z.object({
+  landingPageId: z.string().uuid(),
+  storagePath: z.string().trim().min(1).max(400),
+});
+
+export type LandingImageInput = z.infer<typeof landingImageSchema>;
