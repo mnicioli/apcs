@@ -3,6 +3,7 @@ import {
   ASSOCIATE_PROFILE_TYPES,
   isAssociateProfile,
   MEMBERSHIP_PROFILE_TYPES,
+  PUBLIC_PROFILE_TYPES,
 } from "./membership.types";
 import { MEMBERSHIP_PROFILE_TYPE_LABELS } from "./membership.labels";
 
@@ -16,16 +17,61 @@ import { MEMBERSHIP_PROFILE_TYPE_LABELS } from "./membership.labels";
  * acrescentar seja obrigado a decidir de que lado ele cai.
  */
 describe("perfis de associado", () => {
-  it("tem exatamente os quatro perfis unificados", () => {
-    expect(MEMBERSHIP_PROFILE_TYPES).toEqual(["criador", "empresa", "tecnico", "universidade"]);
+  it("tem os cinco perfis do cadastro", () => {
+    expect(MEMBERSHIP_PROFILE_TYPES).toEqual([
+      "criador",
+      "empresa",
+      "tecnico",
+      "universidade",
+      "interno",
+    ]);
   });
 
-  it("três são associados; universidade não é", () => {
+  /**
+   * ⚠️ ESTE TESTE COBROU A DECISÃO, E ELA FOI TOMADA AQUI.
+   *
+   * O comentário do topo prometia: "o dia em que um quinto perfil entrar, quem
+   * o acrescentar é obrigado a decidir de que lado ele cai". O quinto entrou —
+   * `interno`, o Time Interno APCS — e a decisão é que ele **não é associado**,
+   * pelo mesmo motivo que `universidade` não é: ele existe para a APCS
+   * conseguir falar com um grupo, não porque esse grupo pagou anuidade.
+   *
+   * A consequência prática, que é o que importa: o time interno não entra em
+   * contagem de associados, não aparece em indicador de base e não recebe
+   * comunicação de sócio.
+   */
+  it("três são associados; universidade e time interno não são", () => {
     expect(ASSOCIATE_PROFILE_TYPES).toEqual(["criador", "empresa", "tecnico"]);
     expect(isAssociateProfile("criador")).toBe(true);
     expect(isAssociateProfile("empresa")).toBe(true);
     expect(isAssociateProfile("tecnico")).toBe(true);
     expect(isAssociateProfile("universidade")).toBe(false);
+    expect(isAssociateProfile("interno")).toBe(false);
+  });
+
+  /**
+   * ============================================================================
+   * ⚠️ A BARREIRA DA PORTA ABERTA.
+   * ============================================================================
+   *
+   * `/associe-se` é o único endereço deste sistema que aceita POST de qualquer
+   * pessoa. `membershipApplicationSchema` valida contra `PUBLIC_PROFILE_TYPES`,
+   * e não contra a lista completa — sem isso, um POST direto com
+   * `profileType: "interno"` colocaria um estranho no público de testes da
+   * APCS, passando a receber tudo o que fosse disparado para ele.
+   *
+   * A tela nunca ofereceu esse botão. Tela não é barreira.
+   */
+  it("o formulário público não aceita o perfil interno", () => {
+    expect(PUBLIC_PROFILE_TYPES).not.toContain("interno");
+    expect(MEMBERSHIP_PROFILE_TYPES).toContain("interno");
+  });
+
+  /** Todo perfil público existe no cadastro — a lista é subconjunto, não outra. */
+  it("os perfis públicos são um subconjunto do cadastro", () => {
+    for (const perfil of PUBLIC_PROFILE_TYPES) {
+      expect(MEMBERSHIP_PROFILE_TYPES).toContain(perfil);
+    }
   });
 
   /**

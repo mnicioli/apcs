@@ -9,7 +9,7 @@ import {
   UFS,
   type MembershipApplicationInput,
 } from "@/modules/membership/membership.schema";
-import type { MembershipProfileType } from "@/modules/membership/membership.types";
+import type { PublicProfileType } from "@/modules/membership/membership.types";
 
 /**
  * As três etapas do formulário e a revisão final.
@@ -58,8 +58,8 @@ export function StepProfile({
   onChange,
   error,
 }: {
-  value: MembershipProfileType | undefined;
-  onChange: (value: MembershipProfileType) => void;
+  value: PublicProfileType | undefined;
+  onChange: (value: PublicProfileType) => void;
   error?: string | undefined;
 }) {
   return (

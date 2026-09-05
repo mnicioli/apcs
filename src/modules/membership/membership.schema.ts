@@ -2,7 +2,8 @@ import { z } from "zod";
 import {
   MEMBERSHIP_PROFILE_TYPES,
   MEMBER_STATUSES,
-  type MembershipProfileType,
+  PUBLIC_PROFILE_TYPES,
+  type PublicProfileType,
 } from "./membership.types";
 
 /**
@@ -20,8 +21,17 @@ import {
  * chamada que não passe por eles.
  */
 
+/**
+ * As opções que a tela pública mostra.
+ *
+ * ⚠️ `PublicProfileType` E NÃO `MembershipProfileType`, e a diferença é
+ * estrutural: com o tipo largo, alguém poderia acrescentar aqui um botão
+ * "Sou do time interno" e o TypeScript aceitaria — a barreira ficaria só no
+ * Zod, em tempo de execução. Com o tipo estreito, a lista não CONSEGUE citar um
+ * perfil que o formulário público não deve oferecer.
+ */
 export const PROFILE_OPTIONS: Array<{
-  value: MembershipProfileType;
+  value: PublicProfileType;
   label: string;
   description: string;
 }> = [
@@ -183,7 +193,15 @@ const cnpjOpcional = z
 
 export const membershipApplicationSchema = z
   .object({
-    profileType: z.enum(MEMBERSHIP_PROFILE_TYPES, {
+    /**
+     * ⚠️ `PUBLIC_PROFILE_TYPES`, E NÃO A LISTA COMPLETA — ver o aviso naquela
+     * constante. Este schema valida o que chega de `/associe-se`, a única porta
+     * ABERTA do sistema; com a lista completa, um POST direto com
+     * `profileType: "interno"` colocaria qualquer pessoa no público de testes
+     * da APCS. A tela não oferece esse botão, mas tela não é barreira: o corpo
+     * do POST é escolhido por quem chama.
+     */
+    profileType: z.enum(PUBLIC_PROFILE_TYPES, {
       errorMap: () => ({ message: "Selecione o perfil que melhor representa você." }),
     }),
 
@@ -308,7 +326,10 @@ export type MembershipApplicationData = z.output<typeof membershipApplicationSch
  * pela pergunta que decide todos os campos seguintes.
  */
 export const emptyApplication: MembershipApplicationInput = {
-  profileType: undefined as unknown as MembershipProfileType,
+  // ⚠️ `PublicProfileType`: o formulário público só oferece os quatro perfis
+  // autodeclaráveis. "Time Interno" se atribui por dentro, no cadastro do
+  // associado. Ver `PUBLIC_PROFILE_TYPES`.
+  profileType: undefined as unknown as PublicProfileType,
   fullName: "",
   whatsapp: "",
   email: "",

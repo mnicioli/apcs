@@ -72,6 +72,10 @@ export const MEMBERSHIP_PROFILE_TYPE_LABELS: Record<MembershipProfileType, strin
   empresa: "Empresa",
   tecnico: "Técnico",
   universidade: "Universidade",
+  // ⚠️ SINGULAR AQUI ("Time Interno"), PLURAL NO CATÁLOGO ("Time Interno APCS"),
+  // pela mesma razão do aviso acima: este rótulo aparece no selo de UMA pessoa
+  // na lista de Associados; o do público nomeia o GRUPO.
+  interno: "Time Interno",
 };
 
 export const MEMBERSHIP_AUDIT_ACTION_LABELS: Record<MembershipAuditAction, string> = {

@@ -38,14 +38,70 @@ export const MEMBERSHIP_PROFILE_TYPES = [
   "empresa",
   "tecnico",
   "universidade",
+  /**
+   * O público de TESTE da APCS — gente de casa, para experimentar uma
+   * comunicação antes de mandá-la para a base.
+   *
+   * ⚠️ ELE É UM PERFIL, E NÃO UMA LISTA DE PESSOAS ESCOLHIDAS. Pertencer a um
+   * público neste CRM É ter aquele perfil (`profile_for_event_segment`), e a
+   * regra é uma só para eventos, disparos e enquetes. Uma lista avulsa seria
+   * uma segunda forma de responder "quem está neste público", e as duas
+   * divergiriam na primeira vez que alguém mexesse numa delas.
+   */
+  "interno",
 ] as const satisfies readonly MembershipProfileType[];
 
-/** Os três perfis que são associados. Universidade fica de fora. */
+/**
+ * Os três perfis que são associados.
+ *
+ * ⚠️ UNIVERSIDADE E TIME INTERNO FICAM DE FORA, e por motivos diferentes: a
+ * universidade é uma instituição com quem a APCS fala sem que ela seja sócia; o
+ * time interno é a própria APCS. Nenhum dos dois deve contar em número de
+ * associados nem aparecer em indicador de base.
+ */
 export const ASSOCIATE_PROFILE_TYPES = [
   "criador",
   "empresa",
   "tecnico",
 ] as const satisfies readonly MembershipProfileType[];
+
+/**
+ * Os perfis que alguém pode declarar SOBRE SI no formulário público.
+ *
+ * ============================================================================
+ * ⚠️ ESTA LISTA EXISTE PARA SER MENOR QUE `MEMBERSHIP_PROFILE_TYPES`.
+ * ============================================================================
+ *
+ * `membershipApplicationSchema` valida o cadastro que chega de `/associe-se`,
+ * que é a única porta ABERTA do sistema. Se ela validasse contra a lista
+ * completa, qualquer pessoa poderia mandar `profileType: "interno"` direto para
+ * a API e entrar no público de testes da APCS — recebendo, a partir daí, tudo
+ * o que for disparado para ele.
+ *
+ * A tela pública nunca ofereceu esse botão (`PROFILE_TYPE_OPTIONS` tem quatro
+ * itens), mas tela não é barreira: o corpo do POST é escolhido por quem chama.
+ *
+ * "Time Interno" só se atribui por dentro, no cadastro do associado, por quem
+ * tem permissão de escrita em Associados.
+ */
+export const PUBLIC_PROFILE_TYPES = [
+  "criador",
+  "empresa",
+  "tecnico",
+  "universidade",
+] as const satisfies readonly MembershipProfileType[];
+
+/**
+ * O tipo do que o formulário público aceita.
+ *
+ * ⚠️ ELE EXISTE PARA O TYPESCRIPT COBRAR A ESTREITEZA, e não por elegância. Sem
+ * ele, o formulário continuaria tipado como `MembershipProfileType` — a união
+ * completa — e um `setField("profileType", "interno")` compilaria sem
+ * reclamação, deixando a barreira inteiramente por conta do Zod em tempo de
+ * execução. Foi assim que o type-check encontrou os dois pontos do caminho
+ * público no dia em que "interno" entrou no enum.
+ */
+export type PublicProfileType = (typeof PUBLIC_PROFILE_TYPES)[number];
 
 /**
  * "Esta pessoa é associada?" — a pergunta que antes não tinha onde ser feita.

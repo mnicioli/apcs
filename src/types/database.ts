@@ -6492,7 +6492,7 @@ export type Database = {
         | "member_linked"
         | "member_updated"
         | "member_notifications_resumed";
-      membership_profile_type: "criador" | "tecnico" | "empresa" | "universidade";
+      membership_profile_type: "criador" | "tecnico" | "empresa" | "universidade" | "interno";
       survey_answer_type:
         | "single_choice"
         | "multiple_choice"
@@ -6877,7 +6877,7 @@ export const Constants = {
         "member_updated",
         "member_notifications_resumed",
       ],
-      membership_profile_type: ["criador", "tecnico", "empresa", "universidade"],
+      membership_profile_type: ["criador", "tecnico", "empresa", "universidade", "interno"],
       survey_answer_type: ["single_choice", "multiple_choice", "yes_no", "scale", "text", "rating"],
       survey_audience_dimension: [
         "all",

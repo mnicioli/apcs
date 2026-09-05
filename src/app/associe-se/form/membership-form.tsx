@@ -12,7 +12,7 @@ import {
   membershipApplicationSchema,
   type MembershipApplicationInput,
 } from "@/modules/membership/membership.schema";
-import type { MembershipProfileType } from "@/modules/membership/membership.types";
+import type { PublicProfileType } from "@/modules/membership/membership.types";
 
 /**
  * O formulário de solicitação de associação, em três etapas.
@@ -302,7 +302,7 @@ export function MembershipForm({ consent }: { consent: ConsentSnapshot }) {
           >
             {stage === 1 && (
               <StepProfile
-                value={values.profileType as MembershipProfileType | undefined}
+                value={values.profileType as PublicProfileType | undefined}
                 error={errors["profileType"]}
                 onChange={(valor) => setField("profileType", valor)}
               />
