@@ -427,3 +427,132 @@ export type PublicRegistrationFormData = Pick<
   event: PublicLandingPage["event"];
   consent: PublicLandingPage["consent"];
 };
+
+/* -------------------------------------------------------------------------- */
+/* O backoffice de Inscrições (Prompt 4)                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Uma linha da grid do §9 — UMA PESSOA, e não uma inscrição.
+ *
+ * ⚠️ É A MUDANÇA DE UNIDADE QUE DEFINE ESTA TELA. `RegistrationRow` (Prompt 1) é
+ * a granja com as pessoas dentro, e serve para a visualização do §17. A GRID é
+ * de pessoas: quem opera está procurando o fulano, decidindo se ele vem, e
+ * exportando uma linha por participante (§18).
+ *
+ * As duas convivem porque respondem a perguntas diferentes. O que não pode é a
+ * tela derivar uma da outra no navegador — foi por isso que a leitura virou
+ * `event_registrations_board`, no banco.
+ */
+export interface RegistrationBoardRow {
+  participantId: string;
+  registrationId: string;
+  companyName: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  whatsapp: string | null;
+  confirmation: ParticipantConfirmation;
+  /** ISO 8601 com fuso. */
+  registeredAt: string;
+  registrationStatus: RegistrationStatus;
+  origin: RegistrationOrigin;
+}
+
+/**
+ * Os indicadores do §6.
+ *
+ * ⚠️ ELES RESPEITAM OS FILTROS ATIVOS, e é por isso que vêm da MESMA consulta
+ * que as linhas. Contá-los à parte abriria a porta para a tela dizer "12
+ * confirmados" sobre uma lista de 5 — e ninguém confere a soma à mão.
+ */
+export interface RegistrationBoardMetrics {
+  /** Inscrições distintas (a granja, não a pessoa). */
+  registrations: number;
+  participants: number;
+  confirmed: number;
+  notConfirmed: number;
+  /** Granjas/empresas distintas, comparadas sem acento e sem caixa. */
+  companies: number;
+}
+
+export interface RegistrationBoardPage {
+  rows: RegistrationBoardRow[];
+  metrics: RegistrationBoardMetrics;
+  /** Total de participantes que casam com o filtro — o denominador da paginação. */
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Uma linha da tela inicial de Inscrições (§4). */
+export interface EventRegistrationSummary {
+  eventId: string;
+  landingPageId: string;
+  slug: string;
+  landingStatus: LandingPageStatus;
+  closesAt: string | null;
+  maxParticipants: number | null;
+  eventName: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string | null;
+  registrations: number;
+  participants: number;
+  confirmed: number;
+  notConfirmed: number;
+}
+
+export interface EventRegistrationSummaryPage {
+  rows: EventRegistrationSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * As ordenações que a grid aceita (§21).
+ *
+ * ⚠️ LISTA FECHADA, e a função Postgres tem a mesma. `p_sort` vem da URL: um
+ * `order by` montado com texto recebido de fora é injeção de SQL por outro
+ * nome. Aqui o tipo impede o valor errado de compilar; lá o `case` o ignora.
+ */
+export const REGISTRATION_SORTS = ["recent", "company", "participant"] as const;
+export type RegistrationSort = (typeof REGISTRATION_SORTS)[number];
+
+export function isRegistrationSort(value: string): value is RegistrationSort {
+  return (REGISTRATION_SORTS as readonly string[]).includes(value);
+}
+
+export const DEFAULT_REGISTRATION_SORT: RegistrationSort = "recent";
+
+/**
+ * Os filtros da grid, lidos da URL (§7, §8).
+ *
+ * ⚠️ NÃO HÁ FILTRO DE GRANJA SEPARADO, e o §8 permite ("não criar filtros
+ * desnecessários"). A caixa de busca já procura na granja — um segundo campo
+ * que faz parte do que o primeiro faz é uma escolha a mais para quem opera, sem
+ * nada em troca.
+ */
+export interface RegistrationBoardFilters {
+  /** Granja, nome, e-mail, telefone ou WhatsApp. Vazio = sem busca. */
+  query: string;
+  confirmation: ConfirmationFilter;
+  /** Recorte pela DATA DA INSCRIÇÃO (não a do evento). Vazio = sem limite. */
+  from: string;
+  to: string;
+  sort: RegistrationSort;
+  page: number;
+}
+
+export const EMPTY_REGISTRATION_BOARD_FILTERS: RegistrationBoardFilters = {
+  query: "",
+  confirmation: "all",
+  from: "",
+  to: "",
+  sort: DEFAULT_REGISTRATION_SORT,
+  page: 1,
+};
+
+/** Quantas linhas por página. O mesmo de Palestras e Associados. */
+export const REGISTRATION_PAGE_SIZE = 25;

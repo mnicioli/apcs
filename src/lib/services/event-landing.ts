@@ -8,7 +8,14 @@ import {
   matchesRegistrationFilters,
   readLandingFields,
 } from "@/modules/event/event.landing.rules";
+import { REGISTRATION_PAGE_SIZE } from "@/modules/event/event.landing.types";
 import type {
+  EventRegistrationSummary,
+  EventRegistrationSummaryPage,
+  RegistrationBoardFilters,
+  RegistrationBoardMetrics,
+  RegistrationBoardPage,
+  RegistrationBoardRow,
   LandingPageFilters,
   LandingPageStatus,
   LandingPageWithEvent,
@@ -679,4 +686,122 @@ export async function listEventsWithoutLandingPage(
       endTime: evento.end_time ? formatTime(evento.end_time) : null,
       location: evento.location,
     }));
+}
+
+/* -------------------------------------------------------------------------- */
+/* O backoffice de Inscrições (Prompt 4)                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A TELA INICIAL DE INSCRIÇÕES (§4) — os eventos que têm página de inscrição.
+ *
+ * ⚠️ POR RPC, E NÃO POR `select` COM EMBEDS. Cada linha mostra quatro contagens
+ * (inscrições, participantes, confirmados, não confirmados). Pelo PostgREST
+ * isso seria a grid inteira vindo com os participantes dentro, para o
+ * TypeScript contar em memória — dado pessoal de centenas de terceiros
+ * trafegando para responder "quantos são" (§25). A função conta no banco e
+ * devolve números.
+ */
+export async function listEventRegistrationSummaries(
+  query: string,
+  page: number,
+  pageSize: number = REGISTRATION_PAGE_SIZE,
+): Promise<EventRegistrationSummaryPage> {
+  const supabase = await createClient();
+  const paginaAtual = Math.max(1, page);
+
+  const { data, error } = await supabase.rpc("event_registration_summaries", {
+    p_query: query.trim() || undefined,
+    p_limit: pageSize,
+    p_offset: (paginaAtual - 1) * pageSize,
+  } as never);
+
+  if (error) {
+    console.error(`[event-landing] listEventRegistrationSummaries falhou: ${error.code}`);
+    throw error;
+  }
+
+  const bruto = (data ?? {}) as { total?: unknown; rows?: unknown };
+
+  return {
+    rows: Array.isArray(bruto.rows) ? (bruto.rows as EventRegistrationSummary[]) : [],
+    total: typeof bruto.total === "number" ? bruto.total : 0,
+    page: paginaAtual,
+    pageSize,
+  };
+}
+
+/**
+ * A GRID DE PARTICIPANTES DE UM EVENTO (§6, §7, §8, §9, §21).
+ *
+ * ============================================================================
+ * ⚠️ MÉTRICAS, LINHAS E TOTAL VÊM DA MESMA CONSULTA — E É O §6, NÃO DESEMPENHO.
+ * ============================================================================
+ * "Os indicadores devem respeitar os filtros ativos." Com uma consulta para a
+ * lista e outra para os contadores, o mesmo `where` existiria em dois lugares, e
+ * o dia em que um filtro novo entrasse só num deles a tela diria "12
+ * confirmados" sobre uma lista de 5. Ninguém confere a soma à mão.
+ *
+ * ⚠️ E A BUSCA É DO BANCO (§7: "não carregar todos os participantes para o
+ * frontend apenas para realizar a busca"). Ela atravessa DUAS tabelas — a
+ * granja mora na inscrição, a pessoa mora no participante —, e é por isso que
+ * é uma função e não um `or=` do PostgREST, que não cruza a junção.
+ *
+ * A RLS continua valendo: `event_registrations_board` é SECURITY INVOKER, então
+ * quem não tem `registrations_is_reader()` recebe zero linhas mesmo que a
+ * checagem de permissão da aplicação falhe.
+ */
+export async function getRegistrationBoard(
+  eventId: string,
+  filters: RegistrationBoardFilters,
+  pageSize: number = REGISTRATION_PAGE_SIZE,
+): Promise<RegistrationBoardPage> {
+  const supabase = await createClient();
+  const paginaAtual = Math.max(1, filters.page);
+
+  const { data, error } = await supabase.rpc("event_registrations_board", {
+    p_event_id: eventId,
+    p_query: filters.query.trim() || undefined,
+    p_confirmation: filters.confirmation === "all" ? undefined : filters.confirmation,
+    // ⚠️ AS DATAS VÃO CRUAS, EM AAAA-MM-DD, E O FUSO É APLICADO NO BANCO.
+    //
+    // A primeira versão montava o instante aqui (`${filters.from}T00:00:00`), e
+    // isso custou um defeito de TRÊS HORAS: um literal sem fuso é lido pelo
+    // Postgres no fuso do SERVIDOR (UTC na Supabase), então "a partir de 06/09"
+    // virava 05/09 às 21h em São Paulo. Ver o cabeçalho de
+    // 20260925000200_event_registration_period.sql.
+    //
+    // Quem sabe o que é "o dia 6" é o calendário de quem olha a tela, e a
+    // conversão mora onde `event_today()` já mora.
+    p_from: filters.from || undefined,
+    p_to: filters.to || undefined,
+    p_sort: filters.sort,
+    p_limit: pageSize,
+    p_offset: (paginaAtual - 1) * pageSize,
+  } as never);
+
+  if (error) {
+    // ⚠️ SÓ O CÓDIGO E O EVENTO (§25). O termo buscado pode ser o e-mail ou o
+    // telefone de alguém — um log de erro que o carregue é dado pessoal
+    // vazando por um caminho que ninguém audita.
+    console.error(`[event-landing] getRegistrationBoard falhou (${eventId}): ${error.code}`);
+    throw error;
+  }
+
+  const bruto = (data ?? {}) as { rows?: unknown; metrics?: unknown; total?: unknown };
+  const metricas = (bruto.metrics ?? {}) as Partial<RegistrationBoardMetrics>;
+
+  return {
+    rows: Array.isArray(bruto.rows) ? (bruto.rows as RegistrationBoardRow[]) : [],
+    metrics: {
+      registrations: metricas.registrations ?? 0,
+      participants: metricas.participants ?? 0,
+      confirmed: metricas.confirmed ?? 0,
+      notConfirmed: metricas.notConfirmed ?? 0,
+      companies: metricas.companies ?? 0,
+    },
+    total: typeof bruto.total === "number" ? bruto.total : 0,
+    page: paginaAtual,
+    pageSize,
+  };
 }

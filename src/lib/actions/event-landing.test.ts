@@ -77,7 +77,9 @@ const {
   setLandingPageImageAction,
   setLandingPageStatusAction,
   setParticipantConfirmationAction,
+  updateCompanyAction,
   updateLandingPageAction,
+  updateParticipantAction,
   updateRegistrationAction,
 } = await import("./event-landing");
 
@@ -129,19 +131,51 @@ const ESCRITAS_DE_INSCRICAO: readonly [string, () => Promise<ActionResult<unknow
   ["criar inscrição", () => createRegistrationAction(INSCRICAO_VALIDA)],
   [
     "cancelar inscrição",
-    () => updateRegistrationAction({ registrationId: INSCRICAO, status: "cancelled" }),
+    () =>
+      updateRegistrationAction({ eventId: EVENTO, registrationId: INSCRICAO, status: "cancelled" }),
   ],
   [
     "confirmar participante",
     () =>
       setParticipantConfirmationAction({
+        eventId: EVENTO,
         participantId: PARTICIPANTE,
         confirmation: "not_confirmed",
       }),
   ],
 ];
 
-const TODAS = [...ESCRITAS_DE_EVENTO, ...ESCRITAS_DE_INSCRICAO];
+/**
+ * As escritas que o Prompt 4 acrescentou. Entram na MESMA bateria de permissões:
+ * o dia em que uma delas escapar da lista, os quatro casos por action deixam de
+ * rodar sobre ela — e ninguém percebe, porque a bateria continua verde.
+ */
+const ESCRITAS_DO_BACKOFFICE: readonly [string, () => Promise<ActionResult<unknown>>][] = [
+  [
+    "editar participante",
+    () =>
+      updateParticipantAction({
+        eventId: EVENTO,
+        participantId: PARTICIPANTE,
+        fullName: "João da Silva",
+        email: "joao@email.com",
+        phone: "11999998888",
+        whatsapp: "",
+        confirmation: "confirmed",
+      }),
+  ],
+  [
+    "renomear a granja",
+    () =>
+      updateCompanyAction({
+        eventId: EVENTO,
+        registrationId: INSCRICAO,
+        companyName: "Granja ABC",
+      }),
+  ],
+];
+
+const TODAS = [...ESCRITAS_DE_EVENTO, ...ESCRITAS_DE_INSCRICAO, ...ESCRITAS_DO_BACKOFFICE];
 
 beforeEach(() => {
   rpc.mockReset();
@@ -519,5 +553,168 @@ describe("a imagem da página", () => {
 
     expect(resultado.ok).toBe(false);
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+/* ========================================================================== */
+/* §25 e §26 do Prompt 4 — o evento viaja junto (IDOR)                        */
+/* ========================================================================== */
+
+describe("o evento é enviado ao banco em toda escrita de inscrição", () => {
+  /**
+   * ==========================================================================
+   * ⚠️ O QUE ESTE BLOCO PROTEGE É UMA COISA QUE NÃO APARECE NA TELA.
+   * ==========================================================================
+   * O §25 pede: "garantir especialmente que um usuário não consiga acessar um
+   * participante informando manualmente um ID pertencente a outro evento".
+   *
+   * Quem recusa é o BANCO — as funções conferem `event_id` e devolvem P0002. Mas
+   * elas só conseguem conferir se a action MANDAR o evento. Um `p_event_id` que
+   * some daqui não quebra nada visível: a tela continua funcionando, porque ela
+   * sempre manda o evento certo. O que abre é a porta para quem não usa a tela.
+   */
+  it.each([
+    [
+      "confirmação",
+      () =>
+        setParticipantConfirmationAction({
+          eventId: EVENTO,
+          participantId: PARTICIPANTE,
+          confirmation: "confirmed",
+        }),
+      "p_event_id",
+    ],
+    [
+      "edição do participante",
+      () =>
+        updateParticipantAction({
+          eventId: EVENTO,
+          participantId: PARTICIPANTE,
+          fullName: "João da Silva",
+          email: "joao@email.com",
+          phone: "11999998888",
+          whatsapp: "",
+          confirmation: "confirmed",
+        }),
+      "p_event_id",
+    ],
+    [
+      "renomear a granja",
+      () =>
+        updateCompanyAction({
+          eventId: EVENTO,
+          registrationId: INSCRICAO,
+          companyName: "Granja ABC",
+        }),
+      "p_event_id",
+    ],
+  ])("%s manda o evento", async (_nome, chamar, parametro) => {
+    papelAtual = "admin";
+    await chamar();
+
+    const args = rpc.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(args[parametro]).toBe(EVENTO);
+  });
+
+  /**
+   * ⚠️ RENOMEAR A GRANJA NÃO PODE CANCELAR A INSCRIÇÃO (§16). `updateCompanyAction`
+   * existe separada de `updateRegistrationAction` justamente porque aquela
+   * também cancela e reativa — e o §16 proíbe exclusão nesta tela. Uma action
+   * estreita não tem como cancelar por engano.
+   */
+  it("renomear a granja não mexe na situação da inscrição", async () => {
+    papelAtual = "admin";
+    await updateCompanyAction({
+      eventId: EVENTO,
+      registrationId: INSCRICAO,
+      companyName: "Granja ABC",
+    });
+
+    const args = rpc.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(args["p_status"]).toBeUndefined();
+  });
+
+  /**
+   * ⚠️ TELEFONE VAZIO É "APAGAR", E NÃO "MANTER". `update_event_participant`
+   * trata string vazia como limpar o campo — é o que permite tirar um telefone
+   * pela tela. Se a action mandasse `undefined`, o campo ficaria imutável e
+   * ninguém entenderia por quê.
+   */
+  it("campo de telefone limpo chega ao banco como vazio, não como ausente", async () => {
+    papelAtual = "admin";
+    await updateParticipantAction({
+      eventId: EVENTO,
+      participantId: PARTICIPANTE,
+      fullName: "João da Silva",
+      email: "joao@email.com",
+      phone: "",
+      whatsapp: "11988887777",
+      confirmation: "confirmed",
+    });
+
+    const args = rpc.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(args["p_phone"]).toBe("");
+  });
+});
+
+describe("§13 e §15 — a ficha inválida não chega ao banco", () => {
+  it.each([
+    ["sem nome", { fullName: "" }],
+    ["e-mail inválido", { email: "joao@email" }],
+    ["sem telefone e sem WhatsApp", { phone: "", whatsapp: "" }],
+    ["evento que não é uuid", { eventId: "outro-evento" }],
+  ])("%s: recusa sem tocar no banco", async (_nome, remendo) => {
+    papelAtual = "admin";
+    const resultado = await updateParticipantAction({
+      eventId: EVENTO,
+      participantId: PARTICIPANTE,
+      fullName: "João da Silva",
+      email: "joao@email.com",
+      phone: "11999998888",
+      whatsapp: "",
+      confirmation: "confirmed",
+      ...remendo,
+    } as never);
+
+    expect(resultado.ok).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  /** §14 — a mensagem que o banco devolve chega traduzida à tela. */
+  it("o e-mail já inscrito vira a mensagem de duplicidade", async () => {
+    papelAtual = "admin";
+    rpc.mockResolvedValue({ data: null, error: { code: "RG003", message: "x" } });
+
+    const resultado = await updateParticipantAction({
+      eventId: EVENTO,
+      participantId: PARTICIPANTE,
+      fullName: "João da Silva",
+      email: "maria@email.com",
+      phone: "11999998888",
+      whatsapp: "",
+      confirmation: "confirmed",
+    });
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.error.code).toBe("participantAlreadyRegistered");
+  });
+
+  /**
+   * ⚠️ P0002 É "NÃO ENCONTRADO", e é a resposta para um participante de OUTRO
+   * evento. A tela não deve dizer "este participante existe, mas é de outro
+   * evento" — isso confirmaria a existência do registro.
+   */
+  it("participante de outro evento responde 'não encontrado'", async () => {
+    papelAtual = "admin";
+    rpc.mockResolvedValue({ data: null, error: { code: "P0002", message: "x" } });
+
+    const resultado = await setParticipantConfirmationAction({
+      eventId: EVENTO,
+      participantId: PARTICIPANTE,
+      confirmation: "confirmed",
+    });
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.error.code).toBe("notFound");
   });
 });

@@ -10,6 +10,23 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     css: false,
+
+    /**
+     * ⚠️ ACIMA DOS 5 s PADRÃO, E ISSO NÃO É ESCONDER LENTIDÃO.
+     *
+     * Os testes de formulário de várias etapas (`membership-form`,
+     * `registration-form`) digitam dezenas de campos em happy-dom. Sozinhos,
+     * cada um leva 1–2 s; com a bateria inteira rodando em paralelo, os mais
+     * pesados encostavam nos 5 s e falhavam por TEMPO — sobre código correto,
+     * e de forma diferente a cada execução.
+     *
+     * Um teste que falha por contenção de CPU não está dizendo nada sobre o
+     * sistema: ele só ensina o time a reexecutar a bateria até passar, que é
+     * como uma falha de verdade acaba ignorada. O teto novo é folgado o
+     * bastante para o ruído sumir e curto o bastante para uma promessa
+     * esquecida ainda travar a bateria em vez de pendurá-la.
+     */
+    testTimeout: 15_000,
   },
   resolve: {
     alias: {

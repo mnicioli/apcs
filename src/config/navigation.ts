@@ -248,18 +248,11 @@ export const NAV_SECTIONS: NavSection[] = [
         available: true,
       },
       {
-        // ⚠️ "EM BREVE" DE PROPÓSITO. A tela é o Prompt 4; o que existe hoje é
-        // só o domínio. Deixá-la fora do menu esconderia metade da estrutura
-        // que o escopo desenha (Eventos → Eventos, Landing Pages, Inscrições);
-        // deixá-la clicável levaria a uma rota que não existe.
-        //
-        // `available: false` é exatamente o terceiro caminho: aparece apagada,
-        // com o selo "Em breve", e não promete nada que não esteja de pé.
         title: "Inscrições",
         href: "/events/registrations",
         icon: ClipboardCheck,
         permission: "registrations.read",
-        available: false,
+        available: true,
       },
     ],
   },

@@ -283,12 +283,12 @@ texto precisa poder mover o nome do evento de lugar na frase.
 
 ## 12. O que NÃO existe ainda
 
-| O quê              | Quando      | Observação                                                          |
-| ------------------ | ----------- | ------------------------------------------------------------------- |
-| ~~Página pública~~ | ✅ Prompt 3 | `/eventos/[slug]` — ver a seção 15                                  |
-| ~~Inscrição real~~ | ✅ Prompt 3 | `submitEventRegistrationAction`                                     |
-| Tela de Inscrições | Prompt 4    | `listRegistrations` pronto                                          |
-| Exportação Excel   | Prompt 4    | `REGISTRATION_LIMIT` é 1000; a exportação vai precisar ler em lotes |
+| O quê                  | Quando      | Observação                                       |
+| ---------------------- | ----------- | ------------------------------------------------ |
+| ~~Página pública~~     | ✅ Prompt 3 | `/eventos/[slug]` — ver a seção 15               |
+| ~~Inscrição real~~     | ✅ Prompt 3 | `submitEventRegistrationAction`                  |
+| ~~Tela de Inscrições~~ | ✅ Prompt 4 | `/events/registrations` — ver a seção 16         |
+| ~~Exportação~~         | ✅ Prompt 4 | CSV, como o resto da plataforma — ver a seção 16 |
 
 ### Pendências declaradas
 
@@ -551,3 +551,175 @@ falhar mais traiçoeiro de uma prévia: ela não quebra, ela mente.
    que nenhum: o WhatsApp guarda a prévia em cache e passaria a mostrar um
    retângulo quebrado. Resolver isso é decidir se a arte da landing pode ser
    pública — decisão de produto.
+
+---
+
+## 16. O backoffice de Inscrições (Prompt 4)
+
+Duas telas e uma rota de download, em `Eventos → Inscrições`:
+
+| Rota                                     | O que é                                                   |
+| ---------------------------------------- | --------------------------------------------------------- |
+| `/events/registrations`                  | Os eventos que têm página de inscrição, com as contagens. |
+| `/events/registrations/[eventId]`        | A grid de PARTICIPANTES daquele evento.                   |
+| `/events/registrations/[eventId]/export` | O arquivo, com o recorte da tela.                         |
+
+### A unidade muda: a grid é de PESSOAS
+
+`RegistrationRow` (Prompt 1) é a granja com as pessoas dentro. A **grid** é de
+pessoas — quem opera está procurando o fulano, decidindo se ele vem, e
+exportando uma linha por participante. As duas convivem porque respondem a
+perguntas diferentes; o que não pode é a tela derivar uma da outra no navegador.
+
+### Uma função, um `where`, três respostas
+
+`event_registrations_board` devolve **métricas + página + total** num jsonb só.
+
+⚠️ **O motivo é o §6, não desempenho.** "Os indicadores devem respeitar os
+filtros ativos." Com uma consulta para a lista e outra para os contadores, o
+mesmo `where` existiria em dois lugares — e o dia em que um filtro novo entrasse
+só num deles, a tela diria "12 confirmados" sobre uma lista de 5. Ninguém
+confere a soma à mão.
+
+Ela é **SECURITY INVOKER** (o padrão), ao contrário de
+`get_public_event_landing_page`. Aqui existe usuário logado, e a RLS é a segunda
+camada do RBAC; um DEFINER desligaria justamente a proteção que faz sentido
+nesta porta. Há teste que falha se alguém a tornar DEFINER.
+
+### A busca atravessa duas tabelas
+
+A granja mora na INSCRIÇÃO, a pessoa mora no PARTICIPANTE. Um `or=` do PostgREST
+não cruza a junção — daí a função. Duas colunas geradas `search_text` (o mesmo
+`translate()` de `lectures.search_text`, que espelha `normalizeForSearch`), mais
+um segundo padrão só de dígitos: quem procura por telefone cola
+`(11) 99999-8888` da conversa, e a coluna guarda `11999998888`.
+
+Copiar o nome da granja para dentro do participante deixaria a busca mais
+simples e criaria uma cópia que se desatualiza no primeiro "editar
+Granja/Empresa" — que é justamente o §13.
+
+### §26 — a cadeia é conferida no banco
+
+`update_event_participant`, `set_participant_confirmation` e
+`update_event_registration` passaram a receber `p_event_id` e recusam quando o
+alvo pertence a outro evento, com **P0002** — o mesmo código de "não
+encontrado".
+
+⚠️ **Isso não é redundante com a RLS.** A RLS responde "esta pessoa pode ver
+inscrições?"; ela não responde "este participante é do evento que a tela diz
+estar aberto". Um administrador tem acesso a todos os eventos — o que a
+checagem impede é a operação ATRAVESSAR o contexto por um id trocado na
+requisição. E o erro não distingue "não existe" de "é de outro evento": a
+distinção transformaria a função num oráculo de ids.
+
+### §22 e §23 — a confirmação é um compare-and-set
+
+A versão do Prompt 1 fazia `select` → `if igual então retorna` → `update`. Duas
+requisições simultâneas passam **as duas** pelo `if` e gravam as duas: resultado
+final certo, e **duas linhas de trilha** afirmando que houve mudança — sendo que
+a segunda não mudou nada.
+
+Agora a condição está dentro do `update`
+(`where ... and confirmation is distinct from ?`). Quem não altera nada não
+grava nada, e repetir é sucesso — que é o §23.
+
+### §12 e §25 — o que a trilha guarda
+
+| Ação                   | O que vai para a trilha                             |
+| ---------------------- | --------------------------------------------------- |
+| Confirmação            | `participantId`, `from`, `to`                       |
+| Edição do participante | `participantId` e os **NOMES** dos campos alterados |
+| Granja renomeada       | `from` e `to` — nome de empresa não é dado pessoal  |
+
+⚠️ **Os valores dos campos pessoais NÃO entram.** Gravar
+`email: joao@x.com para joao@y.com` criaria uma segunda cópia do dado numa
+tabela append-only, fora de `event_participants` — que é de onde o dado sai num
+pedido de exclusão. A cópia sobreviveria ao pedido e ninguém lembraria dela.
+
+### §18 e §20 — a exportação é CSV
+
+O §20 diz: "se o projeto já possuir convenção própria, seguir a convenção
+existente". Ele possui — `surveys/[id]/results/export` — e o comentário de lá
+explica: a plataforma **não tem biblioteca de planilha**, e acrescentar uma
+(SheetJS pesa centenas de KB e tem histórico de CVE) para gerar um arquivo que o
+Excel abre igual seria pagar caro por nada.
+
+O arquivo abre no Excel com dois cliques, uma linha por participante, acentos
+corretos e colunas separadas. **O que muda é a extensão:**
+`inscricoes_<slug>_<AAAAMMDD>.csv`.
+
+⚠️ **A injeção de fórmula é um risco real neste módulo.** O nome da granja é
+digitado por quem se inscreve numa página ABERTA na internet (Prompt 3): alguém
+pode cadastrar uma granja chamada `=HYPERLINK(...)` e esperar que a APCS abra a
+planilha. O apóstrofo na frente de `=`, `+`, `-` e `@` neutraliza sem perder o
+texto.
+
+⚠️ **A permissão é conferida no endpoint**, e é o ponto mais importante da rota.
+Ela é uma URL: sem a checagem, a exportação é a porta dos fundos de uma tela
+protegida — e o que sai por ela é dado pessoal de centenas de terceiros.
+
+### §19 — o arquivo é o que está na tela
+
+`parseRegistrationFilters` e `eventRegistrationsHref` são inversas, e há teste
+que prova. O botão "Exportar" é um **link** montado pela mesma função que monta
+a paginação, e a rota lê os mesmos parâmetros. "Exportar somente o resultado
+atual" é consequência do desenho, não uma regra a lembrar.
+
+A página atual **não** vai junto: a exportação leva o recorte inteiro. Se ela
+herdasse `page=3`, quem clicasse na terceira página baixaria 25 linhas de um
+evento com 300 — e o arquivo pareceria completo.
+
+### ⚠️ Um defeito de três horas, encontrado na revisão
+
+O filtro de período recebia `timestamptz` e o serviço montava o valor
+concatenando texto. Um literal sem fuso é lido pelo Postgres no fuso do
+**servidor** — UTC na Supabase —, então "inscritos a partir de 06/09"
+significava 05/09 às 21h em São Paulo.
+
+O sintoma seria quase invisível: uma contagem "quase certa" e uma exportação com
+algumas linhas a mais que a tela. A correção
+(`20260925000200_event_registration_period.sql`) é a mesma decisão de
+`event_today()`: a **data** entra, e o fuso é aplicado no banco. O fim do
+período é o dia seguinte, exclusivo — `23:59:59.999` deixaria de fora uma
+inscrição gravada no último milissegundo, e esse defeito aparece uma vez a cada
+mil anos, o que é pior do que aparecer sempre.
+
+### O que o Prompt 4 mexeu fora do módulo
+
+Uma coisa: a **paginação virou um componente compartilhado**
+(`@/components/ui/pagination`). `lecture-pagination.tsx` e
+`survey-pagination.tsx` eram o mesmo arquivo, e Inscrições precisava do mesmo —
+o §32 proíbe duplicar. As duas passaram a delegar, preservando os nomes que as
+páginas delas já importavam; o que sobrou em cada uma é como serializar os
+filtros dela.
+
+Também subiu o `testTimeout` do Vitest para 15 s: os testes de formulário de
+várias etapas encostavam nos 5 s padrão sob carga e falhavam por TEMPO, sobre
+código correto. Um teste que falha por contenção de CPU ensina o time a
+reexecutar a bateria até passar — que é como uma falha de verdade acaba
+ignorada.
+
+### Pendências para o Prompt 5
+
+1. **Não consegui verificar as duas telas no navegador.** Elas exigem sessão, e
+   eu não faço login. O que existe é o build, o type-check, o lint e os testes
+   novos — que exercitam comportamento, não aparência. **Vale abrir e olhar**,
+   em especial a grid em tablet e o diálogo de edição.
+
+2. **A visualização do §17 mostra a linha, não a inscrição inteira.** Abrir a
+   ficha de um participante e buscar os irmãos dele seria uma ida ao banco por
+   clique, num diálogo que existe para conferir um dado de olho. Quem quer ver a
+   granja inteira ordena por "Granja / Empresa" — as pessoas ficam juntas. Se a
+   operação pedir a visão agrupada de verdade, é uma tela, não um diálogo.
+
+3. **Cancelar inscrição não tem tela** (§16 proíbe exclusão, e cancelamento é
+   outra coisa). `update_event_registration` já sabe cancelar e reativar,
+   conferindo a capacidade na volta — falta só quem peça.
+
+4. **O teto da exportação é 5.000 linhas.** Muito além da realidade da APCS. Se
+   um dia encostar, o caminho é exportar por período, não aumentar o número.
+
+5. **A situação do EVENTO continua sem ser conferida** na leitura pública — a
+   pendência 3 da seção 15 segue aberta, e agora vale também para esta tela: um
+   evento desativado ainda aparece em `Eventos → Inscrições`, o que é correto
+   (os inscritos existem) mas merece uma decisão explícita de produto.

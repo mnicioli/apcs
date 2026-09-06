@@ -96,6 +96,11 @@ export const REGISTRATION_AUDIT_ACTION_LABELS: Record<RegistrationAuditAction, s
   registration_cancelled: "Inscrição cancelada",
   registration_reactivated: "Inscrição reativada",
   participant_confirmation_changed: "Confirmação do participante alterada",
+  // ⚠️ DIZ QUE MUDARAM OS DADOS, e não QUAIS ficaram. A trilha guarda só os
+  // NOMES dos campos alterados — nunca os valores —, porque copiar e-mail ou
+  // telefone para uma tabela append-only criaria uma segunda cópia do dado
+  // pessoal que ninguém lembraria de apagar num pedido de exclusão (§25).
+  participant_updated: "Dados do participante alterados",
 };
 
 /**

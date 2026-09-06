@@ -4,6 +4,7 @@ import {
   LANDING_FIELD_KEYS,
   LANDING_PAGE_STATUSES,
   MAX_PARTICIPANTS_PER_REGISTRATION,
+  PARTICIPANT_CONFIRMATIONS,
 } from "./event.landing.types";
 import { isValidSlug, validateLandingFields } from "./event.landing.rules";
 
@@ -302,8 +303,17 @@ export const createRegistrationSchema = registrationBaseSchema
 
 export type CreateRegistrationInput = z.infer<typeof createRegistrationSchema>;
 
-/** Edição do backoffice: nome da granja e/ou situação. */
+/**
+ * Edição do backoffice: nome da granja e/ou situação.
+ *
+ * ⚠️ `eventId` ENTROU NO PROMPT 4, E NÃO É REDUNDANTE. O §26 pede a cadeia
+ * conferida no backend — Evento → Landing Page → Inscrição → Participante — e a
+ * função Postgres recusa quando a inscrição pertence a outro evento. Sem o
+ * campo, a action não teria o que mandar, e a proteção contra IDOR dependeria de
+ * ninguém trocar o id na requisição.
+ */
 export const updateRegistrationSchema = z.object({
+  eventId: z.string().uuid(),
   registrationId: z.string().uuid(),
   companyName: z
     .string()
@@ -317,6 +327,8 @@ export const updateRegistrationSchema = z.object({
 export type UpdateRegistrationInput = z.infer<typeof updateRegistrationSchema>;
 
 export const participantConfirmationSchema = z.object({
+  /** Ver o aviso de `updateRegistrationSchema`: é o §26 (IDOR). */
+  eventId: z.string().uuid(),
   participantId: z.string().uuid(),
   confirmation: z.enum(["confirmed", "not_confirmed"]),
 });
@@ -419,3 +431,71 @@ export type PublicRegistrationInput = z.infer<typeof publicRegistrationSchema>;
 export function emptyParticipant(): ParticipantInput {
   return { fullName: "", email: "", phone: "", whatsapp: "" };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Edição de participante — §13, §14, §15 do Prompt 4                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A ficha de um participante, como o backoffice a envia.
+ *
+ * ============================================================================
+ * ⚠️ ELE ESTENDE `participantSchema`, E NÃO REESCREVE AS REGRAS.
+ * ============================================================================
+ * O §13 é explícito: "utilizar as mesmas regras e validações do cadastro
+ * público". `participantSchema` já é a peça que o formulário público usa — com
+ * o e-mail em minúsculas, os telefones só com dígitos e o `refine` de
+ * "telefone OU WhatsApp" (§15). Escrever um schema parecido aqui é como as duas
+ * portas passariam a aceitar coisas diferentes da mesma pessoa.
+ *
+ * O que se acrescenta é o que só existe aqui: os dois identificadores da cadeia
+ * (§26) e a confirmação, que a ficha pode mudar junto com o resto (§13).
+ *
+ * ⚠️ O `.refine` DE `participantSchema` NÃO SOBREVIVE A UM `.extend()` — no
+ * Zod 3, `refine` devolve `ZodEffects`, que não tem `.extend`. É a mesma
+ * armadilha de `refuseRepeatedEmail`, e a saída é a mesma: montar o objeto e
+ * reaplicar a regra. `PHONE_OR_WHATSAPP` existe para ela ser escrita uma vez.
+ */
+// Sem `as const`: ele deixaria `path` readonly, e o Zod 3 pede um array mutável.
+const PHONE_OR_WHATSAPP = {
+  message: "Informe telefone ou WhatsApp.",
+  path: ["phone"],
+};
+
+export const updateParticipantSchema = z
+  .object({
+    eventId: z.string().uuid(),
+    participantId: z.string().uuid(),
+    fullName: z
+      .string()
+      .trim()
+      .min(2, "Informe o nome do participante.")
+      .max(160, "Nome muito longo."),
+    email: emailSchema,
+    phone: phoneSchema.optional().or(z.literal("")),
+    whatsapp: phoneSchema.optional().or(z.literal("")),
+    confirmation: z.enum(PARTICIPANT_CONFIRMATIONS),
+  })
+  .refine((pessoa) => Boolean(pessoa.phone) || Boolean(pessoa.whatsapp), PHONE_OR_WHATSAPP);
+
+export type UpdateParticipantInput = z.infer<typeof updateParticipantSchema>;
+
+/**
+ * A edição da granja, na ficha da inscrição (§13).
+ *
+ * Separada da edição do participante porque são objetos diferentes: a granja é
+ * da INSCRIÇÃO e vale para todo mundo dela; o resto é da PESSOA. Um formulário
+ * só, com os dois, faria parecer que mudar a granja de João mudaria só a de
+ * João — quando ela é a mesma da Maria e do Pedro na mesma inscrição.
+ */
+export const updateCompanySchema = z.object({
+  eventId: z.string().uuid(),
+  registrationId: z.string().uuid(),
+  companyName: z
+    .string()
+    .trim()
+    .min(2, "Informe a granja ou empresa.")
+    .max(200, "Nome muito longo."),
+});
+
+export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;

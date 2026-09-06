@@ -36,8 +36,20 @@ const MIGRATIONS = join(process.cwd(), "supabase", "migrations");
  * ÚLTIMA definição de cada função é o que faz este arquivo descrever o banco de
  * hoje, e não o de setembro.
  */
+/**
+ * ⚠️ O FILTRO PEGA AS DUAS FAMÍLIAS DE NOME DO MÓDULO, e a segunda entrou
+ * corrigindo um defeito real desta bateria.
+ *
+ * O Prompt 4 acrescentou `20260925000100_event_registration_backoffice.sql`, que
+ * REDEFINE `set_participant_confirmation` e `update_event_registration`. Com o
+ * filtro procurando só por "landing", esse arquivo ficava de fora — e os casos
+ * abaixo voltariam a descrever definições que o banco não usa mais, PASSANDO.
+ *
+ * É exatamente a falha que o comentário acima descreve, reaparecendo por um
+ * nome de arquivo. A lição: o filtro precisa acompanhar o módulo, não a palavra.
+ */
 const ARQUIVOS = readdirSync(MIGRATIONS)
-  .filter((nome) => nome.endsWith(".sql") && nome.includes("landing"))
+  .filter((nome) => nome.endsWith(".sql") && /landing|event_registration/.test(nome))
   .sort();
 
 const sql = ARQUIVOS.map((nome) => readFileSync(join(MIGRATIONS, nome), "utf8")).join("\n");
@@ -66,6 +78,9 @@ describe("a bateria está lendo o que acha que está lendo", () => {
   it("encontra as migrations do módulo", () => {
     expect(ARQUIVOS).toContain("20260922000100_event_landing.sql");
     expect(ARQUIVOS).toContain("20260924000000_event_landing_public.sql");
+    // A do Prompt 4 — sem ela, os casos de confirmação e de edição abaixo leriam
+    // as definições antigas e passariam sobre código morto.
+    expect(ARQUIVOS).toContain("20260925000100_event_registration_backoffice.sql");
     expect(sql.length).toBeGreaterThan(50_000);
   });
 
@@ -494,5 +509,290 @@ describe("§37 — a trilha não guarda dado pessoal", () => {
   /** A versão do consentimento ENTRA: não identifica ninguém e é a prova. */
   it("a metadata guarda qual consentimento valia", () => {
     expect(corpo).toContain("'consentPolicyVersion', v_new.consent_policy_version");
+  });
+});
+
+/* ========================================================================== */
+/* O BACKOFFICE DE INSCRIÇÕES — Prompt 4                                      */
+/* ========================================================================== */
+
+describe("§25 e §26 — a cadeia conferida no banco (IDOR)", () => {
+  /**
+   * ==========================================================================
+   * ⚠️ AS TRÊS ESCRITAS EXIGEM O EVENTO, E NENHUMA PODE DEIXAR DE EXIGIR.
+   * ==========================================================================
+   * O §25 é explícito: "garantir especialmente que um usuário não consiga
+   * acessar um participante informando manualmente um ID pertencente a outro
+   * evento". A RLS não responde essa pergunta — ela decide se a pessoa pode ver
+   * INSCRIÇÕES, e um administrador pode ver todas. O que impede a operação de
+   * atravessar o contexto é a condição de evento dentro de cada função.
+   *
+   * Este teste falha se alguém "simplificar" a assinatura removendo o
+   * `p_event_id` — que é uma refatoração que parece limpeza e abre a porta.
+   */
+  it.each([
+    ["update_event_participant", "p.event_id = p_event_id"],
+    ["set_participant_confirmation", "p.event_id = p_event_id"],
+    ["update_event_registration", "r.event_id = p_event_id"],
+  ])("%s confere o evento antes de escrever", (funcao, condicao) => {
+    const corpo = corpoDe(funcao);
+    expect(corpo.slice(0, corpo.indexOf(")"))).toContain("p_event_id");
+    expect(corpo).toContain(condicao);
+  });
+
+  /**
+   * ⚠️ O MESMO ERRO PARA "NÃO EXISTE" E PARA "É DE OUTRO EVENTO". Distinguir os
+   * dois transformaria a função num oráculo: quem tentasse ids ao acaso
+   * descobriria quais existem no sistema, mesmo sem conseguir lê-los.
+   */
+  it("não distingue 'não existe' de 'é de outro evento'", () => {
+    for (const funcao of ["update_event_participant", "set_participant_confirmation"]) {
+      expect(corpoDe(funcao)).toContain("errcode = 'P0002'");
+    }
+  });
+
+  /** A leitura também: a grid é de UM evento, e a junção repete a condição. */
+  it("a leitura da grid amarra participante e inscrição ao mesmo evento", () => {
+    const corpo = corpoDe("event_registrations_board");
+    expect(corpo).toContain("where p.event_id = p_event_id");
+    expect(corpo).toContain("and r.event_id = p_event_id");
+  });
+});
+
+describe("§22 e §23 — a confirmação é atômica e idempotente", () => {
+  const corpo = corpoDe("set_participant_confirmation");
+
+  /**
+   * ==========================================================================
+   * ⚠️ A CONDIÇÃO ESTÁ DENTRO DO `update`, E É O QUE PROTEGE A TRILHA.
+   * ==========================================================================
+   * A versão do Prompt 1 fazia `select` → `if igual then return` → `update`.
+   * Duas requisições simultâneas (duplo clique, retry, dois operadores na mesma
+   * pessoa) passam AS DUAS pelo `if` e gravam AS DUAS — resultado final certo,
+   * mas DUAS linhas de auditoria afirmando que houve mudança de `false` para
+   * `true`, sendo que a segunda não mudou nada.
+   *
+   * A trilha é o registro de quem afirmou o quê (§12); enchê-la de mudanças que
+   * não aconteceram é corrompê-la em silêncio — e ninguém percebe, porque o
+   * estado final está correto.
+   */
+  it("o update só grava quando o valor MUDA", () => {
+    expect(corpo).toContain("confirmation is distinct from p_confirmation");
+  });
+
+  /**
+   * ⚠️ REPETIR É SUCESSO, NÃO ERRO (§23). Quem clicou duas vezes vê o mesmo
+   * estado das duas vezes. Um erro aqui faria um retry de rede — que é
+   * exatamente o caso que o §23 manda tratar — virar uma mensagem vermelha
+   * sobre uma operação que deu certo.
+   */
+  it("repetir a mesma confirmação devolve o participante, sem auditar de novo", () => {
+    const semAlteracao = corpo.indexOf("if v_new.id is null then");
+    const auditoria = corpo.indexOf("insert into public.event_registration_audit_logs");
+
+    expect(semAlteracao).toBeGreaterThan(-1);
+    expect(semAlteracao).toBeLessThan(auditoria);
+    expect(corpo).toContain("return v_old;");
+  });
+
+  /** §12 — a trilha registra o valor anterior e o novo. */
+  it("a trilha guarda de onde para onde", () => {
+    expect(corpo).toContain("'from', v_old.confirmation");
+    expect(corpo).toContain("'to', v_new.confirmation");
+  });
+});
+
+describe("§14 — duplicidade de e-mail na edição", () => {
+  const corpo = corpoDe("update_event_participant");
+
+  /**
+   * ==========================================================================
+   * ⚠️ O PRÓPRIO PARTICIPANTE É DESCONSIDERADO — SEM ISSO, NINGUÉM SALVA NADA.
+   * ==========================================================================
+   * O §14 pede: "ao editar o próprio participante, o registro atual deve ser
+   * desconsiderado na validação de duplicidade". Sem o `p.id <> p_participant_id`,
+   * abrir a ficha do João e corrigir o TELEFONE dele acusaria o e-mail dele de
+   * estar duplicado — com ele mesmo. A tela ficaria impossível de usar, e a
+   * mensagem não daria nenhuma pista do motivo.
+   */
+  it("desconsidera o próprio registro", () => {
+    expect(corpo).toContain("p.id <> p_participant_id");
+  });
+
+  /**
+   * ⚠️ E SÓ CONFERE QUANDO O E-MAIL MUDOU. Uma consulta a cada salvamento é
+   * trabalho jogado fora — e seria uma segunda chance de o resultado discordar
+   * do índice único por causa de uma corrida.
+   */
+  it("só confere quando o e-mail muda", () => {
+    expect(corpo).toContain("if v_email is distinct from v_old.email and exists");
+  });
+
+  /** A comparação é sobre o valor normalizado — §14 pede case-insensitive. */
+  it("compara em minúsculas, como o índice único exige", () => {
+    expect(corpo).toContain("lower(btrim(coalesce(p_email, '')))");
+  });
+
+  /** §15 — telefone OU WhatsApp continua valendo na edição. */
+  it("recusa participante sem telefone e sem WhatsApp", () => {
+    expect(corpo).toContain("if v_phone is null and v_whatsapp is null then");
+    expect(corpo).toContain("errcode = 'RG005'");
+  });
+});
+
+describe("§25 — a trilha da edição não guarda dado pessoal", () => {
+  const corpo = corpoDe("update_event_participant");
+
+  /**
+   * ==========================================================================
+   * ⚠️ OS NOMES DOS CAMPOS, NUNCA OS VALORES.
+   * ==========================================================================
+   * Gravar "email: joao@x.com → joao@y.com" na trilha criaria uma SEGUNDA CÓPIA
+   * do dado pessoal, numa tabela append-only, fora de `event_participants` — que
+   * é de onde o dado sai quando alguém exerce o direito de exclusão. A cópia
+   * sobreviveria ao pedido, e ninguém lembraria dela.
+   *
+   * A confirmação é a exceção deliberada: ela não identifica ninguém, e é
+   * justamente a mudança que o §12 manda registrar com "de/para".
+   */
+  it("registra quais campos mudaram, e não o que eles passaram a valer", () => {
+    expect(corpo).toContain("to_jsonb('email'::text)");
+
+    // ⚠️ O RECORTE É O BLOCO DA TRILHA, e não a função inteira — a primeira
+    // versão deste caso procurava `v_old.email` no corpo todo e acusava a
+    // NORMALIZAÇÃO (`coalesce(..., v_old.email)`), que é legítima. Um teste que
+    // falha no lugar errado é um teste que alguém desliga.
+    const bloco = corpo.slice(corpo.indexOf("'participant_updated'"));
+    for (const pessoal of [
+      "v_old.email",
+      "v_new.email",
+      "v_new.full_name",
+      "v_new.phone",
+      "v_new.whatsapp",
+    ]) {
+      expect(bloco, `a trilha não pode carregar ${pessoal}`).not.toContain(pessoal);
+    }
+  });
+
+  it("a confirmação continua sendo a exceção, com de/para", () => {
+    expect(corpo).toContain("'from', v_old.confirmation");
+    expect(corpo).toContain("'to', v_new.confirmation");
+  });
+});
+
+describe("§6, §7 e §21 — o quadro da tela", () => {
+  const corpo = corpoDe("event_registrations_board");
+
+  /**
+   * ⚠️ MÉTRICAS E LINHAS SAEM DO MESMO `where`. O §6 pede que os indicadores
+   * respeitem os filtros ativos; com duas consultas, o mesmo filtro existiria em
+   * dois lugares e o dia em que um deles mudasse a tela diria "12 confirmados"
+   * sobre uma lista de 5. Ninguém confere a soma à mão.
+   */
+  it("métricas e página saem da mesma CTE filtrada", () => {
+    expect(corpo).toContain("with filtrado as (");
+    expect(corpo).toContain("from filtrado");
+    expect(corpo).toContain("from filtrado f");
+  });
+
+  /**
+   * ⚠️ A BUSCA POR TELEFONE PRECISA DO SEGUNDO PADRÃO. Quem procura cola
+   * "(11) 99999-8888" da conversa; a coluna guarda "11999998888". Sem tirar a
+   * máscara do que foi digitado, a busca por telefone nunca acha ninguém — e o
+   * §7 pede que ela ache.
+   */
+  it("procura telefone pelos dígitos, além do texto", () => {
+    expect(corpo).toContain("v_digitos");
+    expect(corpo).toContain("'[^0-9]'");
+  });
+
+  /** §7 — a busca atravessa as duas tabelas: a granja e a pessoa. */
+  it("procura na granja e no participante", () => {
+    expect(corpo).toContain("p.search_text like");
+    expect(corpo).toContain("r.search_text like");
+  });
+
+  /**
+   * ⚠️ OS CURINGAS DO LIKE VIRAM LITERAIS. Sem o escape, uma granja chamada
+   * "100%" faria a busca virar curinga — e procurar por ela devolveria a base
+   * inteira do evento.
+   */
+  it("escapa os curingas do LIKE", () => {
+    expect(corpo).toContain("v_texto := replace(v_texto, '_'");
+  });
+
+  /**
+   * ⚠️ ORDENAÇÃO POR LISTA FECHADA. `p_sort` vem da URL: um `order by` montado
+   * com texto de fora é injeção de SQL por outro nome. Aqui ele só escolhe
+   * entre `case`s escritos à mão, e nada é executado dinamicamente.
+   */
+  it("a ordenação não interpola texto recebido", () => {
+    expect(corpo).toContain("case when v_sort = 'company'");
+    expect(corpo).not.toMatch(/\bexecute\b/i);
+  });
+
+  /**
+   * ⚠️ DESEMPATE ESTÁVEL. Sem ele, duas pessoas inscritas no mesmo segundo
+   * trocam de lugar entre a página 1 e a 2 — e uma delas some da listagem sem
+   * nunca aparecer. Mesma armadilha que `listLectures` documenta.
+   */
+  it("a ordenação tem desempate por id", () => {
+    expect(corpo).toContain("f.participant_id asc");
+  });
+
+  /**
+   * ⚠️ SECURITY INVOKER (o padrão), e o teste existe para continuar assim. Aqui
+   * há usuário logado, e a RLS de `event_registrations`/`event_participants` é a
+   * segunda camada do RBAC. Um `security definer` desligaria justamente a
+   * proteção que faz sentido nesta porta — e a tabela guarda dado pessoal de
+   * centenas de terceiros. O contraste é com `get_public_event_landing_page`,
+   * que É definer porque ali não existe sessão para a RLS avaliar.
+   */
+  it("NÃO é security definer", () => {
+    expect(corpo).not.toContain("security definer");
+  });
+
+  /** §21 — o teto de linhas é imposto no banco, não pela tela. */
+  it("limita o tamanho da página no próprio SQL", () => {
+    expect(corpo).toContain("least(coalesce(p_limit, 25), 200)");
+  });
+});
+
+describe("§8 — o período é do calendário da APCS, não do relógio do servidor", () => {
+  const corpo = corpoDe("event_registrations_board");
+
+  /**
+   * ==========================================================================
+   * ⚠️ NASCEU DE UM DEFEITO DE TRÊS HORAS, ENCONTRADO NA REVISÃO DO PROMPT 4.
+   * ==========================================================================
+   * A primeira versão recebia `timestamptz` e o serviço montava o valor
+   * concatenando texto (`"2026-09-06" + "T00:00:00"`). Um literal de timestamp
+   * SEM FUSO é lido pelo Postgres no fuso do SERVIDOR — UTC na Supabase —,
+   * então "inscritos a partir de 06/09" significava 05/09 às 21h em São Paulo.
+   *
+   * O sintoma seria quase invisível: uma contagem "quase certa" e uma
+   * exportação com algumas linhas a mais ou a menos que a tela. Ninguém confere
+   * um CSV de trezentas pessoas linha por linha.
+   *
+   * A correção é a mesma decisão de `event_today()`: a DATA entra, e o fuso é
+   * aplicado no banco.
+   */
+  it("recebe datas e converte no fuso da APCS", () => {
+    const assinatura = corpo.slice(0, corpo.indexOf(")"));
+    expect(assinatura).toContain("p_from date");
+    expect(assinatura).toContain("p_to date");
+    expect(corpo).toContain("at time zone 'America/Sao_Paulo'");
+  });
+
+  /**
+   * ⚠️ O FIM É EXCLUSIVO NO DIA SEGUINTE, e não "23:59:59.999" do mesmo dia.
+   * Escrever o fim como o último milissegundo é a armadilha clássica: uma
+   * inscrição gravada às 23:59:59.9997 fica de fora, e o defeito só aparece uma
+   * vez a cada mil anos de uso — o que é pior do que aparecer sempre.
+   */
+  it("o fim do período é o dia seguinte, exclusivo", () => {
+    expect(corpo).toContain("(p_to + 1)");
+    expect(corpo).toContain("r.registered_at < v_fim");
+    expect(corpo).not.toContain("23:59:59");
   });
 });

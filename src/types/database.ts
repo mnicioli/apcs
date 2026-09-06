@@ -1141,6 +1141,7 @@ export type Database = {
           id: string;
           phone: string | null;
           registration_id: string;
+          search_text: string | null;
           updated_at: string;
           updated_by: string | null;
           whatsapp: string | null;
@@ -1154,6 +1155,7 @@ export type Database = {
           id?: string;
           phone?: string | null;
           registration_id: string;
+          search_text?: string | null;
           updated_at?: string;
           updated_by?: string | null;
           whatsapp?: string | null;
@@ -1167,6 +1169,7 @@ export type Database = {
           id?: string;
           phone?: string | null;
           registration_id?: string;
+          search_text?: string | null;
           updated_at?: string;
           updated_by?: string | null;
           whatsapp?: string | null;
@@ -1326,6 +1329,7 @@ export type Database = {
           landing_page_id: string;
           origin: Database["public"]["Enums"]["event_registration_origin"];
           registered_at: string;
+          search_text: string | null;
           source_ip_hash: string | null;
           status: Database["public"]["Enums"]["event_registration_status"];
           updated_at: string;
@@ -1343,6 +1347,7 @@ export type Database = {
           landing_page_id: string;
           origin?: Database["public"]["Enums"]["event_registration_origin"];
           registered_at?: string;
+          search_text?: string | null;
           source_ip_hash?: string | null;
           status?: Database["public"]["Enums"]["event_registration_status"];
           updated_at?: string;
@@ -1360,6 +1365,7 @@ export type Database = {
           landing_page_id?: string;
           origin?: Database["public"]["Enums"]["event_registration_origin"];
           registered_at?: string;
+          search_text?: string | null;
           source_ip_hash?: string | null;
           status?: Database["public"]["Enums"]["event_registration_status"];
           updated_at?: string;
@@ -4941,6 +4947,23 @@ export type Database = {
       };
       event_landing_slugify: { Args: { p_text: string }; Returns: string };
       event_registration_ip_hourly_limit: { Args: never; Returns: number };
+      event_registration_summaries: {
+        Args: { p_limit?: number; p_offset?: number; p_query?: string };
+        Returns: Json;
+      };
+      event_registrations_board: {
+        Args: {
+          p_confirmation?: string;
+          p_event_id: string;
+          p_from?: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_query?: string;
+          p_sort?: string;
+          p_to?: string;
+        };
+        Returns: Json;
+      };
       event_segments_for_member: {
         Args: { p_member_id: string };
         Returns: string[];
@@ -6020,6 +6043,7 @@ export type Database = {
       set_participant_confirmation: {
         Args: {
           p_confirmation: Database["public"]["Enums"]["event_participant_confirmation"];
+          p_event_id: string;
           p_participant_id: string;
         };
         Returns: {
@@ -6031,6 +6055,7 @@ export type Database = {
           id: string;
           phone: string | null;
           registration_id: string;
+          search_text: string | null;
           updated_at: string;
           updated_by: string | null;
           whatsapp: string | null;
@@ -6464,9 +6489,41 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      update_event_participant: {
+        Args: {
+          p_confirmation?: Database["public"]["Enums"]["event_participant_confirmation"];
+          p_email?: string;
+          p_event_id: string;
+          p_full_name?: string;
+          p_participant_id: string;
+          p_phone?: string;
+          p_whatsapp?: string;
+        };
+        Returns: {
+          confirmation: Database["public"]["Enums"]["event_participant_confirmation"];
+          created_at: string;
+          email: string;
+          event_id: string;
+          full_name: string;
+          id: string;
+          phone: string | null;
+          registration_id: string;
+          search_text: string | null;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_participants";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       update_event_registration: {
         Args: {
           p_company_name?: string;
+          p_event_id: string;
           p_registration_id: string;
           p_status?: Database["public"]["Enums"]["event_registration_status"];
         };
@@ -6481,6 +6538,7 @@ export type Database = {
           landing_page_id: string;
           origin: Database["public"]["Enums"]["event_registration_origin"];
           registered_at: string;
+          search_text: string | null;
           source_ip_hash: string | null;
           status: Database["public"]["Enums"]["event_registration_status"];
           updated_at: string;
@@ -6954,7 +7012,8 @@ export type Database = {
         | "registration_updated"
         | "registration_cancelled"
         | "registration_reactivated"
-        | "participant_confirmation_changed";
+        | "participant_confirmation_changed"
+        | "participant_updated";
       event_registration_origin: "landing_page" | "backoffice";
       event_registration_status: "active" | "cancelled";
       event_status: "active" | "inactive";
@@ -7346,6 +7405,7 @@ export const Constants = {
         "registration_cancelled",
         "registration_reactivated",
         "participant_confirmation_changed",
+        "participant_updated",
       ],
       event_registration_origin: ["landing_page", "backoffice"],
       event_registration_status: ["active", "cancelled"],

@@ -22,6 +22,8 @@ import {
   landingPageIdSchema,
   participantConfirmationSchema,
   updateLandingPageSchema,
+  updateCompanySchema,
+  updateParticipantSchema,
   updateRegistrationSchema,
   type CreateLandingPageInput,
   type CreateRegistrationInput,
@@ -31,6 +33,8 @@ import {
   type LandingPageIdInput,
   type ParticipantConfirmationInput,
   type UpdateLandingPageInput,
+  type UpdateCompanyInput,
+  type UpdateParticipantInput,
   type UpdateRegistrationInput,
 } from "@/modules/event/event.landing.schema";
 
@@ -67,7 +71,11 @@ function revalidateLanding(): void {
   revalidatePath("/events", "page");
   revalidatePath("/events/[id]", "page");
   revalidatePath("/events/landing-pages", "page");
-  revalidatePath("/events/[id]/registrations", "page");
+  // ⚠️ AS DUAS TELAS DO PROMPT 4. A lista de eventos mostra as contagens de
+  // confirmados, então trocar UM toggle muda o que a tela ANTERIOR mostra —
+  // invalidar só a grid deixaria a lista com números velhos até alguém recarregar.
+  revalidatePath("/events/registrations", "page");
+  revalidatePath("/events/registrations/[eventId]", "page");
 }
 
 /** O que as funções transacionais de Landing Page devolvem. */
@@ -340,6 +348,8 @@ export async function updateRegistrationAction(
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc("update_event_registration", {
+    // O evento vai junto: a função recusa quando a inscrição é de outro (§26).
+    p_event_id: parsed.data.eventId,
     p_registration_id: parsed.data.registrationId,
     p_company_name: parsed.data.companyName ?? null,
     p_status: parsed.data.status ?? null,
@@ -370,6 +380,8 @@ export async function setParticipantConfirmationAction(
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc("set_participant_confirmation", {
+    // Ver o §26: sem o evento, um id de participante de outro evento passaria.
+    p_event_id: parsed.data.eventId,
     p_participant_id: parsed.data.participantId,
     p_confirmation: parsed.data.confirmation,
   } as never);
@@ -574,4 +586,108 @@ export async function removeLandingPageImageAction(
 
   revalidateLanding();
   return ok({ id: (data as LandingRpcResult).id });
+}
+
+/* -------------------------------------------------------------------------- */
+/* 4. A ficha do participante (§13, §14, §15 do Prompt 4)                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * EDITA OS DADOS DE UM PARTICIPANTE.
+ *
+ * ⚠️ MANDA A FICHA INTEIRA, sempre — não só o que mudou. `update_event_participant`
+ * trata string vazia em telefone/WhatsApp como APAGAR, e é isso que permite
+ * limpar um campo pela tela. A consequência é que esta action NÃO serve para
+ * atualização parcial: quem a chamar com metade dos campos apaga a outra
+ * metade. O formulário mostra todos eles justamente por isso — mesmo contrato
+ * de `updateMemberAction`.
+ *
+ * ⚠️ O `eventId` NÃO É DECORAÇÃO (§25, §26). Ele é conferido no banco contra o
+ * `event_id` do participante: um id de participante de OUTRO evento colado na
+ * requisição recebe "não encontrado", e não a ficha de terceiro. A tela sabe
+ * qual evento está aberto porque ele está na rota; o que a action não faz é
+ * confiar que o participante enviado pertence a ele.
+ */
+export async function updateParticipantAction(
+  input: UpdateParticipantInput,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = updateParticipantSchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const negado = await assertPermission<{ id: string }>("registrations.write");
+  if (negado) return negado;
+
+  const dados = parsed.data;
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("update_event_participant", {
+    p_event_id: dados.eventId,
+    p_participant_id: dados.participantId,
+    p_full_name: dados.fullName,
+    p_email: dados.email,
+    // Vazio significa APAGAR — ver o aviso acima. Por isso não vira `undefined`.
+    p_phone: dados.phone ?? "",
+    p_whatsapp: dados.whatsapp ?? "",
+    p_confirmation: dados.confirmation,
+  } as never);
+
+  if (error || !data) {
+    return error
+      ? // ⚠️ SÓ IDS NO CONTEXTO (§25). Nome, e-mail e telefone do participante
+        // ficam de fora: um erro que os despeje no log de produção é um
+        // vazamento silencioso de dado de terceiro.
+        failFromPostgres("participant.update", error, {
+          eventId: dados.eventId,
+          participantId: dados.participantId,
+        })
+      : fail("unexpected");
+  }
+
+  revalidateLanding();
+  return ok({ id: (data as { id: string }).id });
+}
+
+/**
+ * Renomeia a granja/empresa de uma inscrição (§13).
+ *
+ * ⚠️ VALE PARA TODOS OS PARTICIPANTES DELA, e é o modelo de dados aparecendo:
+ * a granja é da INSCRIÇÃO. A tela diz isso antes de salvar — sem o aviso,
+ * alguém corrigiria o nome achando que estava mexendo só na linha do João.
+ *
+ * Existe separada de `updateRegistrationAction` porque aquela também cancela e
+ * reativa, e o §16 é explícito em não expor exclusão nesta tela. Uma action
+ * estreita não tem como cancelar uma inscrição por engano.
+ */
+export async function updateCompanyAction(
+  input: UpdateCompanyInput,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = updateCompanySchema.safeParse(input);
+  if (!parsed.success) return fail("invalidInput");
+
+  const negado = await assertPermission<{ id: string }>("registrations.write");
+  if (negado) return negado;
+
+  const dados = parsed.data;
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("update_event_registration", {
+    p_event_id: dados.eventId,
+    p_registration_id: dados.registrationId,
+    p_company_name: dados.companyName,
+    // ⚠️ `undefined` MANTÉM A SITUAÇÃO. É o que impede esta action de cancelar
+    // uma inscrição: ela não tem por onde.
+    p_status: undefined,
+  } as never);
+
+  if (error || !data) {
+    return error
+      ? failFromPostgres("registration.company", error, {
+          eventId: dados.eventId,
+          registrationId: dados.registrationId,
+        })
+      : fail("unexpected");
+  }
+
+  revalidateLanding();
+  return ok({ id: (data as { id: string }).id });
 }

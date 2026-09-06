@@ -319,14 +319,41 @@ describe("landing page", () => {
 describe("edição da inscrição pelo backoffice", () => {
   const id = "11111111-1111-4111-8111-111111111111";
 
+  /** O evento é obrigatório desde o Prompt 4 — ver o caso de IDOR logo abaixo. */
+  const evento = "22222222-2222-4222-8222-222222222222";
+
   it("aceita só a situação, só o nome, ou os dois", () => {
-    expect(updateRegistrationSchema.safeParse({ registrationId: id }).success).toBe(true);
     expect(
-      updateRegistrationSchema.safeParse({ registrationId: id, status: "cancelled" }).success,
+      updateRegistrationSchema.safeParse({ eventId: evento, registrationId: id }).success,
     ).toBe(true);
     expect(
-      updateRegistrationSchema.safeParse({ registrationId: id, companyName: "Granja XYZ" }).success,
+      updateRegistrationSchema.safeParse({
+        eventId: evento,
+        registrationId: id,
+        status: "cancelled",
+      }).success,
     ).toBe(true);
+    expect(
+      updateRegistrationSchema.safeParse({
+        eventId: evento,
+        registrationId: id,
+        companyName: "Granja XYZ",
+      }).success,
+    ).toBe(true);
+  });
+
+  /**
+   * ============================================================================
+   * ⚠️ SEM O EVENTO, NÃO PASSA — E É O §26 DO PROMPT 4 (IDOR).
+   * ============================================================================
+   * A cadeia Evento → Landing Page → Inscrição → Participante é conferida no
+   * BANCO, e a função só consegue conferi-la se receber o evento. Este caso
+   * existe para que remover o campo "porque a tela já sabe qual evento é" quebre
+   * a bateria em vez de abrir silenciosamente a porta para um id de outro
+   * evento colado na requisição.
+   */
+  it("recusa a edição sem o evento", () => {
+    expect(updateRegistrationSchema.safeParse({ registrationId: id }).success).toBe(false);
   });
 
   /**
