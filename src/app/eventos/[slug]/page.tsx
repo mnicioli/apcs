@@ -7,7 +7,11 @@ import { APP_SHORT_NAME } from "@/config/app";
 import { getPublicLandingPage } from "@/lib/services/event-landing-public";
 import { formatCalendarDate, formatDateTime } from "@/lib/utils";
 import { PUBLIC_LANDING_COPY } from "@/modules/event/event.landing.labels";
-import { landingEffectiveStatus, landingStatusReason } from "@/modules/event/event.landing.rules";
+import {
+  landingEffectiveStatus,
+  landingStatusReason,
+  withEventDate,
+} from "@/modules/event/event.landing.rules";
 import type {
   PublicLandingPage,
   PublicRegistrationState,
@@ -103,8 +107,8 @@ export default async function PaginaPublicaDeInscricao({
   if (!page) notFound();
 
   const agora = new Date();
-  const efetiva = landingEffectiveStatus(page, agora);
-  const motivo = landingStatusReason(page, agora);
+  const efetiva = landingEffectiveStatus(withEventDate(page), agora);
+  const motivo = landingStatusReason(withEventDate(page), agora);
 
   // "Encerrada porque lotou" e "encerrada porque o prazo venceu" são a mesma
   // situação para o banco e frases diferentes para quem lê (§27 e §28).

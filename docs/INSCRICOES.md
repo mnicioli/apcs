@@ -723,3 +723,94 @@ ignorada.
    pendência 3 da seção 15 segue aberta, e agora vale também para esta tela: um
    evento desativado ainda aparece em `Eventos → Inscrições`, o que é correto
    (os inscritos existem) mas merece uma decisão explícita de produto.
+
+---
+
+## 17. Homologação (Prompt 5)
+
+Nenhuma funcionalidade nova. A auditoria de ponta a ponta encontrou três coisas.
+
+### ⚠️ ALTO — evento que já aconteceu aceitava inscrição
+
+`closes_at` é **opcional**. O Builder o oferece com o início do evento como
+padrão, e quem edita pode limpar o campo. Uma página publicada, sem prazo e sem
+capacidade, aceitava inscrição para um evento de 2024 — indefinidamente. Nem
+`landingEffectiveStatus` nem `create_event_registration` olhavam a data do
+evento.
+
+O sintoma seria dado sujo que ninguém percebe até alguém exportar a planilha:
+gente inscrita, meses depois, num encontro que já aconteceu.
+
+Corrigido nas duas pontas, com a mesma régua (`event_today()`, a que Eventos usa
+para expiração desde o primeiro módulo): a leitura devolve o motivo
+`eventPassed`, e a gravação recusa com **RG009**.
+
+⚠️ **A regra é a DATA, não o horário.** "O evento começou às 8h e agora são 9h" é
+trabalho do PRAZO — que por padrão é o início do evento, e que quem organiza
+pode estender de propósito (inscrição na portaria acontece). O que não pode
+existir é inscrição para um DIA que já passou.
+
+### ⚠️ MÉDIO — o teto por inscrição era 200, e são 20
+
+O Prompt 1 escreveu 200 tratando o número como limite de payload. O §7 do
+Prompt 5 é explícito: são 20.
+
+E a regra **passou a existir no banco**, não só no Zod:
+`event_registration_max_participants()`. Até aqui o teto era a única barreira e
+morava só no schema — um administrador chamando o RPC direto pelo PostgREST
+passava com 500 pessoas numa inscrição só.
+
+Há um teste que lê o número dos DOIS arquivos e falha se eles divergirem.
+
+### ⚠️ MÉDIO — a confirmação não mostrava a data do evento
+
+O §24 do Prompt 3 já desenhava a tela de sucesso com a data logo abaixo da
+frase, e o §16 do Prompt 5 repete. A tela mostrava só os três blocos de texto
+configurados: quando é o evento só aparecia se o administrador tivesse lembrado
+de escrever `{{event_date}}` na mensagem.
+
+Quem acabou de se inscrever precisa saber quando comparecer, e isso não pode
+depender de um marcador. Corrigido nas duas telas ao mesmo tempo — a página
+pública e a prévia do Builder —, porque uma prévia que não corresponde ao
+resultado público mente (§4).
+
+### Código morto removido
+
+`listRegistrations`, `RegistrationListPage`, `REGISTRATION_LIMIT`,
+`matchesRegistrationFilters` e `countByConfirmation` eram o caminho de leitura
+que o Prompt 1 preparou para a tela de Inscrições: lia até mil INSCRIÇÕES e
+filtrava em memória. O Prompt 4 o substituiu por `getRegistrationBoard`.
+
+Manter os dois deixaria uma armadilha: quem precisasse listar inscrições
+encontraria primeiro a versão que traz mil linhas de dado pessoal para a memória
+do servidor — exatamente o que o §7 do Prompt 4 proíbe. **Código morto que ainda
+compila e ainda funciona é o mais perigoso, porque parece uma escolha legítima.**
+
+Ficaram, com a razão documentada: `getRegistration`, `listRegistrationAuditLogs`,
+`createRegistrationAction` e `updateRegistrationAction` — capacidades desenhadas,
+cada uma com contrapartida no banco, à espera de uma tela que as peça. São
+diferentes de código superseded: não há uma segunda versão delas competindo.
+
+### O que foi verificado no navegador
+
+Com sessão de administrador, no dev server:
+
+| O quê                                 | Resultado                        |
+| ------------------------------------- | -------------------------------- |
+| `Eventos → Inscrições` no menu        | Abre, com o estado vazio correto |
+| `Eventos → Landing Pages`             | Abre, com filtros e estado vazio |
+| `Eventos`                             | Lista os eventos existentes      |
+| Exportação de evento sem landing page | 404, sem vazar nada              |
+| Inscrições em tablet (768px)          | Sem rolagem horizontal           |
+| `/eventos/<slug>` inexistente         | 404 institucional, sem login     |
+| `/events/*` sem sessão                | Redireciona para `/login`        |
+
+### O que NÃO foi verificado, e por quê
+
+**O ciclo completo com dados reais.** O banco não tem nenhuma Landing Page, e
+criar uma para testar deixaria registros **permanentes**: este módulo não tem
+exclusão física em lugar nenhum, por decisão do Prompt 1. Uma página de teste e
+suas inscrições só poderiam ser inativadas e canceladas, nunca removidas — e
+publicá-la colocaria um endereço público no ar.
+
+É decisão de quem responde pelo dado, não minha.

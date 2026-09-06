@@ -141,7 +141,7 @@ export function LandingPreview({
           <CabecalhoInstitucional />
 
           {mostrandoSucesso ? (
-            <TelaDeSucesso mensagem={sucesso} />
+            <TelaDeSucesso mensagem={sucesso} event={event} />
           ) : (
             <div className="space-y-5 p-5">
               <SignedImage
@@ -376,12 +376,33 @@ function CampoSimulado({ campo }: { campo: LandingFieldKey }) {
 }
 
 /** §17. A tela que a pessoa vê depois de se inscrever. */
-function TelaDeSucesso({ mensagem }: { mensagem: LandingSuccessMessage }) {
+function TelaDeSucesso({
+  mensagem,
+  event,
+}: {
+  mensagem: LandingSuccessMessage;
+  event: LandingTemplateEvent;
+}) {
   return (
     <div className="space-y-3 p-8 text-center">
       <Badge variant="attention">Confirmação</Badge>
       <h3 className="text-primary-strong text-lg font-bold tracking-tight">{mensagem.title}</h3>
       <p className="text-sm whitespace-pre-line">{mensagem.message}</p>
+
+      {/*
+        ⚠️ A DATA E O HORÁRIO ENTRARAM NA HOMOLOGAÇÃO, nas DUAS telas ao mesmo
+        tempo (§4 do Prompt 5: "validar que o preview corresponda ao resultado
+        público"). A página real passou a mostrá-los sempre — vindos do EVENTO, e
+        não de um marcador que o administrador precisaria lembrar de escrever.
+        Uma prévia sem eles voltaria a mentir sobre o que a granja vai ver.
+      */}
+      <p className="text-foreground pt-1 text-sm font-semibold">
+        {formatCalendarDate(event.eventDate)}
+      </p>
+      <p className="text-muted-foreground text-xs">
+        {formatTimeRange(event.startTime, event.endTime)}
+      </p>
+
       <p className="text-muted-foreground text-sm whitespace-pre-line">{mensagem.footer}</p>
     </div>
   );

@@ -6,6 +6,7 @@ import { CheckboxRow, TextField } from "@/components/public/fields";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
 import { submitEventRegistrationAction } from "@/lib/actions/event-registration-public";
 import { formatPhoneInput } from "@/lib/format/phone";
+import { formatCalendarDate } from "@/lib/utils";
 import { LANDING_FIELD_LABELS, PUBLIC_LANDING_COPY } from "@/modules/event/event.landing.labels";
 import {
   publicRegistrationSchema,
@@ -18,6 +19,7 @@ import {
   type PublicRegistrationFormData,
   type PublicRegistrationState,
 } from "@/modules/event/event.landing.types";
+import { formatTimeRange } from "@/modules/event/event.rules";
 import { AvisoInscricoesFechadas } from "./landing-chrome";
 
 /**
@@ -557,6 +559,27 @@ function TelaDeSucesso({
       </h2>
 
       <p className="mt-4 text-base leading-relaxed whitespace-pre-line">{mensagem.message}</p>
+
+      {/*
+        ============================================================================
+        ⚠️ A DATA E O HORÁRIO APARECEM SEMPRE — CORREÇÃO DA HOMOLOGAÇÃO (§16).
+        ============================================================================
+        O §24 do Prompt 3 já desenhava a confirmação com a data logo abaixo da
+        frase, e o §16 do Prompt 5 repete: "apresentar também: data do evento".
+        A tela mostrava só os três blocos de texto configurados — e quando é
+        o evento só aparecia se o administrador tivesse lembrado de escrever
+        `{{event_date}}` na mensagem.
+
+        Quem acabou de se inscrever precisa saber QUANDO comparecer, e essa
+        informação não pode depender de alguém ter configurado um marcador. Ela
+        vem do EVENTO, que é a fonte da verdade — não de texto digitado.
+      */}
+      <p className="text-foreground mt-5 text-base font-semibold">
+        {formatCalendarDate(page.event.eventDate)}
+      </p>
+      <p className="text-muted-foreground text-sm">
+        {formatTimeRange(page.event.startTime, page.event.endTime)}
+      </p>
 
       <p className="text-muted-foreground mt-6 text-sm leading-relaxed whitespace-pre-line">
         {mensagem.footer}

@@ -52,6 +52,8 @@ export type ActionErrorCode =
   | "registrationNeedsParticipant"
   | "registrationRateLimited"
   | "registrationConsentRequired"
+  | "registrationsEventPassed"
+  | "registrationTooManyParticipants"
   // Regras de negócio da Bolsa. Mesmo raciocínio: cada uma tem um texto que diz
   // O QUE FAZER em seguida.
   | "bulletinNeedsActiveVersion"
@@ -219,6 +221,11 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
     "Muitas inscrições foram enviadas deste acesso nos últimos minutos. Aguarde um pouco e tente novamente.",
   registrationConsentRequired:
     "É preciso aceitar o tratamento dos dados para concluir a inscrição.",
+  // ⚠️ NÃO MANDA TENTAR DE NOVO, e não oferece saída: não há nenhuma. O evento
+  // aconteceu, e a única coisa honesta a dizer é isso.
+  registrationsEventPassed: "Este evento já aconteceu e não aceita mais inscrições.",
+  registrationTooManyParticipants:
+    "O limite de participantes por inscrição foi atingido. Faça uma segunda inscrição para os demais.",
   bulletinNeedsActiveVersion:
     "A Bolsa não pode ficar sem uma publicação ativa. Para trocar a publicação oficial, ative a desejada — a atual sai do ar automaticamente.",
   versionNotInBulletin: "Esta publicação não pertence a esta Bolsa.",
@@ -542,6 +549,12 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "registrationRateLimited" };
     case "RG008":
       return { code: "registrationConsentRequired" };
+    // RG009 e RG010 vieram da homologação (Prompt 5) — ver
+    // supabase/migrations/20260926000000_event_landing_lifecycle.sql.
+    case "RG009":
+      return { code: "registrationsEventPassed" };
+    case "RG010":
+      return { code: "registrationTooManyParticipants" };
     // Classe `MB` — regras de negócio da Bolsa, pela mesma razão da `EV`: a
     // classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260814000000_create_market_bulletins.sql.

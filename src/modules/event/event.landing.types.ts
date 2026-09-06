@@ -74,7 +74,14 @@ export type LandingPageEffectiveStatus = LandingPageStatus;
  * sempre uma cópia do que já se sabe — e cópias saem de sincronia. É a mesma
  * `EventStatusReason` de Eventos, com dois motivos a mais.
  */
-export type LandingPageStatusReason = "draft" | "manual" | "expired" | "full" | "inactive";
+export type LandingPageStatusReason =
+  | "draft"
+  | "manual"
+  | "expired"
+  | "full"
+  | "inactive"
+  // O dia do evento passou. Ver isEventPast em event.landing.rules.ts.
+  | "eventPassed";
 
 /* -------------------------------------------------------------------------- */
 /* Campos do formulário                                                       */
@@ -309,17 +316,21 @@ export interface RegistrationFilters {
 /**
  * Teto de participantes numa única inscrição.
  *
- * ⚠️ NÃO É REGRA DE NEGÓCIO — É LIMITE DE TAMANHO DE REQUISIÇÃO. Ele existe para
- * um envio não chegar com dez mil pessoas, e é generoso o bastante para a maior
- * granja da base. Quem limita quantas pessoas cabem no EVENTO é
- * `maxParticipants` da Landing Page, que é outra pergunta.
+ * ⚠️ SÃO VINTE, E ISSO FOI CORRIGIDO NA HOMOLOGAÇÃO. O Prompt 1 escreveu 200
+ * tratando o número como limite de TAMANHO DE PAYLOAD; o §7 do Prompt 5 é
+ * explícito em outra direção — "o limite padrão definido anteriormente é 20
+ * participantes por inscrição (...) não permitir ultrapassar o limite".
  *
- * Estava escrito direto no `.max(200)` de `registrationBaseSchema`. Virou
- * constante quando o §13 do Prompt 3 pediu que a tela parasse de oferecer o
- * botão ao chegar no teto: com o número solto no schema, a tela teria de
- * repeti-lo — e as duas cópias divergiriam no dia em que uma mudasse.
+ * Quem limita quantas pessoas cabem no EVENTO continua sendo `maxParticipants`
+ * da Landing Page, que é outra pergunta: este é o teto de uma inscrição só.
+ *
+ * ⚠️ E O NÚMERO EXISTE EM DOIS LUGARES QUE PRECISAM CONCORDAR: aqui e em
+ * `event_registration_max_participants()` no Postgres. Não é duplicação por
+ * descuido — é o §24 ("regra crítica não fica só na aplicação"): o Zod dá a
+ * mensagem no campo certo, e a função do banco recusa quem chamar o RPC direto
+ * pelo PostgREST. Há teste de SQL que falha se o valor de lá mudar sozinho.
  */
-export const MAX_PARTICIPANTS_PER_REGISTRATION = 200;
+export const MAX_PARTICIPANTS_PER_REGISTRATION = 20;
 
 /**
  * A Landing Page como o MUNDO a vê.

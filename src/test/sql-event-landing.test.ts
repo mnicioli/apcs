@@ -796,3 +796,126 @@ describe("§8 — o período é do calendário da APCS, não do relógio do serv
     expect(corpo).not.toContain("23:59:59");
   });
 });
+
+/* ========================================================================== */
+/* HOMOLOGAÇÃO — Prompt 5                                                     */
+/* ========================================================================== */
+
+describe("§5 e §17 — evento que já aconteceu não aceita inscrição", () => {
+  const corpo = corpoDe("create_event_registration");
+
+  /**
+   * ==========================================================================
+   * ⚠️ O BURACO QUE A AUDITORIA DE PONTA A PONTA ENCONTROU.
+   * ==========================================================================
+   * `closes_at` é OPCIONAL — o Builder o oferece com o início do evento como
+   * padrão, e quem edita pode limpar o campo. Sem esta cláusula, uma página
+   * publicada, sem prazo e sem capacidade, aceitava inscrição para um evento de
+   * 2024. Indefinidamente, e sem nenhum sinal na tela.
+   *
+   * A régua é `event_today()` — a MESMA que Eventos usa para expiração desde o
+   * primeiro módulo. Uma segunda definição de "passou" seria uma segunda
+   * verdade.
+   */
+  it("recusa quando a data do evento já passou", () => {
+    expect(corpo).toContain("v_event_date < public.event_today()");
+    expect(corpo).toContain("errcode = 'RG009'");
+  });
+
+  /**
+   * ⚠️ E A CONFERÊNCIA VEM ANTES DO PRAZO E DA CAPACIDADE — a mesma ordem que
+   * `landingStatusReason` usa na leitura. Se as duas discordassem sobre QUAL
+   * motivo mostrar, a tela mandaria quem administra aumentar uma capacidade que
+   * não resolveria nada.
+   */
+  it("a data do evento é conferida antes do prazo e da capacidade", () => {
+    const evento = corpo.indexOf("errcode = 'RG009'");
+    const prazo = corpo.indexOf("errcode = 'RG001'");
+    const capacidade = corpo.indexOf("errcode = 'RG002'");
+
+    expect(evento).toBeGreaterThan(-1);
+    expect(evento).toBeLessThan(prazo);
+    expect(evento).toBeLessThan(capacidade);
+  });
+
+  /**
+   * ⚠️ MAS DEPOIS DA IDEMPOTÊNCIA. Um retry que chega depois de o evento ter
+   * acontecido — F5 numa aba esquecida aberta — precisa receber a inscrição que
+   * JÁ FOI GRAVADA, e não um erro dizendo que o evento passou. A pessoa se
+   * inscreveu a tempo; quem chegou atrasado foi a segunda requisição.
+   */
+  it("mas depois da idempotência, para um retry tardio não virar erro", () => {
+    const dedupe = corpo.indexOf("where r.dedupe_key = p_dedupe_key");
+    const evento = corpo.indexOf("errcode = 'RG009'");
+    expect(dedupe).toBeLessThan(evento);
+  });
+});
+
+describe("§7 — o teto de participantes por inscrição é 20, e vale no banco", () => {
+  /**
+   * ⚠️ A REGRA DEIXOU DE MORAR SÓ NO ZOD. Até a homologação, o teto existia
+   * apenas no schema — que roda dentro da Server Action, ou seja, no servidor,
+   * mas era a única barreira. Um administrador chamando o RPC direto pelo
+   * PostgREST passava com 500 pessoas numa inscrição só.
+   *
+   * O §24 do Prompt 5 é explícito: regra crítica não fica só na aplicação.
+   */
+  it("a função do banco recusa acima do teto", () => {
+    const corpo = corpoDe("create_event_registration");
+    expect(corpo).toContain("v_count > public.event_registration_max_participants()");
+    expect(corpo).toContain("errcode = 'RG010'");
+  });
+
+  /**
+   * ⚠️ VINTE, E O NÚMERO ESTÁ AQUI PARA NÃO DIVERGIR DO TypeScript.
+   * `MAX_PARTICIPANTS_PER_REGISTRATION` precisa valer o mesmo: com números
+   * diferentes, a tela ofereceria um botão que o banco recusa (ou pior, pararia
+   * de oferecer antes do limite real).
+   */
+  it("o teto é 20", () => {
+    expect(corpoDe("event_registration_max_participants")).toContain("select 20;");
+  });
+
+  /**
+   * ⚠️ UMA FUNÇÃO, E NÃO UM NÚMERO SOLTO NO CORPO. O §7 pede a arquitetura
+   * preparada para configurar isso depois: assim, mudar o teto é uma migration
+   * de uma linha, e o valor fica auditável em um lugar só.
+   */
+  it("é uma função, para poder mudar sem reescrever a gravação", () => {
+    expect(sql).toContain(
+      "create or replace function public.event_registration_max_participants()",
+    );
+  });
+});
+
+describe("o TypeScript e o Postgres concordam sobre os números", () => {
+  /**
+   * ==========================================================================
+   * ⚠️ O TETO EXISTE EM DOIS LUGARES, E ELES NÃO PODEM DIVERGIR.
+   * ==========================================================================
+   * `MAX_PARTICIPANTS_PER_REGISTRATION` (TypeScript) decide quando a tela para
+   * de oferecer "adicionar participante" e o que o Zod recusa;
+   * `event_registration_max_participants()` (Postgres) é a garantia contra uma
+   * chamada direta ao RPC.
+   *
+   * A duplicação é deliberada — é o §24, "regra crítica não fica só na
+   * aplicação". O que não pode é os dois valores se separarem: com o banco menor
+   * que a tela, a pessoa preenche vinte fichas e leva um erro; com a tela menor,
+   * a garantia vira decoração.
+   *
+   * Este teste é a amarra. Ele lê o número dos DOIS arquivos.
+   */
+  it("o teto de participantes por inscrição é o mesmo nos dois lados", () => {
+    const doBanco = /select (\d+);/.exec(corpoDe("event_registration_max_participants"))?.[1];
+
+    const ts = readFileSync(
+      join(process.cwd(), "src", "modules", "event", "event.landing.types.ts"),
+      "utf8",
+    );
+    const doCodigo = /MAX_PARTICIPANTS_PER_REGISTRATION = (\d+);/.exec(ts)?.[1];
+
+    expect(doBanco, "a função Postgres precisa devolver um número literal").toBeTruthy();
+    expect(doCodigo, "a constante do TypeScript precisa ser um número literal").toBeTruthy();
+    expect(doCodigo).toBe(doBanco);
+  });
+});

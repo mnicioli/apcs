@@ -5,13 +5,11 @@ import {
   canDeactivateLanding,
   canPublishLanding,
   compareLandingPages,
-  countByConfirmation,
   fitsCapacity,
   isValidSlug,
   landingEffectiveStatus,
   landingStatusReason,
   matchesLandingFilters,
-  matchesRegistrationFilters,
   readLandingFields,
   resolveSuccessMessage,
   seatsLeft,
@@ -20,7 +18,7 @@ import {
   validateLandingFields,
   type LandingStatusInput,
 } from "./event.landing.rules";
-import type { LandingPageWithEvent, ParticipantRow, RegistrationRow } from "./event.landing.types";
+import type { LandingPageWithEvent } from "./event.landing.types";
 
 /**
  * As regras de Landing Pages e Inscrições, uma a uma.
@@ -39,6 +37,10 @@ function pagina(overrides: Partial<LandingStatusInput> = {}): LandingStatusInput
     closesAt: null,
     maxParticipants: null,
     participantCount: 0,
+    // Amanhã, em relação a `AGORA`: o padrão das fixtures é um evento que ainda
+    // vai acontecer, para os casos de prazo e de lotação não serem mascarados
+    // pela regra da data do evento.
+    eventDate: "2026-09-11",
     ...overrides,
   };
 }
@@ -416,109 +418,22 @@ describe("ordenação da grid", () => {
 /* Inscrições                                                                 */
 /* -------------------------------------------------------------------------- */
 
-function participante(overrides: Partial<ParticipantRow> = {}): ParticipantRow {
-  return {
-    id: "p1",
-    fullName: "João da Silva",
-    email: "joao@granja.com",
-    phone: null,
-    whatsapp: "45999990000",
-    confirmation: "confirmed",
-    createdAt: "2026-09-01T10:00:00Z",
-    updatedAt: "2026-09-01T10:00:00Z",
-    ...overrides,
-  };
-}
-
-function inscricao(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
-  return {
-    id: "r1",
-    eventId: "e1",
-    landingPageId: "l1",
-    companyName: "Granja ABC",
-    status: "active",
-    origin: "landing_page",
-    registeredAt: "2026-09-01T10:00:00Z",
-    participants: [participante()],
-    createdBy: null,
-    updatedBy: null,
-    updatedAt: "2026-09-01T10:00:00Z",
-    ...overrides,
-  };
-}
-
-describe("filtros da tela de inscrições", () => {
-  const TUDO = { query: "", status: "all" as const, confirmation: "all" as const };
-
-  it("acha pela granja", () => {
-    expect(matchesRegistrationFilters(inscricao(), { ...TUDO, query: "granja abc" })).toBe(true);
-  });
-
-  /**
-   * ⚠️ A BUSCA POR PARTICIPANTE É O QUE FAZ A TELA SERVIR. A pergunta real de
-   * quem abre é "o fulano está inscrito?", e o nome dele não está na linha da
-   * inscrição — está numa das pessoas dela.
-   */
-  it("acha pelo nome do participante, que não está na linha da inscrição", () => {
-    expect(matchesRegistrationFilters(inscricao(), { ...TUDO, query: "joao" })).toBe(true);
-  });
-
-  it("acha pelo e-mail", () => {
-    expect(matchesRegistrationFilters(inscricao(), { ...TUDO, query: "joao@granja" })).toBe(true);
-  });
-
-  it("não acha o que não existe", () => {
-    expect(matchesRegistrationFilters(inscricao(), { ...TUDO, query: "maria" })).toBe(false);
-  });
-
-  it("filtra por situação da inscrição", () => {
-    const cancelada = inscricao({ status: "cancelled" });
-    expect(matchesRegistrationFilters(cancelada, { ...TUDO, status: "active" })).toBe(false);
-    expect(matchesRegistrationFilters(cancelada, { ...TUDO, status: "cancelled" })).toBe(true);
-  });
-
-  /**
-   * ⚠️ BASTA UMA PESSOA NO ESTADO PROCURADO. Exigir que TODAS estivessem
-   * esconderia exatamente a granja de quatro funcionários em que só um não
-   * confirmou — que é a que precisa de telefonema.
-   */
-  it("uma inscrição aparece se ao menos um participante está no estado procurado", () => {
-    const mista = inscricao({
-      participants: [
-        participante({ id: "p1", confirmation: "confirmed" }),
-        participante({ id: "p2", email: "maria@granja.com", confirmation: "not_confirmed" }),
-      ],
-    });
-
-    expect(matchesRegistrationFilters(mista, { ...TUDO, confirmation: "not_confirmed" })).toBe(
-      true,
-    );
-    expect(matchesRegistrationFilters(mista, { ...TUDO, confirmation: "confirmed" })).toBe(true);
-  });
-});
-
-describe("contagem por confirmação", () => {
-  it("conta PESSOAS das inscrições ativas, e ignora as canceladas", () => {
-    const contagem = countByConfirmation([
-      inscricao({
-        id: "r1",
-        participants: [
-          participante({ id: "p1", confirmation: "confirmed" }),
-          participante({ id: "p2", email: "b@x.com", confirmation: "not_confirmed" }),
-        ],
-      }),
-      inscricao({
-        id: "r2",
-        status: "cancelled",
-        participants: [participante({ id: "p3", email: "c@x.com", confirmation: "confirmed" })],
-      }),
-    ]);
-
-    expect(contagem.all).toBe(2);
-    expect(contagem.confirmed).toBe(1);
-    expect(contagem.not_confirmed).toBe(1);
-  });
-});
+/*
+ * ⚠️ OS TESTES DE `matchesRegistrationFilters` E `countByConfirmation` SAÍRAM
+ * DAQUI NA HOMOLOGAÇÃO, JUNTO COM AS FUNÇÕES.
+ *
+ * As duas eram o filtro e a contagem EM MEMÓRIA que o Prompt 1 preparou para a
+ * tela de Inscrições. O Prompt 4 passou as duas responsabilidades para o banco
+ * (`event_registrations_board`), onde a busca atravessa as duas tabelas e os
+ * indicadores saem do mesmo `where` das linhas.
+ *
+ * Apagar os testes junto com o código é o certo: um teste verde sobre função
+ * que ninguém chama afirma uma garantia que não protege nada — e mantém vivo o
+ * caminho que traz mil linhas de dado pessoal para a memória do servidor.
+ *
+ * As invariantes que substituíram estas estão em `src/test/sql-event-landing.test.ts`
+ * (a busca, os contadores, a ordenação estável) e nos testes da grid.
+ */
 
 /**
  * ============================================================================
@@ -561,5 +476,75 @@ describe("slug enquanto se digita", () => {
     for (const entrada of ["Ação Ñandu", "Reunião — 2026", "APCS/CSPI"]) {
       expect(slugPreview(entrada)).toBe(slugWhileTyping(entrada).replace(/^-+|-+$/g, ""));
     }
+  });
+});
+
+describe("§5 e §17 do Prompt 5 — evento que já aconteceu", () => {
+  /**
+   * ==========================================================================
+   * ⚠️ O BURACO QUE A HOMOLOGAÇÃO ENCONTROU.
+   * ==========================================================================
+   * O prazo é OPCIONAL: o Builder o oferece com o início do evento como padrão,
+   * e quem edita pode limpar o campo. Uma página publicada, sem prazo e sem
+   * capacidade, aceitava inscrição para um evento de 2024 — indefinidamente,
+   * porque nem a tela nem o banco olhavam a data do evento.
+   *
+   * O resultado seria dado sujo que ninguém percebe até alguém exportar a
+   * planilha: gente inscrita, meses depois, num encontro que já aconteceu.
+   */
+  it("evento de ontem fecha as inscrições, mesmo sem prazo e sem lotação", () => {
+    const p = pagina({ eventDate: "2026-09-09" });
+
+    expect(landingEffectiveStatus(p, AGORA)).toBe("closed");
+    expect(landingStatusReason(p, AGORA)).toBe("eventPassed");
+    expect(acceptsRegistrations(p, AGORA)).toBe(false);
+  });
+
+  /**
+   * ⚠️ NO DIA DO EVENTO AINDA ACEITA. É a diferença entre a DATA e o HORÁRIO:
+   * "o evento começou às 8h e agora são 9h" é trabalho do PRAZO, que por padrão
+   * é o início do evento e que quem organiza pode estender de propósito —
+   * inscrição na portaria acontece.
+   */
+  it("no próprio dia do evento continua aceitando", () => {
+    expect(acceptsRegistrations(pagina({ eventDate: "2026-09-10" }), AGORA)).toBe(true);
+  });
+
+  /**
+   * ⚠️ A ORDEM É A MESMA DA GRAVAÇÃO: o banco recusa por RG009 (evento passou)
+   * ANTES de chegar ao prazo (RG001) e à capacidade (RG002). Se a leitura
+   * respondesse "lotou" onde o banco diz "o evento já aconteceu", a tela mandaria
+   * quem administra aumentar uma capacidade que não resolveria nada.
+   */
+  it("o evento passado vence o prazo e a lotação como motivo", () => {
+    const p = pagina({
+      eventDate: "2026-09-01",
+      closesAt: "2026-08-01T00:00:00-03:00",
+      maxParticipants: 10,
+      participantCount: 10,
+    });
+    expect(landingStatusReason(p, AGORA)).toBe("eventPassed");
+  });
+
+  /**
+   * ⚠️ A DERIVAÇÃO CONTINUA SÓ REBAIXANDO. Um evento no futuro não reabre uma
+   * página que alguém tirou do ar — é a propriedade central do desenho, e a
+   * regra nova não podia quebrá-la.
+   */
+  it("evento futuro não ressuscita página inativada", () => {
+    const p = pagina({ status: "inactive", eventDate: "2027-01-01" });
+    expect(landingEffectiveStatus(p, AGORA)).toBe("inactive");
+  });
+
+  /**
+   * ⚠️ COMPARA STRING AAAA-MM-DD, sem passar por `Date`. `new Date("2026-09-10")`
+   * é meia-noite UTC, que em São Paulo é 21h do dia ANTERIOR — a página fecharia
+   * um dia cedo. Este caso é a fronteira exata: às 00h05 de São Paulo do dia do
+   * evento, ainda é o dia do evento.
+   */
+  it("a virada do dia segue o calendário de São Paulo", () => {
+    const madrugada = new Date("2026-09-10T00:05:00-03:00");
+    expect(acceptsRegistrations(pagina({ eventDate: "2026-09-10" }), madrugada)).toBe(true);
+    expect(acceptsRegistrations(pagina({ eventDate: "2026-09-09" }), madrugada)).toBe(false);
   });
 });

@@ -4947,6 +4947,7 @@ export type Database = {
       };
       event_landing_slugify: { Args: { p_text: string }; Returns: string };
       event_registration_ip_hourly_limit: { Args: never; Returns: number };
+      event_registration_max_participants: { Args: never; Returns: number };
       event_registration_summaries: {
         Args: { p_limit?: number; p_offset?: number; p_query?: string };
         Returns: Json;

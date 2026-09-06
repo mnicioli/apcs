@@ -12,7 +12,7 @@ import {
   LANDING_PAGE_STATUS_LABELS,
   PARTICIPANT_CONFIRMATION_LABELS,
 } from "@/modules/event/event.landing.labels";
-import { landingEffectiveStatus } from "@/modules/event/event.landing.rules";
+import { landingEffectiveStatus, withEventDate } from "@/modules/event/event.landing.rules";
 import {
   REGISTRATION_PAGE_SIZE,
   type LandingPageWithEvent,
@@ -208,7 +208,7 @@ export default async function EventRegistrationsPage({
 
 /** §5 — o topo: de que evento se está falando, e como voltar. */
 function CabecalhoDoEvento({ landing }: { landing: LandingPageWithEvent }) {
-  const efetiva = landingEffectiveStatus(landing, new Date());
+  const efetiva = landingEffectiveStatus(withEventDate(landing), new Date());
 
   return (
     <div className="space-y-3">

@@ -66,6 +66,9 @@ export const LANDING_STATUS_REASON_LABELS: Record<LandingPageStatusReason, strin
   expired: "O prazo de inscrição já venceu. Estenda a data para reabrir.",
   full: "A capacidade máxima foi atingida. Aumente o limite para aceitar mais gente.",
   inactive: "Foi tirada do ar.",
+  // Sem "reabra": não há o que reabrir. O evento aconteceu, e a página existe
+  // agora como registro de quem veio.
+  eventPassed: "O evento já aconteceu. As inscrições fecharam sozinhas.",
 };
 
 export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {

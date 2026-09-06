@@ -5,7 +5,6 @@ import { formatTime, todayInSaoPaulo } from "@/lib/utils";
 import {
   compareLandingPages,
   matchesLandingFilters,
-  matchesRegistrationFilters,
   readLandingFields,
 } from "@/modules/event/event.landing.rules";
 import { REGISTRATION_PAGE_SIZE } from "@/modules/event/event.landing.types";
@@ -24,7 +23,6 @@ import type {
   ParticipantRow,
   RegistrationAuditAction,
   RegistrationAuditEntry,
-  RegistrationFilters,
   RegistrationOrigin,
   RegistrationRow,
   RegistrationStatus,
@@ -56,20 +54,10 @@ import type {
  * `listEvents`: `ilike` do Postgres é sensível a acento, e a situação efetiva é
  * derivada e não daria para comparar em SQL sem repetir a regra.
  *
- * ⚠️ NÃO VALE PARA PARTICIPANTES. Uma landing pode ter centenas de inscritos, e
- * o teto ali é outro — ver `REGISTRATION_LIMIT`.
+ * ⚠️ NÃO VALE PARA PARTICIPANTES. A leitura deles é `getRegistrationBoard`, que
+ * pagina no banco — ver o fim deste arquivo.
  */
 const LANDING_LIMIT = 200;
-
-/**
- * Teto de inscrições lidas de uma vez.
- *
- * ⚠️ ESTE NÚMERO ENCOSTA NUM LIMITE REAL, ao contrário do da grid: um evento
- * grande da APCS pode passar de mil pessoas. `truncated` avisa a tela em vez de
- * deixar quem procura concluir que a pessoa não se inscreveu — e a exportação
- * do Prompt 4 vai precisar de um caminho próprio, que lê em lotes.
- */
-const REGISTRATION_LIMIT = 1000;
 
 /**
  * `created_by`, `updated_by` e `published_by` são TRÊS chaves estrangeiras para
@@ -495,47 +483,25 @@ function toRegistration(row: RegistrationDbRow): RegistrationRow {
   };
 }
 
-export interface RegistrationListPage {
-  registrations: RegistrationRow[];
-  truncated: boolean;
-}
-
 /**
- * As inscrições de um EVENTO, mais recentes primeiro.
+ * ============================================================================
+ * ⚠️ `listRegistrations` FOI REMOVIDA NA HOMOLOGAÇÃO, E A NOTA FICA NO LUGAR.
+ * ============================================================================
+ * Ela era o caminho de leitura que o Prompt 1 preparou para a tela de
+ * Inscrições: lia até mil INSCRIÇÕES do evento e filtrava em memória. O Prompt 4
+ * a substituiu por `getRegistrationBoard`, que pagina, busca e conta NO BANCO —
+ * porque a grid é de PARTICIPANTES e a busca atravessa duas tabelas.
  *
- * ⚠️ POR EVENTO, E NÃO POR LANDING PAGE, mesmo com a landing sendo 1:1 com o
- * evento. A pergunta que a tela faz é "quem vai a este evento", e ela precisa
- * continuar respondível no dia em que uma inscrição tiver entrado por outro
- * caminho. `event_registrations_event_idx` existe exatamente para esta consulta.
+ * Manter as duas seria deixar uma armadilha: quem precisasse listar inscrições
+ * encontraria primeiro a versão que traz mil linhas de dado pessoal para a
+ * memória do servidor e filtra ali — exatamente o que o §7 do Prompt 4 proíbe.
+ * Código morto que ainda COMPILA e ainda FUNCIONA é o mais perigoso, porque
+ * parece uma escolha legítima.
+ *
+ * Foram junto: `RegistrationListPage`, `REGISTRATION_LIMIT`,
+ * `matchesRegistrationFilters` e `countByConfirmation` — todas parte do mesmo
+ * caminho, todas sem chamador fora dos próprios testes.
  */
-export async function listRegistrations(
-  eventId: string,
-  filters: RegistrationFilters,
-): Promise<RegistrationListPage> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("event_registrations")
-    .select(REGISTRATION_COLUMNS)
-    .eq("event_id", eventId)
-    .order("registered_at", { ascending: false })
-    .limit(REGISTRATION_LIMIT)
-    .returns<RegistrationDbRow[]>();
-
-  if (error) {
-    console.error(`[event-landing] listRegistrations falhou: ${error.message}`);
-    throw error;
-  }
-
-  const rows = data ?? [];
-
-  return {
-    registrations: rows
-      .map(toRegistration)
-      .filter((registro) => matchesRegistrationFilters(registro, filters)),
-    truncated: rows.length >= REGISTRATION_LIMIT,
-  };
-}
 
 /** Uma inscrição pelo id, com os participantes dela. */
 export async function getRegistration(registrationId: string): Promise<RegistrationRow | null> {

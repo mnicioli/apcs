@@ -157,6 +157,8 @@ function EventRow({ summary }: { summary: EventRegistrationSummary }) {
       closesAt: summary.closesAt,
       maxParticipants: summary.maxParticipants,
       participantCount: summary.participants,
+      // O resumo já traz a data achatada — não precisa de `withEventDate`.
+      eventDate: summary.eventDate,
     },
     new Date(),
   );

@@ -12,7 +12,11 @@ import {
   LANDING_PAGE_STATUS_LABELS,
   LANDING_STATUS_REASON_LABELS,
 } from "@/modules/event/event.landing.labels";
-import { landingEffectiveStatus, landingStatusReason } from "@/modules/event/event.landing.rules";
+import {
+  landingEffectiveStatus,
+  landingStatusReason,
+  withEventDate,
+} from "@/modules/event/event.landing.rules";
 import {
   DEFAULT_LANDING_STATUS_FILTER,
   isLandingStatusFilter,
@@ -168,8 +172,8 @@ function LandingRow({
   canWrite: boolean;
   now: Date;
 }) {
-  const efetiva = landingEffectiveStatus(page, now);
-  const motivo = landingStatusReason(page, now);
+  const efetiva = landingEffectiveStatus(withEventDate(page), now);
+  const motivo = landingStatusReason(withEventDate(page), now);
 
   return (
     <tr className="border-border hover:bg-muted/50 border-b align-middle last:border-0">

@@ -21,6 +21,7 @@ import {
   slugPreview,
   slugWhileTyping,
   validateLandingFields,
+  withEventDate,
 } from "@/modules/event/event.landing.rules";
 import { landingPageFormSchema } from "@/modules/event/event.landing.schema";
 import type {
@@ -118,8 +119,8 @@ export function LandingBuilder({
   const rodapeId = useId();
 
   const agora = useMemo(() => new Date(), []);
-  const efetiva = landingEffectiveStatus(page, agora);
-  const motivo = landingStatusReason(page, agora);
+  const efetiva = landingEffectiveStatus(withEventDate(page), agora);
+  const motivo = landingStatusReason(withEventDate(page), agora);
 
   const sujo = JSON.stringify(estado) !== JSON.stringify(salvo);
   const ocupado = isPending;

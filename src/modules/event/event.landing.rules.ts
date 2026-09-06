@@ -1,6 +1,5 @@
-import { foldAccents, normalizeForSearch } from "@/lib/utils";
+import { foldAccents, normalizeForSearch, todayInSaoPaulo } from "@/lib/utils";
 import type {
-  ConfirmationFilter,
   LandingFieldKey,
   LandingPageEffectiveStatus,
   LandingPageFilters,
@@ -8,8 +7,6 @@ import type {
   LandingPageStatusReason,
   LandingPageWithEvent,
   LandingSuccessMessage,
-  RegistrationFilters,
-  RegistrationRow,
 } from "./event.landing.types";
 import {
   CONTACT_LANDING_FIELD_KEYS,
@@ -49,6 +46,22 @@ export interface LandingStatusInput {
   closesAt: string | null;
   maxParticipants: number | null;
   participantCount: number;
+  /**
+   * A data do EVENTO, em AAAA-MM-DD.
+   *
+   * ⚠️ ENTROU NA HOMOLOGAÇÃO (§5 e §17 do Prompt 5), FECHANDO UM BURACO REAL.
+   *
+   * O prazo é OPCIONAL: o Builder o oferece com o início do evento como padrão,
+   * e quem edita pode limpar o campo. Uma página publicada, sem prazo e sem
+   * capacidade, aceitava inscrição para um evento de 2024 — indefinidamente,
+   * porque nem esta função nem o banco olhavam a data do evento. O resultado
+   * seria dado sujo que ninguém percebe até alguém exportar a planilha.
+   *
+   * É OBRIGATÓRIA, e não opcional: com uma interrogação no campo, o TypeScript
+   * deixaria cada chamada nova esquecê-lo em silêncio, e a regra voltaria a não
+   * valer numa tela sem ninguém notar.
+   */
+  eventDate: string;
 }
 
 /**
@@ -68,6 +81,7 @@ export function landingEffectiveStatus(
   now: Date = new Date(),
 ): LandingPageEffectiveStatus {
   if (page.status !== "published") return page.status;
+  if (isEventPast(page, now)) return "closed";
   if (isPastDeadline(page, now)) return "closed";
   if (isFull(page)) return "closed";
   return "published";
@@ -88,10 +102,33 @@ export function landingStatusReason(
   if (page.status === "draft") return "draft";
   if (page.status === "inactive") return "inactive";
   if (page.status === "closed") return "manual";
-  // Publicada: a ordem é a mesma da gravação — prazo antes de capacidade.
+  // Publicada: a ordem é a mesma da gravação — evento, prazo, capacidade.
+  if (isEventPast(page, now)) return "eventPassed";
   if (isPastDeadline(page, now)) return "expired";
   if (isFull(page)) return "full";
   return null;
+}
+
+/**
+ * O DIA DO EVENTO JÁ PASSOU?
+ *
+ * ⚠️ A DATA, E NÃO O HORÁRIO, e a escolha é deliberada. "O evento começou às 8h
+ * e agora são 9h" é trabalho do PRAZO — que por padrão é exatamente o início do
+ * evento, e que quem organiza pode estender de propósito (inscrição na portaria
+ * acontece). O que não pode existir é inscrição para um DIA que já passou.
+ *
+ * ⚠️ COMPARA STRINGS AAAA-MM-DD, sem passar por `Date`. É a mesma decisão de
+ * `formatCalendarDate`: `new Date("2026-09-18")` é meia-noite UTC, que em São
+ * Paulo é 21h do dia ANTERIOR — a página fecharia um dia cedo. Uma comparação
+ * lexicográfica de datas ISO não tem fuso, então não tem como errar o dia.
+ *
+ * Espelha a cláusula RG009 de `create_event_registration`, que usa
+ * `event_today()` — a mesma régua de expiração que Eventos usa desde o primeiro
+ * módulo.
+ */
+function isEventPast(page: LandingStatusInput, now: Date): boolean {
+  if (!page.eventDate) return false;
+  return page.eventDate < todayInSaoPaulo(now);
 }
 
 /**
@@ -435,7 +472,10 @@ export function matchesLandingFilters(
   filters: LandingPageFilters,
   now: Date = new Date(),
 ): boolean {
-  if (filters.status !== "all" && landingEffectiveStatus(page, now) !== filters.status) {
+  if (
+    filters.status !== "all" &&
+    landingEffectiveStatus(withEventDate(page), now) !== filters.status
+  ) {
     return false;
   }
 
@@ -458,52 +498,25 @@ export function matchesLandingFilters(
 }
 
 /**
- * A inscrição casa com os filtros da tela?
+ * ACHATA A DATA DO EVENTO para `landingEffectiveStatus` e `landingStatusReason`.
  *
- * ⚠️ A BUSCA OLHA TRÊS CAMPOS, e o de participante é o que faz a tela servir: a
- * pergunta real de quem abre é "o fulano está inscrito?", e o nome dele não
- * está na linha da inscrição, está numa das pessoas dela.
+ * ============================================================================
+ * ⚠️ EXISTE PORQUE A DATA MORA UM NÍVEL ABAIXO, E ISSO NÃO PODE VIRAR CÓPIA.
+ * ============================================================================
+ * `LandingPageWithEvent` e `PublicLandingPage` guardam o evento aninhado
+ * (`page.event.eventDate`) — de propósito, desde o §3 do Prompt 1: o evento não
+ * é copiado para dentro da Landing Page, ele é referência resolvida na leitura.
  *
- * O filtro de confirmação também olha os participantes: uma inscrição APARECE
- * se ao menos uma pessoa dela está no estado procurado. Exigir que todas
- * estivessem esconderia exatamente a granja de quatro funcionários em que só um
- * não confirmou — que é a que precisa de telefonema.
+ * As funções de situação precisam da data no nível de cima. A alternativa seria
+ * acrescentar um `eventDate` de topo aos dois tipos, e aí a data existiria DUAS
+ * VEZES no mesmo objeto — que é exatamente a cópia que o §3 evita.
+ *
+ * Cinco telas chamam isto. Um `{ ...page, eventDate: page.event.eventDate }`
+ * escrito à mão em cada uma seria cinco chances de alguém escrever
+ * `page.closesAt` por engano e desligar a regra numa tela só.
  */
-export function matchesRegistrationFilters(
-  registration: RegistrationRow,
-  filters: RegistrationFilters,
-): boolean {
-  if (filters.status !== "all" && registration.status !== filters.status) return false;
-
-  if (filters.confirmation !== "all") {
-    const alguem = registration.participants.some(
-      (pessoa) => pessoa.confirmation === filters.confirmation,
-    );
-    if (!alguem) return false;
-  }
-
-  const busca = normalizeForSearch(filters.query);
-  if (!busca) return true;
-
-  if (normalizeForSearch(registration.companyName).includes(busca)) return true;
-
-  return registration.participants.some(
-    (pessoa) =>
-      normalizeForSearch(pessoa.fullName).includes(busca) ||
-      normalizeForSearch(pessoa.email).includes(busca),
-  );
-}
-
-/** Quantas pessoas esta inscrição tem em cada estado de confirmação. */
-export function countByConfirmation(
-  registrations: readonly RegistrationRow[],
-): Record<ConfirmationFilter, number> {
-  const ativas = registrations.filter((r) => r.status === "active");
-  const pessoas = ativas.flatMap((r) => r.participants);
-
-  return {
-    all: pessoas.length,
-    confirmed: pessoas.filter((p) => p.confirmation === "confirmed").length,
-    not_confirmed: pessoas.filter((p) => p.confirmation === "not_confirmed").length,
-  };
+export function withEventDate<T extends { event: { eventDate: string } }>(
+  page: T,
+): T & { eventDate: string } {
+  return { ...page, eventDate: page.event.eventDate };
 }
