@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { LANDING_FIELD_KEYS, LANDING_PAGE_STATUSES } from "./event.landing.types";
+import { onlyDigits } from "@/lib/format/phone";
+import {
+  LANDING_FIELD_KEYS,
+  LANDING_PAGE_STATUSES,
+  MAX_PARTICIPANTS_PER_REGISTRATION,
+} from "./event.landing.types";
 import { isValidSlug, validateLandingFields } from "./event.landing.rules";
 
 /**
@@ -24,15 +29,14 @@ import { isValidSlug, validateLandingFields } from "./event.landing.rules";
 /* -------------------------------------------------------------------------- */
 
 /**
- * Só dígitos, entre 10 e 15.
+ * Só dígitos: a máscara é da tela, o que se guarda é o número.
  *
- * O mesmo tratamento de `members.whatsapp`: a máscara é da tela, o que se
- * guarda é o número. 10 cobre o fixo com DDD; 15 é o teto do E.164, para não
- * recusar um número internacional legítimo.
+ * ⚠️ ERA UMA CÓPIA. Este arquivo tinha a sua própria `onlyDigits` (`/\D/g`) e
+ * `membership.schema.ts` tinha a dele (`/\D+/g`) — mesmo resultado, nenhuma
+ * ligação entre as duas. Agora as duas apontam para `@/lib/format/phone`, que é
+ * também de onde sai a máscara do formulário público de inscrição.
  */
-export function onlyDigits(value: string | null | undefined): string {
-  return (value ?? "").replace(/\D/g, "");
-}
+export { onlyDigits };
 
 const phoneSchema = z
   .string()
@@ -243,8 +247,13 @@ const registrationBaseSchema = z.object({
     .min(1, "Inclua ao menos um participante.")
     // Um teto por inscrição, para uma requisição não chegar com dez mil
     // pessoas. Não é regra de negócio — é limite de tamanho de payload (§28),
-    // e é generoso o bastante para a maior granja da base.
-    .max(200, "Máximo de 200 participantes por inscrição."),
+    // e é generoso o bastante para a maior granja da base. A constante mora em
+    //  porque a tela pública também precisa dela, para
+    // parar de oferecer o botão de acrescentar (§13 do Prompt 3).
+    .max(
+      MAX_PARTICIPANTS_PER_REGISTRATION,
+      `O limite de ${MAX_PARTICIPANTS_PER_REGISTRATION} participantes por inscrição foi atingido.`,
+    ),
 });
 
 /**
@@ -347,3 +356,66 @@ export const landingImageSchema = z.object({
 });
 
 export type LandingImageInput = z.infer<typeof landingImageSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* A inscrição PÚBLICA (§15, §21, §35 do Prompt 3)                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * O que a página `/eventos/[slug]` envia.
+ *
+ * ============================================================================
+ * ⚠️ ELE MANDA O SLUG, E NÃO O `landingPageId`. É A DIFERENÇA QUE IMPORTA.
+ * ============================================================================
+ * O §21 desenha o payload com `landingPageId`, e a action do backoffice o
+ * recebe assim — lá quem chama é uma tela que já leu a página e tem o id na
+ * mão. Aqui é o contrário: o navegador nunca RECEBE o id. Ele conhece o
+ * endereço, que está na barra do navegador, e o servidor deriva o resto.
+ *
+ * Isso não é um capricho de simetria. O próprio §21 dá a regra — "não confiar
+ * no eventId enviado pelo cliente se a Landing Page já permite determinar o
+ * evento" — e ela vale um degrau acima: se o cliente não precisa escolher a
+ * página, ele não deve poder escolher a página. Com o id no corpo, um POST
+ * forjado poderia apontar para a página de OUTRO evento; com o slug, o alvo é a
+ * mesma coisa que o endereço aberto, e `get_public_event_landing_page` já
+ * recusa rascunho e inativa.
+ *
+ * O resto — granja e participantes — é `registrationBaseSchema`, o MESMO do
+ * backoffice. As duas portas validam a mesma coisa porque compartilham a peça,
+ * e não porque alguém lembrou de copiar a regra.
+ */
+export const publicRegistrationSchema = registrationBaseSchema
+  .extend({
+    slug: z.string().trim().toLowerCase().refine(isValidSlug, "Endereço de página inválido."),
+
+    /**
+     * A versão do texto de consentimento que estava NA TELA (§35).
+     *
+     * ⚠️ VIAJA COM O ENVIO, e não é relida no servidor. Se alguém publicar um
+     * texto novo enquanto a granja preenche o formulário, a inscrição tem de
+     * guardar a versão que ESSA PESSOA leu — buscar a vigente no momento da
+     * gravação registraria uma autorização para um texto que ela nunca viu. É
+     * a mesma decisão de `submitMembershipApplicationAction`.
+     */
+    consentVersion: z
+      .string()
+      .trim()
+      .regex(/^[0-9a-zA-Z._-]{3,40}$/, "Versão de consentimento inválida."),
+
+    /**
+     * O aceite. Recusar aqui e no banco (RG008) é defesa em profundidade: esta
+     * dá a mensagem no campo certo, aquela garante que nenhum caminho grava
+     * inscrição pública sem autorização registrada.
+     */
+    consentAccepted: z
+      .boolean()
+      .refine((aceito) => aceito, "É preciso aceitar o tratamento dos dados para se inscrever."),
+  })
+  .superRefine(refuseRepeatedEmail);
+
+export type PublicRegistrationInput = z.infer<typeof publicRegistrationSchema>;
+
+/** Um participante em branco — o que o botão "Adicionar participante" cria. */
+export function emptyParticipant(): ParticipantInput {
+  return { fullName: "", email: "", phone: "", whatsapp: "" };
+}

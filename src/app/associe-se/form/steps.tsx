@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckboxRow, SelectField, TextField } from "./fields";
+import { CheckboxRow, SelectField, TextField } from "@/components/public/fields";
 import { cn } from "@/lib/utils";
 import {
   formatCnpj,

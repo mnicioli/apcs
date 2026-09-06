@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -18,11 +18,38 @@ import { describe, expect, it } from "vitest";
  */
 
 const MIGRATIONS = join(process.cwd(), "supabase", "migrations");
-const sql = readFileSync(join(MIGRATIONS, "20260922000100_event_landing.sql"), "utf8");
 
-/** O corpo de uma função `create or replace function public.<nome>`. */
+/**
+ * ============================================================================
+ * ⚠️ TODAS AS MIGRATIONS DO MÓDULO, NA ORDEM — E NÃO SÓ A PRIMEIRA.
+ * ============================================================================
+ * A versão original deste arquivo lia `20260922000100_event_landing.sql` e mais
+ * nada. Funcionou enquanto o módulo cabia numa migration; deixou de funcionar
+ * no instante em que o Prompt 3 REDEFINIU `create_event_registration` para
+ * acrescentar o consentimento e o limite de taxa.
+ *
+ * O modo de falhar era o pior possível: os casos abaixo continuariam PASSANDO,
+ * lendo uma definição que o banco não usa mais. Um teste verde sobre código
+ * morto é pior que teste nenhum — ele afirma que a garantia existe.
+ *
+ * Concatenar na ordem dos nomes (que é a ordem de aplicação) e procurar a
+ * ÚLTIMA definição de cada função é o que faz este arquivo descrever o banco de
+ * hoje, e não o de setembro.
+ */
+const ARQUIVOS = readdirSync(MIGRATIONS)
+  .filter((nome) => nome.endsWith(".sql") && nome.includes("landing"))
+  .sort();
+
+const sql = ARQUIVOS.map((nome) => readFileSync(join(MIGRATIONS, nome), "utf8")).join("\n");
+
+/**
+ * O corpo da ÚLTIMA `create or replace function public.<nome>` do módulo.
+ *
+ * `lastIndexOf`, e não `indexOf`: quando uma migration posterior redefine a
+ * função, é a redefinição que vale.
+ */
 function corpoDe(nome: string): string {
-  const inicio = sql.indexOf(`create or replace function public.${nome}(`);
+  const inicio = sql.lastIndexOf(`create or replace function public.${nome}(`);
   expect(inicio, `função ${nome} não encontrada`).toBeGreaterThan(-1);
 
   // Da declaração até o `$$;` que a fecha.
@@ -30,6 +57,31 @@ function corpoDe(nome: string): string {
   expect(fim, `função ${nome} não tem fim`).toBeGreaterThan(inicio);
   return sql.slice(inicio, fim);
 }
+
+describe("a bateria está lendo o que acha que está lendo", () => {
+  /**
+   * Sem isto, um filtro quebrado transformaria o arquivo inteiro numa lista de
+   * asserções sobre string vazia — e `expect("").not.toMatch(/anon/)` passa.
+   */
+  it("encontra as migrations do módulo", () => {
+    expect(ARQUIVOS).toContain("20260922000100_event_landing.sql");
+    expect(ARQUIVOS).toContain("20260924000000_event_landing_public.sql");
+    expect(sql.length).toBeGreaterThan(50_000);
+  });
+
+  /**
+   * ⚠️ O CASO QUE JUSTIFICA O `lastIndexOf`. `create_event_registration` existe
+   * duas vezes no módulo, e se um dia passar a existir três, este teste
+   * continua valendo — o que ele afirma é que a leitura pega a última.
+   */
+  it("pega a redefinição de create_event_registration, e não a original", () => {
+    const ocorrencias =
+      sql.split("create or replace function public.create_event_registration(").length - 1;
+    expect(ocorrencias).toBeGreaterThan(1);
+    // O consentimento só existe na versão nova.
+    expect(corpoDe("create_event_registration")).toContain("p_consent_policy_version");
+  });
+});
 
 describe("§12 — evento + e-mail é único", () => {
   /**
@@ -274,5 +326,173 @@ describe("§20 — a trilha da landing page vai para a de EVENTOS", () => {
       expect(sql).toContain(`'${acao}'`);
     }
     expect(sql).toContain("insert into public.event_audit_logs (event_id, action, metadata)");
+  });
+});
+
+/* ========================================================================== */
+/* A PORTA PÚBLICA — Prompt 3                                                 */
+/* ========================================================================== */
+
+describe("§4 e §5 — a leitura pública não mostra o que não deve", () => {
+  const corpo = corpoDe("get_public_event_landing_page");
+
+  /**
+   * ⚠️ RASCUNHO E INATIVA NÃO EXISTEM PARA O MUNDO. Sem esta cláusula, colar o
+   * endereço de uma página que a APCS ainda está preparando abriria o evento
+   * inteiro — nome, data, local e formulário — antes de alguém decidir
+   * publicá-lo. O `closed` PASSA de propósito: o §4 manda a página encerrada
+   * continuar visível.
+   */
+  it("só devolve página publicada ou encerrada", () => {
+    expect(corpo).toContain("l.status in ('published', 'closed')");
+  });
+
+  /**
+   * ⚠️ SECURITY DEFINER + EXECUTE SÓ PARA `service_role`. Se `anon` pudesse
+   * executá-la, a chave anônima — que vai no bundle do navegador, por
+   * definição — viraria uma API pública de consulta de eventos da APCS.
+   */
+  it("é security definer e só o servidor executa", () => {
+    expect(corpo).toContain("security definer");
+    expect(sql).toMatch(
+      /revoke execute on function public\.get_public_event_landing_page\(text\)\s*\n?\s*from public, anon, authenticated;/,
+    );
+    expect(sql).toContain(
+      "grant execute on function public.get_public_event_landing_page(text) to service_role;",
+    );
+  });
+
+  /**
+   * ⚠️ O TESTE MAIS IMPORTANTE DESTE BLOCO. A função devolve um jsonb montado à
+   * mão: acrescentar um campo é uma linha, e nada avisa. Estas três tabelas
+   * guardam DADO PESSOAL DE TERCEIROS — nome, e-mail e telefone de gente que
+   * não trabalha na APCS — e nenhuma delas tem por que ser lida por uma função
+   * que responde a quem não está logado.
+   */
+  it("não toca em inscrição, participante nem trilha", () => {
+    expect(corpo).not.toContain("event_registrations");
+    expect(corpo).not.toContain("event_participants");
+    expect(corpo).not.toContain("event_registration_audit_logs");
+  });
+
+  /**
+   * ⚠️ SEM `event_id` NO RETORNO. A página pública manda o SLUG no envio, e o
+   * servidor deriva o resto — ver `publicRegistrationSchema`. Um id de evento no
+   * jsonb desceria para o navegador sem uso nenhum, e ids que descem sem uso são
+   * os que aparecem em algum lugar errado depois.
+   */
+  it("não devolve o id do evento", () => {
+    expect(corpo).not.toMatch(/'eventId'/);
+  });
+});
+
+describe("§35 — o consentimento é o mecanismo que já existe", () => {
+  const corpo = corpoDe("create_event_registration");
+
+  /**
+   * ⚠️ `consent_texts`, E NÃO UMA TABELA NOVA. O §35 é explícito: "Não inventar
+   * uma segunda solução de consentimento". A tabela é a mesma da landing de
+   * associação, append-only desde agosto.
+   */
+  it("a leitura pública devolve o texto vigente de consent_texts", () => {
+    expect(corpoDe("get_public_event_landing_page")).toContain("from public.consent_texts c");
+  });
+
+  /**
+   * ⚠️ EXIGIDO SÓ NA PORTA PÚBLICA. No backoffice quem digita é a APCS, a partir
+   * de uma lista de papel — não é o titular do dado, e não tem como aceitar nada
+   * em nome dele. Exigir ali travaria o cadastro interno por uma autorização que
+   * ninguém pode dar.
+   */
+  it("é obrigatório para a origem landing_page e dispensado no backoffice", () => {
+    expect(corpo).toContain(
+      "if v_origin = 'landing_page' and coalesce(btrim(p_consent_policy_version), '') = '' then",
+    );
+    expect(corpo).toContain("errcode = 'RG008'");
+  });
+
+  /**
+   * ⚠️ A VERSÃO CHEGA DE FORA, e não é lida aqui dentro. Se um administrador
+   * publicar um texto novo enquanto a granja preenche o formulário, a inscrição
+   * tem de guardar a versão que ESTAVA NA TELA — buscar a vigente no instante da
+   * gravação registraria uma autorização para um texto que ninguém leu. Um
+   * `current_consent_text()` no corpo desta função seria exatamente esse
+   * defeito, e ele é invisível: a coluna fica preenchida, só que com a versão
+   * errada.
+   */
+  it("não relê o consentimento vigente na hora de gravar", () => {
+    expect(corpo).not.toContain("current_consent_text");
+    expect(corpo).toContain("consent_policy_version");
+  });
+});
+
+describe("§22 e §23 — concorrência e reenvio na porta pública", () => {
+  const corpo = corpoDe("create_event_registration");
+
+  /**
+   * ==========================================================================
+   * ⚠️ A ORDEM É O QUE FAZ O LIMITE DE TAXA NÃO PUNIR QUEM É LEGÍTIMO.
+   * ==========================================================================
+   * Um F5 no meio do envio, um duplo clique ou um retry de rede chegam com o
+   * MESMO `dedupe_key`. Se o limite rodasse antes da idempotência, cada
+   * tentativa dessas consumiria cota — e uma conexão ruim, que é justamente
+   * quem mais reenvia, seria bloqueada por tentar se inscrever. Com esta ordem,
+   * só um envio de verdade conta.
+   */
+  it("o limite de taxa vem DEPOIS da conferência de idempotência", () => {
+    const dedupe = corpo.indexOf("where r.dedupe_key = p_dedupe_key");
+    const limite = corpo.indexOf("event_registration_ip_hourly_limit");
+
+    expect(dedupe).toBeGreaterThan(-1);
+    expect(limite).toBeGreaterThan(-1);
+    expect(dedupe).toBeLessThan(limite);
+  });
+
+  /**
+   * ⚠️ SÓ A PORTA PÚBLICA É LIMITADA. Alguém do comercial cadastrando doze
+   * granjas de uma lista, todas do mesmo escritório, não é abuso — e um teto que
+   * as barrasse transformaria uma tarde de trabalho num erro sem explicação.
+   */
+  it("o limite não alcança o backoffice", () => {
+    expect(corpo).toContain("if v_origin = 'landing_page' and p_source_ip_hash is not null then");
+    expect(corpo).toContain("r.origin = 'landing_page'");
+  });
+
+  /**
+   * ⚠️ O LOCK CONTINUA ANTES DA CONTAGEM depois da redefinição. É o §22 inteiro:
+   * capacidade 100, restam 5, dois envios de 5 pessoas ao mesmo tempo — sem o
+   * lock, os dois leem a mesma contagem e os dois cabem.
+   */
+  it("a capacidade continua conferida sob o lock", () => {
+    const lock = corpo.indexOf("lock_event_landing_page");
+    const contagem = corpo.indexOf("event_landing_participant_count");
+    expect(lock).toBeGreaterThan(-1);
+    expect(lock).toBeLessThan(contagem);
+  });
+
+  /** O hash do IP, nunca o IP — §35 e a mesma decisão de Associados. */
+  it("o limite de taxa trabalha sobre o hash, não sobre o endereço", () => {
+    expect(corpo).toContain("r.source_ip_hash = p_source_ip_hash");
+  });
+});
+
+describe("§37 — a trilha não guarda dado pessoal", () => {
+  const corpo = corpoDe("create_event_registration");
+
+  /**
+   * ⚠️ QUANTOS, E NÃO QUEM. O "quem" está em `event_participants`, sob RLS, e é
+   * de lá que ele sai quando alguém pede exclusão. Copiar nome ou e-mail para a
+   * trilha criaria uma segunda cópia que ninguém lembraria de apagar — e a
+   * trilha é append-only por construção.
+   */
+  it("a metadata da criação não cita nome, e-mail nem telefone", () => {
+    const trecho = corpo.slice(corpo.indexOf("'registration_created'"));
+    expect(trecho).toContain("'participants', v_count");
+    expect(trecho).not.toMatch(/fullName|'email'|'phone'|'whatsapp'/);
+  });
+
+  /** A versão do consentimento ENTRA: não identifica ninguém e é a prova. */
+  it("a metadata guarda qual consentimento valia", () => {
+    expect(corpo).toContain("'consentPolicyVersion', v_new.consent_policy_version");
   });
 });

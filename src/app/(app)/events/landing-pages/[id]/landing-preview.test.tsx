@@ -313,3 +313,32 @@ describe("a prévia não escreve nada", () => {
     expect(screen.getByText(/não registra nada/i)).toBeInTheDocument();
   });
 });
+
+describe("§45.11 do Prompt 3 — a prévia representa a página real", () => {
+  /**
+   * ==========================================================================
+   * ⚠️ NASCEU DE UMA DIVERGÊNCIA REAL ENCONTRADA NA REVISÃO.
+   * ==========================================================================
+   * A página pública passou a exigir o aceite de LGPD (§35 do Prompt 3), e esta
+   * prévia continuou desenhando um formulário sem ele. O administrador conferia
+   * a composição, aprovava e publicava — e a página no ar tinha um campo
+   * obrigatório a mais do que ele viu.
+   *
+   * É o modo de falhar mais traiçoeiro de uma prévia: ela não quebra, ela mente.
+   * Este teste é a amarra entre as duas telas.
+   */
+  it("mostra o bloco de consentimento", () => {
+    montar();
+    expect(screen.getByText(/aceite do tratamento de dados/i)).toBeTruthy();
+  });
+
+  /**
+   * ⚠️ E O BLOCO NÃO É INTERATIVO, como todo o resto da prévia. Uma caixa de
+   * seleção de verdade entraria na ordem de tabulação e seria anunciada como
+   * algo a marcar — e marcar aqui não autoriza nada.
+   */
+  it("e ele é desenhado, não é uma caixa de verdade", () => {
+    const { container } = montar();
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+});

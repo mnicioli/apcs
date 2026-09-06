@@ -283,12 +283,12 @@ texto precisa poder mover o nome do evento de lugar na frase.
 
 ## 12. O que NÃO existe ainda
 
-| O quê              | Quando   | Observação                                                                           |
-| ------------------ | -------- | ------------------------------------------------------------------------------------ |
-| Página pública     | Prompt 3 | precisa de uma função `security definer` de LEITURA — ela não existe, e é deliberado |
-| Inscrição real     | Prompt 3 | `create_event_registration` está pronta; falta a porta pública chamá-la              |
-| Tela de Inscrições | Prompt 4 | `listRegistrations` pronto                                                           |
-| Exportação Excel   | Prompt 4 | `REGISTRATION_LIMIT` é 1000; a exportação vai precisar ler em lotes                  |
+| O quê              | Quando      | Observação                                                          |
+| ------------------ | ----------- | ------------------------------------------------------------------- |
+| ~~Página pública~~ | ✅ Prompt 3 | `/eventos/[slug]` — ver a seção 15                                  |
+| ~~Inscrição real~~ | ✅ Prompt 3 | `submitEventRegistrationAction`                                     |
+| Tela de Inscrições | Prompt 4    | `listRegistrations` pronto                                          |
+| Exportação Excel   | Prompt 4    | `REGISTRATION_LIMIT` é 1000; a exportação vai precisar ler em lotes |
 
 ### Pendências declaradas
 
@@ -403,3 +403,151 @@ inscritos.
 
 A única edição que poderia criar inconsistência — reduzir a capacidade abaixo de
 quem já está inscrito — já era recusada pelo banco desde o Prompt 1 (LP004).
+
+---
+
+## 15. A página pública (Prompt 3)
+
+`/eventos/<slug>` — a segunda página do sistema que qualquer um na internet abre
+sem estar logado. A outra é `/associe-se`, e **as duas compartilham a casca**:
+`PUBLIC_SHELL_CLASS` (fontes por `next/font` + escopo `.apcs-landing`) e os
+controles de `@/components/public/fields`. As duas moravam dentro de
+`/associe-se`; saíram de lá quando esta página apareceu.
+
+### A rota é pública no middleware
+
+`src/lib/supabase/middleware.ts` lista `/eventos` junto de `/login`, `/auth` e
+`/associe-se`. **Não confundir com `/events`**, que é a tela do CRM e continua
+protegida — são duas rotas, uma em português e outra em inglês, e é isso que
+permite que a mesma informação tenha duas portas com regras opostas.
+
+### A leitura anônima é uma FUNÇÃO, não uma policy
+
+`get_public_event_landing_page(slug)` é `security definer`, devolve um jsonb com
+os campos da página e mais nada, e só o `service_role` executa.
+
+A alternativa — liberar `select` para o papel anônimo — abriria o PostgREST:
+qualquer um com a chave anônima (que é pública por definição, está no bundle do
+navegador) poderia listar todas as páginas publicadas, escolher colunas e seguir
+os embeds até `events`. É o mesmo desenho de `submit_membership_application`.
+
+**O que a função NÃO devolve** é tão importante quanto o que devolve: nada de
+`event_id`, de autores, de `registration_url`, de segmentação, de trilha, e nada
+de `event_registrations`/`event_participants`. Há um teste que falha se alguma
+dessas tabelas aparecer no corpo dela.
+
+### O navegador nunca recebe o id da página
+
+O formulário manda o **slug** — que já está na barra de endereços — e o servidor
+deriva a página (`resolvePublicLandingPageId`). Sem id no cliente, não há id
+para forjar: um POST forjado não consegue apontar para a página de outro evento.
+
+⚠️ **A revisão do §45 encontrou isto quebrado.** `landingPageId` estava em
+`PublicLandingPage`, e esse objeto desce inteiro como prop de um Client
+Component — ou seja, ia no payload do RSC, enquanto o comentário do schema
+afirmava que não ia. A correção foi tirar o campo do tipo, e não vigiá-lo.
+Pelo mesmo motivo a página monta a prop do formulário **campo a campo**, e não
+com um spread.
+
+### Os oito estados do §41
+
+Seis são do formulário (`PublicRegistrationState`): `ready`, `submitting`,
+`success`, `error`, `closed`, `soldOut`. Os outros dois são do framework —
+`LOADING` é o carregamento do Server Component e `NOT_FOUND` é `notFound()`,
+que troca a árvore inteira por `eventos/not-found.tsx`.
+
+**`closed` e `soldOut` chegam do SERVIDOR** (`landingEffectiveStatus` roda na
+página, com o relógio do servidor), e a tela também pode CAIR neles depois: se o
+banco recusar o envio com RG002 ou RG001 — porque outra granja levou as últimas
+vagas entre o carregamento e o clique —, o formulário some e o aviso aparece.
+Mostrar o erro e devolver o formulário convidaria a pessoa a tentar de novo um
+envio que vai ser recusado de novo.
+
+### Rascunho, inativa e slug inexistente respondem a mesma coisa
+
+`getPublicLandingPage` devolve `null` para os três, e a página responde 404 sem
+distingui-los. Diferenciar "não existe" de "existe mas está oculta" confirmaria
+a existência de um evento que ainda está sendo preparado, para quem estivesse
+tentando endereços.
+
+### LGPD: o mecanismo é o que já existia (§35)
+
+`consent_texts` — a mesma tabela append-only que a landing de associação usa,
+legível pelo papel anônimo de propósito. O que faltava era **onde guardar a
+versão que a pessoa leu**, e é a coluna nova
+`event_registrations.consent_policy_version`.
+
+⚠️ **A versão viaja com o envio, e não é relida no servidor.** Se alguém
+publicar um texto novo enquanto a granja preenche o formulário, a inscrição tem
+de guardar a versão que estava NA TELA — buscar a vigente no instante da
+gravação registraria uma autorização para um texto que ninguém leu. Um
+`current_consent_text()` dentro de `create_event_registration` seria exatamente
+esse defeito, e ele é invisível: a coluna fica preenchida, só que errada.
+
+O aceite é exigido **só pela porta pública**. No backoffice quem digita é a
+APCS, a partir de uma lista de papel — não é o titular do dado, e não tem como
+aceitar nada em nome dele.
+
+### Limite de taxa (§34)
+
+`event_registration_ip_hourly_limit()` = 20 envios por hash de IP por hora, só
+para a origem `landing_page`. É a mesma forma de `membership_ip_hourly_limit`
+(que é 8): uma pessoa se associa uma vez na vida, mas uma granja inscreve gente
+em vários eventos, e um escritório de cooperativa pode inscrever várias granjas
+do mesmo IP na mesma tarde.
+
+⚠️ **O limite roda DEPOIS da conferência de idempotência**, e a ordem é o que
+faz ele não punir quem é legítimo: um F5, um duplo clique ou um retry chegam com
+o mesmo `dedupe_key` e recebem a inscrição que já existe, sem consumir cota. Uma
+conexão ruim — que é justamente quem mais reenvia — seria a primeira a ser
+bloqueada pela ordem inversa.
+
+### §17 — telefone internacional
+
+`formatPhoneInput` usa a máscara existente (`formatWhatsapp`) até 11 dígitos e
+sai da frente acima disso. Sem essa segunda metade, um número de 12 dígitos
+seria cortado em silêncio e o formulário recusaria um telefone digitado certo —
+`phoneSchema` aceita de 10 a 15, o teto do E.164.
+
+`onlyDigits` e `formatWhatsapp` moram agora em `@/lib/format/phone`;
+`membership.schema.ts` e `event.landing.schema.ts` reexportam. Eram duas cópias.
+
+### O que o Prompt 3 mexeu no backoffice
+
+Uma coisa só: a **prévia do Builder ganhou o bloco de consentimento**. A revisão
+do §45.11 ("o Preview representa corretamente a página real?") respondia NÃO — a
+página pública passou a exigir o aceite de LGPD e a prévia mostrava um
+formulário sem ele. O administrador conferiria a composição, aprovaria e
+publicaria uma página com um campo obrigatório a mais do que viu. É o modo de
+falhar mais traiçoeiro de uma prévia: ela não quebra, ela mente.
+
+### Pendências para o Prompt 4
+
+1. **O logo do CSPI continua não existindo.** Agora são DOIS lugares para trocar
+   quando o SVG chegar: `CabecalhoInstitucional` em `landing-preview.tsx`
+   (backoffice) e o de `eventos/[slug]/landing-chrome.tsx` (público). O
+   comentário está nos dois.
+
+2. **`events.registration_url` continua em aberto** — seção 13. Agora é mais
+   concreto: o endereço público existe de verdade, e alguém vai colar um link
+   externo num evento que já tem página de inscrição.
+
+3. **A situação do EVENTO não é conferida na leitura pública.** Se alguém
+   desativar o evento sem encerrar a Landing Page, a página continua no ar.
+   Filtrar por `events.status` na leitura criaria uma regra que a GRAVAÇÃO não
+   tem (`create_event_registration` também não olha o evento), e telas e banco
+   discordando é o que este módulo evita desde o Prompt 1. A correção honesta é
+   decidir isso nas duas pontas ao mesmo tempo — e é decisão de produto, não de
+   código.
+
+4. **Sem analytics (§38).** A plataforma não tem mecanismo de analytics, e o §38
+   é explícito em não introduzir ferramenta nova só por isso. O que existe no
+   lugar é a trilha (`event_registration_audit_logs`), que já registra origem,
+   data/hora e a landing de cada inscrição — o suficiente para responder "quantas
+   inscrições vieram da página pública" sem nenhuma dependência externa.
+
+5. **`og:image` não é emitido.** A imagem vive em bucket privado e o que temos é
+   URL assinada de uma hora. Um `og:image` que morre em sessenta minutos é pior
+   que nenhum: o WhatsApp guarda a prévia em cache e passaria a mostrar um
+   retângulo quebrado. Resolver isso é decidir se a arte da landing pode ser
+   pública — decisão de produto.

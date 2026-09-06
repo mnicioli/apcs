@@ -8,7 +8,7 @@ import { APCS_LOGO_SRC } from "@/components/brand/apcs-logo";
  * ⚠️ O DESENHO ESTÁTICO SAIU DAQUI. Ele agora é `@/components/brand/apcs-logo`,
  * porque a mesma assinatura passou a identificar o CRM no alto da navegação —
  * e marca duplicada é marca que desalinha. O que sobrou neste arquivo é o que
- * só a landing tem: a versão ANIMADA, que depende de `landing.css`.
+ * só a landing tem: a versão ANIMADA, que depende de `apcs-landing.css`.
  */
 export { ApcsLogo } from "@/components/brand/apcs-logo";
 export { APCS_LOGO_SRC } from "@/components/brand/apcs-logo";
@@ -19,7 +19,7 @@ export const APCS_FULL_NAME = APP_LEGAL_NAME;
  * A assinatura animada: entrada com halo e um brilho que percorre a marca.
  *
  * ⚠️ Não é Client Component, e não precisa ser: toda a animação está em CSS
- * (landing.css), inclusive o `prefers-reduced-motion`. O brilho usa o PRÓPRIO
+ * (apcs-landing.css), inclusive o `prefers-reduced-motion`. O brilho usa o PRÓPRIO
  * SVG como máscara, então ele nunca escapa do contorno do desenho.
  */
 export function ApcsAnimatedLogo({

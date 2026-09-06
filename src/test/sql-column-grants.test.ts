@@ -154,6 +154,23 @@ const SEM_GRANT_DE_PROPOSITO: Record<string, string> = {
   "flow_versions.reviewed_at":
     "Escrita só por `advance_flow_version`, com o relógio do BANCO. " +
     "Um carimbo de tempo vindo do cliente não vale como registro.",
+
+  /* ------------------------------------------------------------------------ */
+  /* A porta pública das inscrições — 20260924000000 (§35 do Prompt 3)        */
+  /* ------------------------------------------------------------------------ */
+  //
+  // ⚠️ É PELO MESMO MOTIVO DAS QUATRO DE CIMA: ela registra O QUE ALGUÉM
+  // AUTORIZOU. Um `grant update (consent_policy_version)` abriria o caminho do
+  // PostgREST, onde o corpo do PATCH é escolhido por quem chama — e daria para
+  // reescrever, depois do fato, qual texto de LGPD a granja teria lido. O
+  // registro de consentimento viraria um campo editável, o que é pior que não
+  // existir: parece prova.
+  //
+  // Ela é escrita só por `create_event_registration` (SECURITY DEFINER), com a
+  // versão que VIAJOU COM O ENVIO — a que estava na tela de quem se inscreveu.
+  "event_registrations.consent_policy_version":
+    "Escrita só por `create_event_registration`, com a versão que a pessoa leu. " +
+    "Com grant, seria possível reescrever depois qual consentimento foi dado.",
 };
 
 const grants = colunasComGrant();

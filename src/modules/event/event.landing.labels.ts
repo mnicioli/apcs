@@ -205,3 +205,82 @@ export const LANDING_CONFIRMATION_COPY: Record<"publish" | "close" | "deactivate
  */
 export const LANDING_PUBLISHED_EDIT_WARNING =
   "Esta página está no ar e já recebeu inscrições. Alterações valem para quem se inscrever a partir de agora — nada do que já foi preenchido muda.";
+
+/* -------------------------------------------------------------------------- */
+/* A página pública (§27, §28, §30, §31 do Prompt 3)                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Os textos que gente de FORA da APCS lê.
+ *
+ * ⚠️ ELES SEGUEM UMA REGRA QUE OS DO BACKOFFICE NÃO SEGUEM: nenhum manda fazer
+ * algo que só a APCS pode fazer. "Aumente o limite para aceitar mais gente" é
+ * uma instrução perfeita para quem administra o evento e um absurdo para quem
+ * queria se inscrever — comparar com `LANDING_STATUS_REASON_LABELS` mostra as
+ * duas vozes lado a lado.
+ *
+ * ⚠️ E NENHUM DELES EXPLICA O SISTEMA. "Vagas esgotadas" não diz quantas eram,
+ * "inscrições encerradas" não diz quando encerrou. Uma página aberta na
+ * internet não deve ensinar a própria mecânica a quem estiver olhando (§30:
+ * nada de stack trace, SQL, id interno ou mensagem técnica).
+ */
+export const PUBLIC_LANDING_COPY = {
+  formTitle: "Inscrição",
+  companyLegend: "Granja / Empresa",
+  participantLegend: (posicao: number) => `Participante ${posicao}`,
+  addParticipant: "Adicionar participante",
+  removeParticipant: (posicao: number) => `Remover participante ${posicao}`,
+  submit: "Confirmar inscrição",
+  submitting: "Enviando...",
+
+  /** §27 — a página continua visível; o formulário não. */
+  closedTitle: "Inscrições encerradas",
+  closedMessage: "As inscrições para este evento não estão mais disponíveis.",
+
+  /** §28 — a mesma forma, motivo diferente. */
+  soldOutTitle: "Vagas esgotadas",
+  soldOutMessage: "Este evento atingiu o limite máximo de participantes.",
+
+  /**
+   * O aviso de vagas, quando ainda há. Aparece só perto do fim: dizer "restam
+   * 180 de 200" no primeiro dia não informa nada e ocupa a linha mais visível
+   * do formulário.
+   */
+  seatsLeft: (vagas: number) =>
+    vagas === 1 ? "Resta 1 vaga para este evento." : `Restam ${vagas} vagas para este evento.`,
+
+  /** §29 — o prazo, dito antes de a pessoa começar a preencher. */
+  deadline: (quando: string) => `Inscrições até ${quando}.`,
+
+  contactHint: "Informe telefone ou WhatsApp.",
+
+  /** §35 — o consentimento, no vocabulário do formulário de associação. */
+  consentLead: "Proteção de dados",
+
+  /**
+   * §30 — o erro que sobra quando nenhum código de negócio se aplica.
+   *
+   * ⚠️ MANDA TENTAR DE NOVO E DIZ QUE OS DADOS CONTINUAM ALI. As duas metades
+   * importam: sem a segunda, a pessoa que perdeu a conexão recomeça do zero um
+   * formulário com cinco participantes — ou desiste.
+   */
+  genericError:
+    "Não foi possível concluir sua inscrição. Tente novamente — o que você preencheu continua aqui.",
+
+  networkError:
+    "Não foi possível enviar. Verifique sua conexão e tente novamente — o que você preencheu continua aqui.",
+} as const;
+
+/**
+ * O que a página responde quando o endereço não leva a lugar nenhum (§5).
+ *
+ * ⚠️ UM TEXTO SÓ PARA TRÊS CAUSAS — slug inexistente, página em rascunho,
+ * página inativada. É a mesma decisão de `getPublicLandingPage` devolver `null`
+ * para os três: distinguir "não existe" de "existe mas está oculta" confirmaria
+ * a existência de um evento que ninguém deveria saber que está sendo preparado.
+ */
+export const PUBLIC_LANDING_NOT_FOUND = {
+  title: "Página não encontrada",
+  message:
+    "O endereço que você abriu não corresponde a nenhuma inscrição disponível. Confira o link recebido.",
+} as const;

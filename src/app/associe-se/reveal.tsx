@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * todo o texto institucional para o pacote JavaScript sem precisar.
  *
  * O `data-revealed` mora no atributo, não numa classe, porque a transição é
- * declarada em landing.css: React só vira o interruptor.
+ * declarada em apcs-landing.css: React só vira o interruptor.
  */
 export function Reveal({
   children,

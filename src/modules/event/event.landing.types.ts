@@ -301,3 +301,129 @@ export interface RegistrationFilters {
   status: "all" | RegistrationStatus;
   confirmation: ConfirmationFilter;
 }
+
+/* -------------------------------------------------------------------------- */
+/* A página pública (Prompt 3)                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Teto de participantes numa única inscrição.
+ *
+ * ⚠️ NÃO É REGRA DE NEGÓCIO — É LIMITE DE TAMANHO DE REQUISIÇÃO. Ele existe para
+ * um envio não chegar com dez mil pessoas, e é generoso o bastante para a maior
+ * granja da base. Quem limita quantas pessoas cabem no EVENTO é
+ * `maxParticipants` da Landing Page, que é outra pergunta.
+ *
+ * Estava escrito direto no `.max(200)` de `registrationBaseSchema`. Virou
+ * constante quando o §13 do Prompt 3 pediu que a tela parasse de oferecer o
+ * botão ao chegar no teto: com o número solto no schema, a tela teria de
+ * repeti-lo — e as duas cópias divergiriam no dia em que uma mudasse.
+ */
+export const MAX_PARTICIPANTS_PER_REGISTRATION = 200;
+
+/**
+ * A Landing Page como o MUNDO a vê.
+ *
+ * ⚠️ ESTE TIPO É A FRONTEIRA, e o que ele NÃO tem é o ponto. Sem `eventId`, sem
+ * `createdBy`/`updatedBy`/`publishedBy`, sem `registration_url`, sem
+ * segmentação, sem trilha de auditoria e sem uma única linha de
+ * `event_registrations` ou `event_participants` (§33). Comparar com
+ * `LandingPageWithEvent`, que é a mesma página para quem está logado, mostra
+ * exatamente o que fica do lado de dentro.
+ *
+ * O `status` só chega como `published` ou `closed`:
+ * `get_public_event_landing_page` não devolve linha para as outras duas (§4).
+ * O tipo continua largo porque estreitá-lo obrigaria a converter na leitura, e
+ * a conversão é que erraria no dia em que um valor novo entrasse no enum.
+ */
+export interface PublicLandingPage {
+  /**
+   * ⚠️ NÃO EXISTE `landingPageId` AQUI, E A AUSÊNCIA É A GARANTIA.
+   *
+   * Ela estava. A revisão do §45 encontrou o problema: este objeto desce
+   * INTEIRO como prop de um Client Component, então tudo o que ele tem é
+   * serializado no payload do RSC e chega ao navegador. O id da página estava
+   * indo junto — enquanto o comentário do schema afirmava que o navegador nunca
+   * o recebia.
+   *
+   * Tirar o campo é o que torna a afirmação verdadeira em vez de vigiada: a
+   * leitura pública não devolve o id, e quem precisa dele (a action de envio,
+   * para chamar a função Postgres) o resolve no servidor por
+   * `resolvePublicLandingPageId`. Não há caminho por onde ele saia.
+   */
+  slug: string;
+  status: LandingPageStatus;
+  description: string | null;
+  /** URL assinada. O caminho no bucket nunca sai do servidor. */
+  imageUrl: string | null;
+  formFields: LandingFieldKey[];
+  /** Os três crus. Nulo = usa `successDefaults`. */
+  successTitle: string | null;
+  successMessage: string | null;
+  successFooter: string | null;
+  closesAt: string | null;
+  maxParticipants: number | null;
+  participantCount: number;
+  event: {
+    name: string;
+    /** AAAA-MM-DD. */
+    eventDate: string;
+    /** "HH:MM" ou "HH:MM:SS" — a tela passa por `formatTime`. */
+    startTime: string;
+    endTime: string | null;
+    location: string;
+  };
+  /** O texto padrão da plataforma, para `resolveSuccessMessage`. */
+  successDefaults: LandingSuccessMessage;
+  /**
+   * O consentimento vigente (§35). A VERSÃO viaja com o envio e é gravada na
+   * inscrição — uma autorização só vale para o texto que a pessoa leu.
+   */
+  consent: { version: string; body: string } | null;
+}
+
+/**
+ * Os estados da tela pública (§41).
+ *
+ * ⚠️ DOIS DOS OITO DO §41 NÃO ESTÃO AQUI, e não é esquecimento:
+ *
+ *   LOADING    é `loading.tsx` do App Router — a página é Server Component, e o
+ *              carregamento acontece antes de este componente existir.
+ *   NOT_FOUND  é `notFound()`, que troca a árvore inteira por `not-found.tsx`.
+ *              Um estado interno para ele significaria renderizar o formulário
+ *              e depois escondê-lo, que é o desenho que vaza a existência da
+ *              página (§5).
+ *
+ * Os outros seis são deste componente porque todos eles ainda MOSTRAM o evento.
+ */
+export type PublicRegistrationState =
+  | "ready"
+  | "submitting"
+  | "success"
+  | "error"
+  | "closed"
+  | "soldOut";
+
+/**
+ * O QUE O FORMULÁRIO PÚBLICO RECEBE — e é menos que a página inteira.
+ *
+ * ============================================================================
+ * ⚠️ ESTE `Pick` É O §33 ESCRITO COMO TIPO.
+ * ============================================================================
+ * O componente do formulário é `"use client"`: tudo o que a página passar para
+ * ele é serializado no payload do RSC e viaja para o navegador de quem se
+ * inscreve. Passar `PublicLandingPage` inteira mandaria junto a contagem de
+ * inscritos, a capacidade, o prazo e a situação — nada disso é usado ali, e
+ * "não é usado" é diferente de "não foi enviado".
+ *
+ * A página monta este objeto CAMPO A CAMPO, e não com um spread: é a forma de
+ * acrescentar algo novo à leitura pública sem que ele chegue ao navegador por
+ * distração.
+ */
+export type PublicRegistrationFormData = Pick<
+  PublicLandingPage,
+  "slug" | "formFields" | "successTitle" | "successMessage" | "successFooter" | "successDefaults"
+> & {
+  event: PublicLandingPage["event"];
+  consent: PublicLandingPage["consent"];
+};

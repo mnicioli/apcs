@@ -50,6 +50,8 @@ export type ActionErrorCode =
   | "participantRepeatedInRequest"
   | "participantNeedsPhone"
   | "registrationNeedsParticipant"
+  | "registrationRateLimited"
+  | "registrationConsentRequired"
   // Regras de negócio da Bolsa. Mesmo raciocínio: cada uma tem um texto que diz
   // O QUE FAZER em seguida.
   | "bulletinNeedsActiveVersion"
@@ -210,6 +212,13 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   participantRepeatedInRequest: "Há um e-mail repetido entre os participantes desta inscrição.",
   participantNeedsPhone: "Informe telefone ou WhatsApp para cada participante.",
   registrationNeedsParticipant: "Inclua ao menos um participante na inscrição.",
+  // ⚠️ NÃO DIZ POR QUÊ, e é decisão de segurança: explicar o teto e a janela
+  // entrega o mapa para contorná-los. "Tente novamente mais tarde" é o que a
+  // pessoa legítima precisa saber, e é tudo que ela precisa saber.
+  registrationRateLimited:
+    "Muitas inscrições foram enviadas deste acesso nos últimos minutos. Aguarde um pouco e tente novamente.",
+  registrationConsentRequired:
+    "É preciso aceitar o tratamento dos dados para concluir a inscrição.",
   bulletinNeedsActiveVersion:
     "A Bolsa não pode ficar sem uma publicação ativa. Para trocar a publicação oficial, ative a desejada — a atual sai do ar automaticamente.",
   versionNotInBulletin: "Esta publicação não pertence a esta Bolsa.",
@@ -527,6 +536,12 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "participantNeedsPhone" };
     case "RG006":
       return { code: "registrationNeedsParticipant" };
+    // RG007 e RG008 são do Prompt 3 — a porta pública. Ver
+    // supabase/migrations/20260924000000_event_landing_public.sql.
+    case "RG007":
+      return { code: "registrationRateLimited" };
+    case "RG008":
+      return { code: "registrationConsentRequired" };
     // Classe `MB` — regras de negócio da Bolsa, pela mesma razão da `EV`: a
     // classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260814000000_create_market_bulletins.sql.

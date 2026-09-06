@@ -9,16 +9,24 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * Os controles do formulário público.
+ * Os controles dos formulários PÚBLICOS — os que gente de fora preenche.
+ *
+ * Hoje são dois: a solicitação de associação (`/associe-se`) e a inscrição em
+ * evento (`/eventos/[slug]`). Este arquivo morava dentro do primeiro; ele saiu
+ * de lá quando o segundo apareceu, porque copiá-lo teria criado dois
+ * formulários públicos com regras de toque e de foco divergentes — e a segunda
+ * cópia é a que fica para trás.
  *
  * ⚠️ Não reutilizam `src/components/ui/input.tsx` de propósito. O CRM é uma
  * ferramenta usada no computador o dia inteiro, com altura de 36px e texto
- * pequeno; esta página é preenchida uma vez, no celular, muitas vezes no campo.
- * Daí `h-11` e `text-base`: abaixo de 16px o Safari do iPhone DÁ ZOOM ao focar
- * um campo, e a pessoa perde o formulário de vista no meio do preenchimento.
+ * pequeno; estas páginas são preenchidas uma vez, no celular, muitas vezes no
+ * campo. Daí `h-11` e `text-base`: abaixo de 16px o Safari do iPhone DÁ ZOOM ao
+ * focar um campo, e a pessoa perde o formulário de vista no meio do
+ * preenchimento.
  *
  * O que os dois compartilham são os TOKENS de cor — e é por isso que estes
- * controles ficam vermelhos aqui dentro sem uma linha de cor escrita à mão.
+ * controles ficam vermelhos dentro de `.apcs-landing` sem uma linha de cor
+ * escrita à mão.
  */
 
 const controlClass =

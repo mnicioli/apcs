@@ -315,6 +315,31 @@ function FormularioSimulado({
         Adicionar participante
       </Button>
 
+      {/*
+        ⚠️ O CONSENTIMENTO ENTROU AQUI NA REVISÃO DO PROMPT 3 (§45.11: "o Preview
+        representa corretamente a página real?"). A resposta era NÃO: a página
+        pública passou a exigir o aceite de LGPD, e a prévia continuava mostrando
+        um formulário sem ele. Um administrador conferiria a composição, aprovaria,
+        publicaria — e a página no ar teria um campo obrigatório a mais que ele
+        nunca viu.
+
+        O TEXTO NÃO É CONFIGURÁVEL AQUI, e não é omissão: ele vem de
+        `consent_texts`, que é editada em /settings/texts e vale para a plataforma
+        inteira (§35). A prévia mostra que o bloco EXISTE, não qual é a redação —
+        do mesmo jeito que mostra que há um campo de e-mail sem inventar um
+        endereço.
+      */}
+      <div className="border-border flex items-start gap-2 rounded-md border border-dashed p-2.5">
+        <div
+          className="border-border bg-muted/40 mt-0.5 size-4 shrink-0 rounded border"
+          aria-hidden="true"
+        />
+        <p className="text-muted-foreground text-[11px] leading-relaxed">
+          Aceite do tratamento de dados (LGPD). O texto é o da plataforma, editável em Configurações
+          → Textos, e é obrigatório para concluir a inscrição.
+        </p>
+      </div>
+
       {/* ⚠️ SEM `onClick`. É o botão que a página pública terá, desenhado aqui
           para a composição ficar completa — e inerte, porque o §34 proíbe esta
           tela de criar inscrição. */}

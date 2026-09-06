@@ -122,10 +122,22 @@ export async function updateSession(request: NextRequest) {
   // uma Server Action que usa o cliente `service_role`, e as tabelas de
   // Associados não têm policy de escrita para `anon`. Ver a decisão 2 de
   // supabase/migrations/20260821000000_create_membership.sql.
+  //
+  // ⚠️ `/eventos` É A PÁGINA PÚBLICA DE INSCRIÇÃO, e vale para ela tudo o que
+  // vale para `/associe-se`: aberta na internet, sem sessão, e ESCREVENDO no
+  // banco por uma Server Action que usa `service_role`. As tabelas de Landing
+  // Pages e Inscrições têm `revoke all ... from anon` justamente porque toda
+  // leitura e toda escrita passam por função — ver a decisão 1 de
+  // supabase/migrations/20260924000000_event_landing_public.sql.
+  //
+  // ⚠️ NÃO CONFUNDIR COM `/events`, que é a tela do CRM e continua protegida.
+  // São duas rotas diferentes (uma em português, outra em inglês), e é o que
+  // permite que a mesma informação tenha duas portas com regras opostas.
   const isPublicRoute =
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
-    pathname.startsWith("/associe-se");
+    pathname.startsWith("/associe-se") ||
+    pathname.startsWith("/eventos");
 
   // Não logado tentando acessar rota protegida → manda para o login.
   if (!user && !isPublicRoute) {

@@ -6,9 +6,11 @@ import {
   landingFieldsSchema,
   onlyDigits,
   participantSchema,
+  publicRegistrationSchema,
   registrationFormSchema,
   updateRegistrationSchema,
 } from "./event.landing.schema";
+import { MAX_PARTICIPANTS_PER_REGISTRATION } from "./event.landing.types";
 
 /**
  * Os contratos de entrada — e o que cada um recusa.
@@ -335,5 +337,229 @@ describe("edição da inscrição pelo backoffice", () => {
     expect(
       updateRegistrationSchema.safeParse({ registrationId: id, status: "deleted" }).success,
     ).toBe(false);
+  });
+});
+
+/* ========================================================================== */
+/* §15, §19 e §35 do Prompt 3 — o payload da página pública                   */
+/* ========================================================================== */
+
+describe("publicRegistrationSchema", () => {
+  const valido = {
+    slug: "encontro-tecnico",
+    companyName: "Granja ABC",
+    participants: [
+      {
+        fullName: "João da Silva",
+        email: "joao@email.com",
+        phone: "(11) 99999-8888",
+        whatsapp: "",
+      },
+    ],
+    consentVersion: "2026-08-v1",
+    consentAccepted: true,
+  };
+
+  it("aceita uma inscrição completa", () => {
+    const r = publicRegistrationSchema.safeParse(valido);
+    expect(r.success).toBe(true);
+  });
+
+  /**
+   * ⚠️ ELE MANDA O SLUG, E NÃO O `landingPageId`. É a diferença entre a porta
+   * pública e a do backoffice: o navegador nunca recebe o id, então não há id
+   * para forjar. Um `landingPageId` que voltasse a este schema seria o sinal de
+   * que a proteção foi desfeita.
+   */
+  it("não tem landingPageId", () => {
+    expect("landingPageId" in valido).toBe(false);
+    const comId = publicRegistrationSchema.safeParse({
+      ...valido,
+      landingPageId: "11111111-1111-4111-8111-111111111111",
+    });
+    // O Zod ignora chave extra — o que importa é que ela não sai do outro lado.
+    expect(comId.success).toBe(true);
+    if (comId.success) expect("landingPageId" in comId.data).toBe(false);
+  });
+
+  it("recusa endereço de página malformado", () => {
+    for (const slug of ["", "ab", "Encontro Técnico", "encontro--tecnico", "-encontro"]) {
+      expect(publicRegistrationSchema.safeParse({ ...valido, slug }).success).toBe(false);
+    }
+  });
+
+  /* --- §15: os obrigatórios ------------------------------------------------ */
+
+  it("exige granja/empresa", () => {
+    const r = publicRegistrationSchema.safeParse({ ...valido, companyName: " " });
+    expect(r.success).toBe(false);
+  });
+
+  it("exige nome e e-mail de cada participante", () => {
+    const semNome = publicRegistrationSchema.safeParse({
+      ...valido,
+      participants: [{ ...valido.participants[0], fullName: "" }],
+    });
+    const semEmail = publicRegistrationSchema.safeParse({
+      ...valido,
+      participants: [{ ...valido.participants[0], email: "" }],
+    });
+    expect(semNome.success).toBe(false);
+    expect(semEmail.success).toBe(false);
+  });
+
+  it("recusa e-mail inválido", () => {
+    const r = publicRegistrationSchema.safeParse({
+      ...valido,
+      participants: [{ ...valido.participants[0], email: "joao@email" }],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  /* --- §10 e §15: telefone OU WhatsApp ------------------------------------- */
+
+  it("aceita só telefone, só WhatsApp, e os dois", () => {
+    const casos = [
+      { phone: "11999998888", whatsapp: "" },
+      { phone: "", whatsapp: "11988887777" },
+      { phone: "11999998888", whatsapp: "11988887777" },
+    ];
+    for (const contato of casos) {
+      const r = publicRegistrationSchema.safeParse({
+        ...valido,
+        participants: [{ ...valido.participants[0], ...contato }],
+      });
+      expect(r.success, JSON.stringify(contato)).toBe(true);
+    }
+  });
+
+  it("recusa participante sem nenhum dos dois", () => {
+    const r = publicRegistrationSchema.safeParse({
+      ...valido,
+      participants: [{ ...valido.participants[0], phone: "", whatsapp: "" }],
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      // O erro pousa no campo de telefone: é o primeiro dos dois vazios, e é
+      // onde a pessoa está olhando.
+      expect(r.error.issues.some((i) => i.path.join(".") === "participants.0.phone")).toBe(true);
+    }
+  });
+});
+
+describe("§19 — o mesmo e-mail duas vezes na mesma inscrição", () => {
+  const base = {
+    slug: "encontro-tecnico",
+    companyName: "Granja ABC",
+    consentVersion: "2026-08-v1",
+    consentAccepted: true,
+  };
+
+  const pessoa = (email: string) => ({
+    fullName: "Alguém da Granja",
+    email,
+    phone: "11999998888",
+    whatsapp: "",
+  });
+
+  it("recusa, e aponta para a SEGUNDA linha", () => {
+    const r = publicRegistrationSchema.safeParse({
+      ...base,
+      participants: [pessoa("joao@email.com"), pessoa("joao@email.com")],
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      const caminhos = r.error.issues.map((i) => i.path.join("."));
+      // Quem digitou a segunda é quem precisa corrigi-la — culpar a primeira
+      // mandaria a pessoa mexer na linha que estava certa.
+      expect(caminhos).toContain("participants.1.email");
+      expect(caminhos).not.toContain("participants.0.email");
+    }
+  });
+
+  /**
+   * ⚠️ §16 — "Joao@Email.com" e "joao@email.com" são A MESMA PESSOA. Sem o
+   * `toLowerCase` do schema, esta inscrição passaria aqui e morreria no índice
+   * único do banco com uma violação de constraint, que não sabe dizer qual
+   * e-mail é o problema.
+   */
+  it("compara sem distinguir maiúsculas", () => {
+    const r = publicRegistrationSchema.safeParse({
+      ...base,
+      participants: [pessoa("Joao@Email.com"), pessoa("joao@email.com")],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("aceita e-mails diferentes", () => {
+    const r = publicRegistrationSchema.safeParse({
+      ...base,
+      participants: [pessoa("joao@email.com"), pessoa("maria@email.com")],
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
+describe("§35 — o consentimento", () => {
+  const base = {
+    slug: "encontro-tecnico",
+    companyName: "Granja ABC",
+    participants: [
+      { fullName: "João da Silva", email: "joao@email.com", phone: "11999998888", whatsapp: "" },
+    ],
+    consentVersion: "2026-08-v1",
+  };
+
+  it("recusa o envio sem o aceite", () => {
+    const r = publicRegistrationSchema.safeParse({ ...base, consentAccepted: false });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues.some((i) => i.path.join(".") === "consentAccepted")).toBe(true);
+    }
+  });
+
+  it("recusa versão de consentimento malformada", () => {
+    for (const consentVersion of ["", "ab", "versão com espaço", "x".repeat(41)]) {
+      const r = publicRegistrationSchema.safeParse({
+        ...base,
+        consentVersion,
+        consentAccepted: true,
+      });
+      expect(r.success, consentVersion).toBe(false);
+    }
+  });
+});
+
+describe("§13 — o teto de participantes por inscrição", () => {
+  /**
+   * ⚠️ A CONSTANTE E O SCHEMA CONCORDAM PORQUE SÃO A MESMA COISA. A tela usa
+   * `MAX_PARTICIPANTS_PER_REGISTRATION` para parar de oferecer o botão; o schema
+   * usa a mesma constante para recusar. Se a tela repetisse o número, uma das
+   * duas ficaria para trás — e o sintoma seria um botão que adiciona uma linha
+   * que o envio recusa.
+   */
+  it("aceita exatamente o teto e recusa um a mais", () => {
+    const pessoa = (i: number) => ({
+      fullName: `Pessoa ${i}`,
+      email: `p${i}@email.com`,
+      phone: "11999998888",
+      whatsapp: "",
+    });
+    const base = {
+      slug: "encontro-tecnico",
+      companyName: "Granja ABC",
+      consentVersion: "2026-08-v1",
+      consentAccepted: true,
+    };
+
+    const noTeto = Array.from({ length: MAX_PARTICIPANTS_PER_REGISTRATION }, (_, i) => pessoa(i));
+    expect(publicRegistrationSchema.safeParse({ ...base, participants: noTeto }).success).toBe(
+      true,
+    );
+
+    const acima = [...noTeto, pessoa(MAX_PARTICIPANTS_PER_REGISTRATION)];
+    expect(publicRegistrationSchema.safeParse({ ...base, participants: acima }).success).toBe(
+      false,
+    );
   });
 });

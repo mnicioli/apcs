@@ -1317,6 +1317,7 @@ export type Database = {
       event_registrations: {
         Row: {
           company_name: string;
+          consent_policy_version: string | null;
           created_at: string;
           created_by: string | null;
           dedupe_key: string;
@@ -1333,6 +1334,7 @@ export type Database = {
         };
         Insert: {
           company_name: string;
+          consent_policy_version?: string | null;
           created_at?: string;
           created_by?: string | null;
           dedupe_key: string;
@@ -1349,6 +1351,7 @@ export type Database = {
         };
         Update: {
           company_name?: string;
+          consent_policy_version?: string | null;
           created_at?: string;
           created_by?: string | null;
           dedupe_key?: string;
@@ -4556,6 +4559,7 @@ export type Database = {
       create_event_registration: {
         Args: {
           p_company_name: string;
+          p_consent_policy_version?: string;
           p_dedupe_key: string;
           p_landing_page_id: string;
           p_participants: Json;
@@ -4936,6 +4940,7 @@ export type Database = {
         Returns: number;
       };
       event_landing_slugify: { Args: { p_text: string }; Returns: string };
+      event_registration_ip_hourly_limit: { Args: never; Returns: number };
       event_segments_for_member: {
         Args: { p_member_id: string };
         Returns: string[];
@@ -5195,6 +5200,7 @@ export type Database = {
           whatsapp_chat_id: string;
         }[];
       };
+      get_public_event_landing_page: { Args: { p_slug: string }; Returns: Json };
       get_survey_for_chatbot: {
         Args: { p_survey_id: string };
         Returns: {
@@ -6466,6 +6472,7 @@ export type Database = {
         };
         Returns: {
           company_name: string;
+          consent_policy_version: string | null;
           created_at: string;
           created_by: string | null;
           dedupe_key: string;

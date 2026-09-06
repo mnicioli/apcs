@@ -12,7 +12,7 @@ import { Reveal } from "./reveal";
  * ⚠️ O CTA é um LINK para a âncora do formulário, e não um botão com
  * `scrollIntoView`. Funciona sem JavaScript, o navegador move o foco para o
  * destino sozinho (é o que faz o `tabIndex={-1}` no título da seção) e a
- * rolagem suave vem do `scroll-behavior` de landing.css — que já respeita
+ * rolagem suave vem do `scroll-behavior` de apcs-landing.css — que já respeita
  * `prefers-reduced-motion`. Menos código e mais robusto que o original.
  */
 
