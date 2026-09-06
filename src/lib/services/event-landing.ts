@@ -104,7 +104,9 @@ const REGISTRATION_COLUMNS =
   "id, event_id, landing_page_id, company_name, status, origin, registered_at, updated_at, " +
   "creator:profiles!event_registrations_created_by_fkey (id, full_name), " +
   "editor:profiles!event_registrations_updated_by_fkey (id, full_name), " +
-  "participants:event_participants (" +
+  // ⚠️ A CONSTRAINT É NOMEADA — ver `countParticipantsByLanding`. Sem isto o
+  // PostgREST recusa o embed inteiro, e a inscrição volta SEM participantes.
+  "participants:event_participants!event_participants_registration_id_fkey (" +
   "id, full_name, email, phone, whatsapp, confirmation, created_at, updated_at)";
 
 interface ProfileRow {
@@ -257,6 +259,26 @@ function toLandingPage(
  * grid de vinte páginas, no meio da renderização. Aqui é uma leitura das
  * inscrições ativas e a contagem em memória.
  *
+ * ============================================================================
+ * ⚠️ O EMBED NOMEIA A CONSTRAINT, E ISSO NÃO É ESTILO — É O QUE FAZ A CONSULTA
+ * FUNCIONAR.
+ * ============================================================================
+ * `event_participants` tem DUAS chaves estrangeiras para `event_registrations`:
+ * a da coluna (`registration_id`) e a COMPOSTA da decisão 3 do Prompt 1
+ * (`(registration_id, event_id)`, que guarda a cópia de `event_id`). O PostgREST
+ * vê as duas, não sabe qual seguir e recusa o embed inteiro com
+ * "more than one relationship was found".
+ *
+ * ⚠️ ESTE DEFEITO EXISTIU DO PROMPT 1 ATÉ A HOMOLOGAÇÃO, E NINGUÉM VIU. A
+ * consulta falhava SEMPRE; o tratamento de erro devolvia mapa vazio; a grid
+ * mostrava "0 inscritos" para todo mundo. Um número errado e PLAUSÍVEL não
+ * levanta suspeita — e os testes não pegaram porque mockam o Supabase, que é
+ * justamente quem recusava. Só apareceu quando uma Landing Page de verdade foi
+ * criada e alguém leu o console.
+ *
+ * É a mesma disambiguação que `LANDING_COLUMNS` já fazia para os três
+ * `profiles` — a lição é que ela vale para QUALQUER embed deste módulo.
+ *
  * ⚠️ E LÊ SÓ O QUE PRECISA: `event_participants(id)` traz o mínimo para contar.
  * O nome e o e-mail das pessoas não têm por que trafegar para responder
  * "quantos são" — é o §29 aplicado a uma consulta de listagem.
@@ -268,16 +290,27 @@ async function countParticipantsByLanding(landingIds: string[]): Promise<Map<str
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("event_registrations")
-    .select("landing_page_id, participants:event_participants (id)")
+    .select(
+      "landing_page_id, participants:event_participants!event_participants_registration_id_fkey (id)",
+    )
     .in("landing_page_id", landingIds)
     .eq("status", "active")
     .returns<{ landing_page_id: string; participants: { id: string }[] }[]>();
 
   if (error) {
     console.error(`[event-landing] contagem de participantes falhou: ${error.message}`);
-    // Zero, e não exceção: a grid mostrando "0 inscritos" ainda diz quais
-    // páginas existem. O número que MANDA é o do banco, dentro da transação de
-    // gravação — este é informativo.
+    // ⚠️ ZERO, E NÃO EXCEÇÃO — MAS ESSA ESCOLHA JÁ ESCONDEU UM DEFEITO POR
+    // QUATRO ETAPAS, e vale saber disso antes de confiar nela.
+    //
+    // O embed acima era ambíguo (ver o aviso do cabeçalho desta função), então
+    // esta consulta falhava SEMPRE. O `catch` transformava a falha em "0
+    // inscritos", a grid abria normalmente, e ninguém tinha por que desconfiar
+    // de um número plausível. Só apareceu quando alguém criou uma Landing Page
+    // de verdade e olhou o console.
+    //
+    // A decisão continua certa — uma grid que não carrega não responde nada, e
+    // o número que MANDA é o do banco, dentro da transação de gravação. Mas o
+    // log é a ÚNICA pista que sobra: quem mexer aqui precisa lê-lo.
     return contagem;
   }
 
