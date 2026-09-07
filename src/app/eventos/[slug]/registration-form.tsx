@@ -477,8 +477,24 @@ function BlocoParticipante({
         O botão de remover ficou posicionado por CSS em vez de por estrutura: a
         ordem do DOM continua sendo legenda → botão → campos, que é também a ordem
         certa de tabulação.
+
+        ⚠️ E O `w-full` NÃO É ENFEITE: SEM ELE, O RÓTULO "E-MAIL" SAÍA TORTO.
+        A `<legend>` precisa do `float-left` para deixar a renderização especial
+        que o navegador dá a ela (encaixada no traço da borda) e virar uma caixa
+        de bloco comum. Só que um float ESTREITO deixa espaço à direita, e a
+        primeira linha do primeiro rótulo escorregava para esse espaço: o texto
+        do "E-mail" começava 118px adiantado — a largura exata de
+        "PARTICIPANTE 1" — enquanto Nome, Telefone e WhatsApp começavam no lugar
+        certo. Um float de largura TOTAL não deixa vão nenhum ao lado, e o
+        conteúdo volta a cair embaixo dele.
+
+        Só o primeiro rótulo aparecia torto, e só em tela larga: no celular não
+        cabia texto ao lado do float, então a linha já descia sozinha. É o tipo
+        de defeito que passa por toda uma bateria de testes — o DOM está certo,
+        os papéis estão certos, os nomes acessíveis estão certos; o que está
+        errado é onde o navegador desenhou.
       */}
-      <legend className="text-muted-foreground float-left text-xs font-semibold tracking-[0.14em] uppercase">
+      <legend className="text-muted-foreground float-left w-full text-xs font-semibold tracking-[0.14em] uppercase">
         {PUBLIC_LANDING_COPY.participantLegend(posicao)}
       </legend>
 
@@ -497,7 +513,14 @@ function BlocoParticipante({
         </button>
       )}
 
-      <div className="space-y-4 pt-5">
+      {/*
+        O `pt-5` que morava aqui era a tentativa anterior de escapar do float —
+        empurrar os campos para baixo até passarem dele. Não funcionava, porque
+        a caixa de MARGEM do float (os 16px do `space-y-4`) contava junto e
+        alcançava a primeira linha mesmo assim. Com a legenda ocupando a largura
+        toda, a folga já vem da margem dela e este afastamento vira sobra.
+      */}
+      <div className="space-y-4">
         {campos.filter((campo) => campo !== "GRANJA_EMPRESA").map((campo) => controles[campo])}
       </div>
     </fieldset>
