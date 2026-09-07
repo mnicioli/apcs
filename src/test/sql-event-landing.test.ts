@@ -48,8 +48,25 @@ const MIGRATIONS = join(process.cwd(), "supabase", "migrations");
  * É exatamente a falha que o comentário acima descreve, reaparecendo por um
  * nome de arquivo. A lição: o filtro precisa acompanhar o módulo, não a palavra.
  */
+/**
+ * ⚠️ E ELE JÁ FALHOU DE NOVO, PELA TERCEIRA VEZ, PELO MESMO MOTIVO.
+ *
+ * O filtro era `/landing|event_registration/`, e deixava de fora DOIS arquivos
+ * do módulo que não têm nenhuma das duas palavras inteiras no nome:
+ *
+ *   20260927000000_registration_writes_security_definer.sql
+ *   20260929000000_event_registration_board_metrics.sql
+ *
+ * O segundo REDEFINE `event_registrations_board`. Com ele de fora, os casos
+ * abaixo leriam a versão anterior — e um teste verde sobre código morto é pior
+ * que teste nenhum.
+ *
+ * `registration` sozinho fecha a família inteira, e a asserção logo abaixo
+ * cobra que a conta bate: um arquivo novo do módulo com nome criativo quebra o
+ * teste em vez de sumir dele.
+ */
 const ARQUIVOS = readdirSync(MIGRATIONS)
-  .filter((nome) => nome.endsWith(".sql") && /landing|event_registration/.test(nome))
+  .filter((nome) => nome.endsWith(".sql") && /landing|registration/.test(nome))
   .sort();
 
 const sql = ARQUIVOS.map((nome) => readFileSync(join(MIGRATIONS, nome), "utf8")).join("\n");
@@ -82,6 +99,26 @@ describe("a bateria está lendo o que acha que está lendo", () => {
     // as definições antigas e passariam sobre código morto.
     expect(ARQUIVOS).toContain("20260925000100_event_registration_backoffice.sql");
     expect(sql.length).toBeGreaterThan(50_000);
+  });
+
+  /**
+   * ⚠️ A CONTA, E NÃO UMA LISTA DE NOMES. Nomear cada arquivo esperado seria
+   * escrever a mesma lista duas vezes; contar o que EXISTE na pasta contra o que
+   * o filtro pegou responde a pergunta real — "ficou algum de fora?" — sem
+   * precisar ser atualizada a cada migration.
+   *
+   * O critério é grosseiro de propósito: todo arquivo do módulo tem "landing" ou
+   * "registration" no nome. Um que não tenha quebra aqui, que é onde se quer
+   * descobrir — e não silenciosamente, dez casos abaixo, lendo uma definição
+   * que o banco já não usa.
+   */
+  it("nenhum arquivo do módulo fica de fora do filtro", () => {
+    const doModulo = readdirSync(MIGRATIONS).filter(
+      (nome) => nome.endsWith(".sql") && /landing|registration/.test(nome),
+    );
+    expect(ARQUIVOS).toHaveLength(doModulo.length);
+    expect(ARQUIVOS).toContain("20260927000000_registration_writes_security_definer.sql");
+    expect(ARQUIVOS).toContain("20260929000000_event_registration_board_metrics.sql");
   });
 
   /**
@@ -917,5 +954,64 @@ describe("o TypeScript e o Postgres concordam sobre os números", () => {
     expect(doBanco, "a função Postgres precisa devolver um número literal").toBeTruthy();
     expect(doCodigo, "a constante do TypeScript precisa ser um número literal").toBeTruthy();
     expect(doCodigo).toBe(doBanco);
+  });
+});
+
+/* ========================================================================== */
+/* O CONTRATO DO jsonb — nomes de chave, conferidos contra o TypeScript       */
+/* ========================================================================== */
+
+/**
+ * ============================================================================
+ * ⚠️ NASCEU DE UM DEFEITO EM PRODUÇÃO: "Não confirmados" em zero para sempre.
+ * ============================================================================
+ * `event_registrations_board` montava as métricas com `to_jsonb(m)`, e
+ * `to_jsonb` de uma linha nomeia as chaves pelas COLUNAS. Saía `not_confirmed`;
+ * a aplicação lia `notConfirmed`, não achava, e caía no `?? 0`.
+ *
+ * ⚠️ SÓ UMA DAS CINCO QUEBROU, e é isso que torna o caso traiçoeiro:
+ * `participants`, `confirmed`, `registrations` e `companies` são palavras
+ * ÚNICAS — iguais nas duas convenções, casavam por coincidência. A composta era
+ * a única que podia falhar, e falhou mostrando ZERO: um número plausível, que
+ * ninguém questiona num evento que está indo bem.
+ *
+ * ⚠️ POR QUE NENHUMA OUTRA BARREIRA PEGA: o jsonb atravessa a fronteira como
+ * `unknown`, então o TypeScript está certo dos dois lados; a função compila; a
+ * RLS passa; e os testes do CSV montam `metrics` à mão, sem nunca perguntar ao
+ * SQL como ele o escreve. É contrato que só existe como COMBINAÇÃO entre banco
+ * e aplicação — a mesma família de `sql-column-grants` e `sql-returns-table`.
+ */
+describe("as métricas do quadro chegam com os nomes que a tela lê", () => {
+  const corpo = corpoDe("event_registrations_board");
+
+  /**
+   * As cinco chaves de `RegistrationBoardMetrics`, escritas aqui à mão de
+   * propósito: importar o tipo não ajudaria (tipo não existe em tempo de
+   * execução), e uma lista derivada de outra lista não seria uma segunda
+   * opinião.
+   */
+  const CHAVES = ["participants", "confirmed", "notConfirmed", "registrations", "companies"];
+
+  it("cada chave que o service lê aparece literalmente no SQL", () => {
+    for (const chave of CHAVES) {
+      expect(corpo, `a chave "${chave}" sumiu do jsonb de métricas`).toContain(`'${chave}'`);
+    }
+  });
+
+  /**
+   * ⚠️ E A FORMA QUE CAUSOU O DEFEITO NÃO VOLTA. Sem esta linha, alguém poderia
+   * reintroduzir `to_jsonb(m)` e o caso acima continuaria passando — as chaves
+   * ainda estariam escritas, num comentário ou no bloco de `rows`.
+   */
+  it("as métricas não são montadas com to_jsonb de uma linha", () => {
+    expect(corpo).not.toMatch(/'metrics'\s*,\s*\(\s*select\s+to_jsonb/i);
+  });
+
+  /**
+   * O mesmo cuidado na tela inicial, que sempre montou chave a chave — e que é
+   * de onde o `rows` do quadro copiou a forma certa.
+   */
+  it("a tela inicial de Inscrições também nomeia as chaves", () => {
+    expect(corpoDe("event_registration_summaries")).toContain("'notConfirmed'");
   });
 });
