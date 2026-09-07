@@ -129,6 +129,18 @@ describe("42501: papel recusado x privilégio do banco", () => {
       mapPostgresError({ code: "42501", message: "permission denied for table events" }),
     ).toEqual({ code: "dbPrivilege" });
   });
+
+  /**
+   * ⚠️ E A MENSAGEM PRECISA CITAR AS DUAS, porque ela já mandou procurar a
+   * errada. O toggle de confirmação quebrou por falta de INSERT numa TABELA (a
+   * trilha de auditoria), e a mensagem dizia "o log diz qual COLUNA faltou
+   * liberar". Toda a investigação foi para os grants de coluna — que estavam
+   * certos. O texto descrevia o único caso conhecido até então e, por isso,
+   * apontava para o lugar errado com toda a confiança do mundo.
+   */
+  it("a mensagem manda procurar tabela E coluna, não só coluna", () => {
+    expect(ACTION_ERROR_MESSAGES.dbPrivilege).toContain("tabela ou coluna");
+  });
 });
 
 /**

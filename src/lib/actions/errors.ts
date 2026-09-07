@@ -169,9 +169,17 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   hasRelated: "Não é possível concluir: há registros vinculados.",
   invalidInput: "Dados inválidos. Verifique os campos e tente novamente.",
   forbidden: "Você não tem permissão para esta ação.",
+  // ⚠️ "TABELA OU COLUNA", E A PALAVRA "TABELA" CUSTOU UMA INVESTIGAÇÃO INTEIRA.
+  // A primeira versão dizia só "qual coluna faltou liberar", porque o caso que
+  // deu origem a ela era mesmo de coluna (`events.description`). Quando o toggle
+  // de confirmação quebrou, a mensagem mandou procurar um grant de coluna — e os
+  // grants de coluna estavam todos certos. O que faltava era o insert numa
+  // TABELA (a trilha de auditoria), três camadas adiante. Uma mensagem de erro
+  // que descreve só o último caso conhecido leva a investigação para o lugar
+  // errado com toda a confiança do mundo.
   dbPrivilege:
     "O banco recusou esta gravação por configuração interna — não é o seu perfil. " +
-    "Avise quem cuida do sistema: o log do servidor diz qual coluna faltou liberar.",
+    "Avise quem cuida do sistema: o log do servidor diz qual tabela ou coluna faltou liberar.",
   // ⚠️ ESTA MENSAGEM NÃO MANDA TENTAR DE NOVO, e é o ponto dela. Quando o banco
   // está atrás do código, insistir é a única coisa garantidamente inútil — e era
   // exatamente o que "Ocorreu um erro inesperado. Tente novamente." pedia.
