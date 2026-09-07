@@ -123,32 +123,38 @@ export default async function PaginaPublicaDeInscricao({
       <CabecalhoInstitucional />
 
       <main className="mx-auto max-w-[46rem] px-5 py-8 sm:px-6 sm:py-12">
-        <CabecalhoDoEvento page={page} />
+        {/* Fora do formulário de propósito: é o que dá nome à página em TODOS
+            os estados, inclusive no de confirmação. Ver `IdentidadeDoEvento`. */}
+        <IdentidadeDoEvento page={page} />
 
-        <div className="mt-8">
-          {/*
-            ⚠️ CAMPO A CAMPO, E NÃO `page={page}` (§33). O formulário é um Client
-            Component: tudo o que descer por esta prop é serializado no payload
-            do RSC e chega ao navegador. A página inteira carrega a contagem de
-            inscritos, a capacidade, o prazo e a situação — nada disso é
-            desenhado ali, e "não é usado" não é o mesmo que "não foi enviado".
+        {/*
+          ⚠️ CAMPO A CAMPO, E NÃO `page={page}` (§33). O formulário é um Client
+          Component: tudo o que descer por esta prop é serializado no payload
+          do RSC e chega ao navegador. A página inteira carrega a contagem de
+          inscritos, a capacidade, o prazo e a situação — nada disso é
+          desenhado ali, e "não é usado" não é o mesmo que "não foi enviado".
 
-            Escrever os campos à mão é o que faz um acréscimo futuro à leitura
-            pública precisar de uma DECISÃO para chegar ao navegador, em vez de
-            chegar por distração.
-          */}
-          <RegistrationForm
-            page={{
-              slug: page.slug,
-              formFields: page.formFields,
-              successImageUrl: page.successImageUrl,
-              successDefaults: page.successDefaults,
-              event: page.event,
-              consent: page.consent,
-            }}
-            initialState={estadoInicial}
-          />
-        </div>
+          Escrever os campos à mão é o que faz um acréscimo futuro à leitura
+          pública precisar de uma DECISÃO para chegar ao navegador, em vez de
+          chegar por distração.
+
+          ⚠️ E `arte` NÃO ABRE UMA EXCEÇÃO A ISSO. Ela desce como NÓ PRONTO,
+          desenhado aqui no servidor — não como os dados para desenhá-lo. O
+          formulário decide se aquilo continua na tela (some na confirmação) sem
+          nunca receber `imageUrl`, `closesAt` ou a contagem de inscritos.
+        */}
+        <RegistrationForm
+          page={{
+            slug: page.slug,
+            formFields: page.formFields,
+            successImageUrl: page.successImageUrl,
+            successDefaults: page.successDefaults,
+            event: page.event,
+            consent: page.consent,
+          }}
+          initialState={estadoInicial}
+          arte={<ArteDoEvento page={page} />}
+        />
       </main>
 
       <RodapeInstitucional />
@@ -157,7 +163,7 @@ export default async function PaginaPublicaDeInscricao({
 }
 
 /**
- * §8 — a imagem, e o resto SÓ PARA LEITOR DE TELA.
+ * §8 — o nome, a data, a hora e o local, SÓ PARA LEITOR DE TELA.
  *
  * ============================================================================
  * ⚠️ NOME, DATA, HORA E LOCAL SAÍRAM DA TELA — MAS NÃO DA PÁGINA.
@@ -186,7 +192,49 @@ export default async function PaginaPublicaDeInscricao({
  * `PublicLandingPage` simplesmente não tem `eventId`, autores, segmentação nem
  * `registration_url`. Ver o cabeçalho de `get_public_event_landing_page`.
  */
-function CabecalhoDoEvento({ page }: { page: PublicLandingPage }) {
+function IdentidadeDoEvento({ page }: { page: PublicLandingPage }) {
+  return (
+    /*
+      ⚠️ ELA VIVE FORA DA ARTE, E FOI POR CAUSA DA TELA DE CONFIRMAÇÃO. Era um
+      bloco dentro do mesmo `<article>` da imagem; quando a confirmação passou a
+      substituir a arte inteira, este bloco iria junto — e a página de
+      confirmação ficaria SEM `<h1>`, ou seja, sem nome para o índice de
+      cabeçalhos do leitor de tela e para o buscador.
+
+      Aqui ele sobrevive à troca. Custa zero pixel em qualquer estado.
+    */
+    <div className="sr-only">
+      <h1>{page.event.name}</h1>
+      <dl>
+        <dt>Data</dt>
+        <dd>{formatCalendarDate(page.event.eventDate)}</dd>
+        <dt>Horário</dt>
+        <dd>{formatTimeRange(page.event.startTime, page.event.endTime)}</dd>
+        {page.event.location && (
+          <>
+            <dt>Local</dt>
+            <dd>{page.event.location}</dd>
+          </>
+        )}
+      </dl>
+    </div>
+  );
+}
+
+/**
+ * A ARTE DO EVENTO, O AVISO DE VAGAS E O PRAZO — o que a confirmação apaga.
+ *
+ * ⚠️ ELA DESCE COMO PROP PARA O FORMULÁRIO, e não é desenhada aqui na página
+ * como antes. O motivo é o defeito que isto veio consertar: a confirmação
+ * substituía só o formulário, e este bloco continuava desenhado ACIMA dela —
+ * dois banners empilhados e um "Inscrições até 18/09/2026" logo depois de a
+ * pessoa ter se inscrito.
+ *
+ * Continua sendo o SERVIDOR quem desenha. O que o cliente ganhou foi a decisão
+ * de mostrar ou não; os dados para montar isto — `imageUrl`, `closesAt`,
+ * `maxParticipants`, `participantCount` — continuam sem atravessar a fronteira.
+ */
+function ArteDoEvento({ page }: { page: PublicLandingPage }) {
   const vagas =
     page.maxParticipants === null
       ? null
@@ -194,30 +242,6 @@ function CabecalhoDoEvento({ page }: { page: PublicLandingPage }) {
 
   return (
     <article>
-      {/*
-        ⚠️ FORA DO `space-y-5` DE PROPÓSITO. `sr-only` posiciona o bloco fora do
-        fluxo, mas o `space-y` não sabe disso: ele daria margem ao vizinho
-        seguinte, e o banner desceria alguns pixels por causa de um elemento que
-        ninguém vê. Um espaçamento que só existe para conteúdo invisível é
-        exatamente o tipo de coisa que alguém "arruma" seis meses depois sem
-        entender o que quebrou.
-      */}
-      <div className="sr-only">
-        <h1>{page.event.name}</h1>
-        <dl>
-          <dt>Data</dt>
-          <dd>{formatCalendarDate(page.event.eventDate)}</dd>
-          <dt>Horário</dt>
-          <dd>{formatTimeRange(page.event.startTime, page.event.endTime)}</dd>
-          {page.event.location && (
-            <>
-              <dt>Local</dt>
-              <dd>{page.event.location}</dd>
-            </>
-          )}
-        </dl>
-      </div>
-
       <div className="space-y-5">
         {page.imageUrl && (
           <SignedImage

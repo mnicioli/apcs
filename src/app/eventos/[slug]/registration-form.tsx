@@ -75,6 +75,7 @@ function novaLinha(): Linha {
 export function RegistrationForm({
   page,
   initialState,
+  arte = null,
 }: {
   page: PublicRegistrationFormData;
   /**
@@ -83,6 +84,19 @@ export function RegistrationForm({
    * abertas.
    */
   initialState: PublicRegistrationState;
+  /**
+   * A arte do evento e os avisos de vaga e prazo, DESENHADOS NO SERVIDOR.
+   *
+   * ⚠️ É UM NÓ PRONTO, e não os dados para montá-lo. A diferença é o §33: para
+   * desenhar isto aqui seriam necessários `imageUrl`, `closesAt`,
+   * `maxParticipants` e `participantCount` no payload do RSC — e nada disso tem
+   * por que chegar ao navegador. Assim o servidor desenha e o cliente só decide
+   * se aquilo continua na tela.
+   *
+   * `null` por padrão para as baterias que montam o formulário sozinho: elas
+   * testam o formulário, não a página.
+   */
+  arte?: React.ReactNode;
 }) {
   const [companyName, setCompanyName] = useState("");
   const [linhas, setLinhas] = useState<Linha[]>(() => [novaLinha()]);
@@ -231,135 +245,173 @@ export function RegistrationForm({
     }
   };
 
-  if (estado === "closed" || estado === "soldOut") {
-    return <AvisoInscricoesFechadas motivo={estado} />;
-  }
-
+  /**
+   * ==========================================================================
+   * ⚠️ A CONFIRMAÇÃO SUBSTITUI A PÁGINA INTEIRA, E NÃO SÓ O FORMULÁRIO.
+   * ==========================================================================
+   * Ela substituía só este componente — e a arte do evento, o aviso de vagas e
+   * o prazo continuavam desenhados ACIMA dela, porque moravam na página, que é
+   * Server Component e não sabe que alguém se inscreveu. O resultado era uma
+   * tela com dois banners empilhados e um "Inscrições até 18/09/2026" logo
+   * depois de a pessoa ter se inscrito.
+   *
+   * A saída não foi mover a arte para cá: ela é do SERVIDOR, e trazê-la para o
+   * navegador significaria mandar `imageUrl`, `closesAt`, `maxParticipants` e
+   * `participantCount` no payload do RSC — tudo o que o §33 mandou não mandar.
+   *
+   * Ela desce como NÓ PRONTO, na prop `arte`. O servidor continua desenhando; o
+   * cliente só decide se aquilo aparece. Nenhum dado novo atravessa a fronteira.
+   *
+   * ⚠️ E O `<h1>` NÃO VEM AQUI DENTRO. A identidade do evento em `sr-only` ficou
+   * na página, fora desta prop, justamente para sobreviver à troca: uma página
+   * de confirmação sem `<h1>` não tem nome para o leitor de tela nem para o
+   * buscador. Ver `IdentidadeDoEvento` em page.tsx.
+   */
   if (estado === "success") {
     return <TelaDeSucesso page={page} tituloRef={tituloRef} />;
+  }
+
+  // ⚠️ ENCERRADA E ESGOTADA MANTÊM A ARTE. Não é inconsistência com o caso
+  // acima: quem chega numa página encerrada continua querendo saber que evento
+  // é aquele — a página não deixou de ser a do evento, ela só não aceita mais
+  // inscrição. Quem acabou de se inscrever já sabe.
+  if (estado === "closed" || estado === "soldOut") {
+    return (
+      <>
+        {arte}
+        <div className="mt-8">
+          <AvisoInscricoesFechadas motivo={estado} />
+        </div>
+      </>
+    );
   }
 
   const enviando = estado === "submitting";
   const noTeto = linhas.length >= MAX_PARTICIPANTS_PER_REGISTRATION;
 
   return (
-    <form
-      noValidate
-      onSubmit={(evento) => {
-        evento.preventDefault();
-        void enviar();
-      }}
-      className="border-hairline bg-card space-y-6 rounded-2xl border p-5 sm:p-7"
-    >
-      <h2
-        id="inscricao"
-        ref={tituloRef}
-        tabIndex={-1}
-        className="font-display text-primary-strong scroll-mt-4 text-xl font-extrabold tracking-tight uppercase focus:outline-none"
-      >
-        {PUBLIC_LANDING_COPY.formTitle}
-      </h2>
+    <>
+      {arte}
+      <div className="mt-8">
+        <form
+          noValidate
+          onSubmit={(evento) => {
+            evento.preventDefault();
+            void enviar();
+          }}
+          className="border-hairline bg-card space-y-6 rounded-2xl border p-5 sm:p-7"
+        >
+          <h2
+            id="inscricao"
+            ref={tituloRef}
+            tabIndex={-1}
+            className="font-display text-primary-strong scroll-mt-4 text-xl font-extrabold tracking-tight uppercase focus:outline-none"
+          >
+            {PUBLIC_LANDING_COPY.formTitle}
+          </h2>
 
-      {/* §30 e §41 — o erro do envio, anunciado. `role="alert"` porque ele
+          {/* §30 e §41 — o erro do envio, anunciado. `role="alert"` porque ele
           aparece DEPOIS de uma ação da pessoa: quem usa leitor de tela precisa
           ouvir sem ter de procurar. */}
-      {erroEnvio && (
-        <p
-          role="alert"
-          className="border-destructive/40 bg-destructive/5 text-destructive rounded-lg border px-4 py-3 text-sm font-medium"
-        >
-          {erroEnvio}
-        </p>
-      )}
+          {erroEnvio && (
+            <p
+              role="alert"
+              className="border-destructive/40 bg-destructive/5 text-destructive rounded-lg border px-4 py-3 text-sm font-medium"
+            >
+              {erroEnvio}
+            </p>
+          )}
 
-      {/* §9 — a granja aparece UMA VEZ. A inscrição é dela; as pessoas
+          {/* §9 — a granja aparece UMA VEZ. A inscrição é dela; as pessoas
           pertencem a ela. */}
-      {mostraCampo("GRANJA_EMPRESA") && (
-        <TextField
-          id="companyName"
-          name="organization"
-          autoComplete="organization"
-          label={LANDING_FIELD_LABELS.GRANJA_EMPRESA}
-          value={companyName}
-          disabled={enviando}
-          error={erros["companyName"]}
-          onChange={(evento) => {
-            setCompanyName(evento.target.value);
-            setErros((atual) => ({ ...atual, companyName: undefined }));
-          }}
-        />
-      )}
+          {mostraCampo("GRANJA_EMPRESA") && (
+            <TextField
+              id="companyName"
+              name="organization"
+              autoComplete="organization"
+              label={LANDING_FIELD_LABELS.GRANJA_EMPRESA}
+              value={companyName}
+              disabled={enviando}
+              error={erros["companyName"]}
+              onChange={(evento) => {
+                setCompanyName(evento.target.value);
+                setErros((atual) => ({ ...atual, companyName: undefined }));
+              }}
+            />
+          )}
 
-      <div className="space-y-5">
-        {linhas.map((linha, indice) => (
-          <BlocoParticipante
-            key={linha.key}
-            linha={linha}
-            indice={indice}
-            campos={page.formFields}
-            erros={erros}
-            desabilitado={enviando}
-            podeRemover={linhas.length > 1}
-            onChange={setLinha}
-            onRemove={() => remover(indice)}
-          />
-        ))}
-      </div>
+          <div className="space-y-5">
+            {linhas.map((linha, indice) => (
+              <BlocoParticipante
+                key={linha.key}
+                linha={linha}
+                indice={indice}
+                campos={page.formFields}
+                erros={erros}
+                desabilitado={enviando}
+                podeRemover={linhas.length > 1}
+                onChange={setLinha}
+                onRemove={() => remover(indice)}
+              />
+            ))}
+          </div>
 
-      {/* §11 e §31 — um `<button>` de verdade, com texto, alcançável por
+          {/* §11 e §31 — um `<button>` de verdade, com texto, alcançável por
           teclado como qualquer outro. */}
-      <div className="space-y-2">
-        <button
-          type="button"
-          onClick={adicionar}
-          disabled={enviando || noTeto}
-          className="border-input text-primary-strong hover:bg-accent focus:ring-ring/30 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-dashed text-sm font-semibold transition-colors focus:ring-2 focus:outline-none disabled:opacity-50"
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          {PUBLIC_LANDING_COPY.addParticipant}
-        </button>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={adicionar}
+              disabled={enviando || noTeto}
+              className="border-input text-primary-strong hover:bg-accent focus:ring-ring/30 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-dashed text-sm font-semibold transition-colors focus:ring-2 focus:outline-none disabled:opacity-50"
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              {PUBLIC_LANDING_COPY.addParticipant}
+            </button>
 
-        {/* §13 — a frase que o prompt pede, e ela só aparece quando é verdade.
+            {/* §13 — a frase que o prompt pede, e ela só aparece quando é verdade.
             O banco recusa igual (o `.max` do schema), então esta é a mensagem,
             não a regra. */}
-        {noTeto && (
-          <p role="status" className="text-muted-foreground text-xs">
-            O limite de participantes por inscrição foi atingido.
-          </p>
-        )}
-      </div>
+            {noTeto && (
+              <p role="status" className="text-muted-foreground text-xs">
+                O limite de participantes por inscrição foi atingido.
+              </p>
+            )}
+          </div>
 
-      {/* §35 — o consentimento é o mecanismo QUE JÁ EXISTE: o mesmo texto de
+          {/* §35 — o consentimento é o mecanismo QUE JÁ EXISTE: o mesmo texto de
           `consent_texts` que a landing de associação mostra, e a mesma versão
           gravada junto do registro. */}
-      {page.consent && (
-        <CheckboxRow
-          id="consentAccepted"
-          checked={consentAccepted}
-          error={erros["consentAccepted"]}
-          onChange={(marcado) => {
-            setConsentAccepted(marcado);
-            setErros((atual) => ({ ...atual, consentAccepted: undefined }));
-          }}
-        >
-          <span className="text-muted-foreground block text-xs font-semibold tracking-wide uppercase">
-            {PUBLIC_LANDING_COPY.consentLead}
-          </span>
-          {page.consent.body}
-        </CheckboxRow>
-      )}
+          {page.consent && (
+            <CheckboxRow
+              id="consentAccepted"
+              checked={consentAccepted}
+              error={erros["consentAccepted"]}
+              onChange={(marcado) => {
+                setConsentAccepted(marcado);
+                setErros((atual) => ({ ...atual, consentAccepted: undefined }));
+              }}
+            >
+              <span className="text-muted-foreground block text-xs font-semibold tracking-wide uppercase">
+                {PUBLIC_LANDING_COPY.consentLead}
+              </span>
+              {page.consent.body}
+            </CheckboxRow>
+          )}
 
-      <button
-        type="submit"
-        disabled={enviando}
-        // §23, rede 2 de 3. `aria-busy` é o que faz o leitor de tela anunciar
-        // que algo está em curso — sem ele, o botão só "para de responder".
-        aria-busy={enviando}
-        className="bg-primary text-primary-foreground hover:bg-primary-strong focus:ring-ring/40 h-12 w-full rounded-lg text-sm font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:outline-none disabled:opacity-70"
-      >
-        {enviando ? PUBLIC_LANDING_COPY.submitting : PUBLIC_LANDING_COPY.submit}
-      </button>
-    </form>
+          <button
+            type="submit"
+            disabled={enviando}
+            // §23, rede 2 de 3. `aria-busy` é o que faz o leitor de tela anunciar
+            // que algo está em curso — sem ele, o botão só "para de responder".
+            aria-busy={enviando}
+            className="bg-primary text-primary-foreground hover:bg-primary-strong focus:ring-ring/40 h-12 w-full rounded-lg text-sm font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:outline-none disabled:opacity-70"
+          >
+            {enviando ? PUBLIC_LANDING_COPY.submitting : PUBLIC_LANDING_COPY.submit}
+          </button>
+        </form>
+      </div>
+    </>
   );
 }
 

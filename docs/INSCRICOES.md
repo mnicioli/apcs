@@ -1294,3 +1294,49 @@ controles iguais — o mesmo cuidado do seletor de posição, ali ao lado.
 | Nome do Participante | De cada participante.                                                         |
 | Telefone             | Cada participante precisa informar telefone ou WhatsApp.                      |
 | WhatsApp             | Cada participante precisa informar telefone ou WhatsApp.                      |
+
+---
+
+## 22. A confirmação substitui a PÁGINA, e não só o formulário
+
+Defeito visto em produção logo depois da seção 20: quem se inscrevia continuava
+vendo o **cartaz do evento** e **"Inscrições até 18/09/2026, 08:00"** acima da
+confirmação. Dois banners empilhados, e um prazo que já não dizia nada a quem
+acabou de se inscrever.
+
+### Por que nenhum teste tinha pegado
+
+A causa era estrutural, e as duas metades estavam certas sozinhas:
+
+- a **arte** (cartaz, aviso de vagas, prazo) morava na PÁGINA, que é Server
+  Component e não tem como saber que alguém se inscreveu;
+- a **troca** para a tela de confirmação acontecia dentro de
+  `RegistrationForm`, que só substitui a si mesmo.
+
+Cada arquivo fazia o que prometia. O defeito só existia na junção — e nenhuma
+bateria montava as duas coisas juntas.
+
+### A saída, e o que ela NÃO faz
+
+A arte passou a descer para o formulário como **nó pronto**, na prop `arte`.
+
+⚠️ **Nó pronto, e não os dados para montá-lo.** Trazer o desenho para o cliente
+significaria mandar `imageUrl`, `closesAt`, `maxParticipants` e
+`participantCount` no payload do RSC — exatamente o que o §33 mandou não mandar,
+e o que o comentário de `page={{...}}` campo a campo protege. O servidor
+continua desenhando; o cliente só decide se aquilo continua na tela.
+
+⚠️ **O `<h1>` ficou de fora da prop.** A identidade do evento em `sr-only`
+(nome, data, horário, local) virou `IdentidadeDoEvento` e mora na página, fora
+da arte — se ela fosse junto, a tela de confirmação ficaria **sem `<h1>`**, ou
+seja, sem nome para o índice de cabeçalhos do leitor de tela e para o buscador.
+Custa zero pixel em qualquer estado.
+
+⚠️ **Encerrada e esgotada MANTÊM a arte**, e não é inconsistência: quem chega
+numa página encerrada continua querendo saber que evento é aquele — a página não
+deixou de ser a do evento, ela só não aceita mais inscrição. Quem acabou de se
+inscrever já sabe.
+
+Cinco casos novos em `registration-form.test.tsx` amarram as duas metades: a
+arte aparece com formulário, some na confirmação (com banner e sem), e fica nos
+dois estados de página fechada.

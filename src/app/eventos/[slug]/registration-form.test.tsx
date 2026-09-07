@@ -631,3 +631,68 @@ describe("§30 — os erros que não fecham o formulário", () => {
     expect((screen.getByLabelText(/^e-mail/i) as HTMLInputElement).value).toBe("joao@email.com");
   });
 });
+
+/**
+ * ============================================================================
+ * ⚠️ A CONFIRMAÇÃO SUBSTITUI A PÁGINA, E NÃO SÓ O FORMULÁRIO.
+ * ============================================================================
+ * Defeito visto em produção: depois de se inscrever, a pessoa continuava vendo
+ * o cartaz do evento e "Inscrições até 18/09/2026" ACIMA da confirmação — dois
+ * banners empilhados e um prazo que já não dizia nada a ela.
+ *
+ * A causa era estrutural, e é por isso que nenhum teste tinha pegado: a arte
+ * morava na PÁGINA (Server Component), que não sabe que alguém se inscreveu; a
+ * troca acontecia só dentro deste componente. Cada metade estava certa
+ * sozinha.
+ *
+ * A arte passou a descer como nó pronto na prop `arte`, e estes casos são o que
+ * amarra as duas metades. Sem eles, a página pode voltar a desenhar a arte por
+ * fora e ninguém percebe até alguém se inscrever de novo.
+ */
+describe("o que some quando a inscrição é confirmada", () => {
+  const ARTE = <p>CARTAZ E PRAZO DO EVENTO</p>;
+
+  function montarComArte(overrides: Partial<PublicRegistrationFormData> = {}) {
+    return render(<RegistrationForm page={pagina(overrides)} initialState="ready" arte={ARTE} />);
+  }
+
+  it("a arte aparece enquanto há formulário", () => {
+    montarComArte();
+    expect(screen.getByText("CARTAZ E PRAZO DO EVENTO")).toBeInTheDocument();
+  });
+
+  it("e desaparece na confirmação", async () => {
+    const user = userEvent.setup();
+    montarComArte({ successImageUrl: "https://exemplo.invalid/confirmacao.png" });
+    await preencher(user);
+    await user.click(screen.getByRole("button", { name: /confirmar inscrição/i }));
+
+    expect(screen.queryByText("CARTAZ E PRAZO DO EVENTO")).not.toBeInTheDocument();
+    expect(screen.getByAltText(/confirmação de inscrição no encontro técnico/i)).toBeTruthy();
+  });
+
+  it("some também quando a confirmação é só texto", async () => {
+    const user = userEvent.setup();
+    montarComArte();
+    await preencher(user);
+    await user.click(screen.getByRole("button", { name: /confirmar inscrição/i }));
+
+    expect(screen.queryByText("CARTAZ E PRAZO DO EVENTO")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /inscrição confirmada/i })).toBeTruthy();
+  });
+
+  /**
+   * ⚠️ ENCERRADA E ESGOTADA MANTÊM A ARTE, e não é inconsistência: quem chega
+   * numa página encerrada continua querendo saber que evento é aquele. Quem
+   * acabou de se inscrever já sabe.
+   */
+  it.each([
+    ["closed", /inscrições encerradas/i],
+    ["soldOut", /vagas esgotadas/i],
+  ] as const)("mas continua na tela quando o estado inicial é %s", (estado, texto) => {
+    render(<RegistrationForm page={pagina()} initialState={estado} arte={ARTE} />);
+
+    expect(screen.getByText("CARTAZ E PRAZO DO EVENTO")).toBeInTheDocument();
+    expect(screen.getByText(texto)).toBeTruthy();
+  });
+});
