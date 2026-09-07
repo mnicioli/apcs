@@ -1,5 +1,5 @@
 import { ApcsMark } from "@/components/brand/apcs-logo";
-import { APP_LEGAL_NAME } from "@/config/app";
+import { CspiMark } from "@/components/brand/cspi-logo";
 import {
   LANDING_INSTITUTIONAL_CONTEXT,
   PUBLIC_LANDING_COPY,
@@ -19,33 +19,72 @@ import {
  */
 
 /**
- * §6 e §7 — APCS + CSPI no alto, e o usuário não tira.
+ * §6 e §7 — APCS + CSP no alto, e o usuário não tira.
  *
- * ⚠️ O CSPI APARECE COMO ASSINATURA TIPOGRÁFICA, E NÃO COMO LOGO, PORQUE O
- * ARQUIVO NÃO EXISTE. `public/` tem `logo-apcs.svg` e mais nada. Desenhar um
- * substituto seria inventar a marca de terceiro; deixar um espaço vazio seria
- * fingir que está resolvido. É a MESMA decisão (e o mesmo desenho) da prévia do
- * Builder — quando o SVG chegar, são dois lugares para trocar, e este comentário
- * está nos dois. Ver docs/INSCRICOES.md.
+ * ⚠️ AS DUAS SÃO DESENHO, E O CSP ERA A PALAVRA "CSPI" ATÉ AGORA. O arquivo
+ * dele não existia, e o comentário que estava aqui avisava que trocá-lo seria
+ * mexer em dois lugares: este e a prévia do Builder. Foi exatamente o que
+ * aconteceu — o porquê da marca mora em `CspiMark`.
+ *
+ * ⚠️ OS DOIS LOGOS ABREM EM OUTRA ABA, e a razão é o formulário. Esta página é
+ * uma inscrição pela metade na maior parte do tempo que fica aberta: sair dela
+ * no mesmo separador para ver o site institucional joga fora tudo o que a
+ * pessoa já digitou, sem aviso e sem volta (o formulário não guarda rascunho).
+ * `rel="noopener noreferrer"` acompanha o `target` sempre — sem ele, a página
+ * de destino ganha uma referência de volta a esta.
  */
 export function CabecalhoInstitucional() {
   return (
     <header className="border-hairline bg-card border-b">
       <div className="mx-auto flex max-w-[46rem] items-center justify-between gap-3 px-5 py-4">
-        <ApcsMark height={32} />
-        <span className="text-primary-strong text-xs font-semibold tracking-[0.18em] uppercase">
-          {LANDING_INSTITUTIONAL_CONTEXT.program}
-        </span>
+        <LinkInstitucional>
+          <ApcsMark height={32} />
+        </LinkInstitucional>
+        <LinkInstitucional>
+          <CspiMark height={26} />
+        </LinkInstitucional>
       </div>
     </header>
   );
 }
 
+/**
+ * O envoltório dos dois logos.
+ *
+ * Existe para os dois terem o MESMO destino, o mesmo `rel` e o mesmo foco
+ * visível — e para trocar qualquer uma das três coisas ser uma edição só. O
+ * nome acessível vem do `alt` da imagem lá dentro, então o link não precisa (e
+ * não deve) repetir um `aria-label`: um leitor de tela anunciaria duas vezes.
+ *
+ * ⚠️ `<a>` E NÃO `<Link>` DO NEXT. O destino é outro site. O `Link` existe para
+ * navegação interna — ele faz prefetch e tenta uma transição de rota que aqui
+ * não existe.
+ */
+function LinkInstitucional({ children }: { children: React.ReactNode }) {
+  return (
+    <a
+      href={LANDING_INSTITUTIONAL_CONTEXT.website}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="focus:ring-ring/40 rounded focus:ring-2 focus:outline-none"
+    >
+      {children}
+    </a>
+  );
+}
+
+/**
+ * O rodapé.
+ *
+ * ⚠️ UMA LINHA SÓ, ditada pelo cliente. Antes eram duas — a assinatura
+ * "APCS · CSPI" e a razão social por extenso. As duas saíram juntas: o aviso de
+ * direitos já nomeia as duas marcas, e repetir a razão social embaixo dele era
+ * a mesma informação em dois pesos tipográficos.
+ */
 export function RodapeInstitucional() {
   return (
     <footer className="border-hairline text-muted-foreground border-t px-5 py-6 text-center text-xs">
-      <p className="font-medium">{LANDING_INSTITUTIONAL_CONTEXT.signature}</p>
-      <p className="mt-1">{APP_LEGAL_NAME}</p>
+      <p>{LANDING_INSTITUTIONAL_CONTEXT.copyright}</p>
     </footer>
   );
 }

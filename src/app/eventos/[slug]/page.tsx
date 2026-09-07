@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { CalendarDays, Clock, MapPin } from "lucide-react";
 import { SignedImage } from "@/components/ui/signed-image";
 import { APP_SHORT_NAME } from "@/config/app";
 import { getPublicLandingPage } from "@/lib/services/event-landing-public";
@@ -156,12 +155,30 @@ export default async function PaginaPublicaDeInscricao({
 }
 
 /**
- * §8 — a imagem, o título, a descrição, a data e o horário.
+ * §8 — a imagem, a descrição, e o resto SÓ PARA LEITOR DE TELA.
  *
- * ⚠️ O TÍTULO É O NOME DO EVENTO, e é um `<h1>`. Não há campo para
- * sobrescrevê-lo: é a decisão do §9 do Prompt 2 — mudar o título da página não
- * pode mudar o nome oficial do evento, e dois nomes para a mesma coisa é como
- * eles passam a divergir.
+ * ============================================================================
+ * ⚠️ NOME, DATA, HORA E LOCAL SAÍRAM DA TELA — MAS NÃO DA PÁGINA.
+ * ============================================================================
+ * O pedido foi direto: essas quatro informações passam a viver no BANNER, e
+ * repeti-las embaixo dele era dizer a mesma coisa duas vezes. Visualmente elas
+ * sumiram mesmo: o `<h1>` vermelho e a lista com os três ícones não são mais
+ * desenhados.
+ *
+ * O que continua é a versão em `sr-only` — presente no HTML, invisível na tela.
+ * E isso não é teimosia com o pedido; é o pedido inteiro:
+ *
+ *   * o banner é uma IMAGEM. Quem usa leitor de tela recebe o `alt` dela e mais
+ *     nada. Apagar o texto de vez tiraria data, hora e local de quem não
+ *     enxerga — a informação não estaria "no banner" para essa pessoa, estaria
+ *     em lugar nenhum;
+ *   * imagem que não carrega acontece (rede ruim, URL assinada expirada), e sem
+ *     isto a página viraria um formulário sem dizer para qual evento;
+ *   * uma página sem `<h1>` não tem nome: o buscador e o índice de cabeçalhos
+ *     do leitor de tela ficam sem por onde começar.
+ *
+ * Se a intenção for apagar mesmo, é uma linha — mas é uma decisão diferente
+ * desta, e merece ser tomada sabendo o que se perde.
  *
  * ⚠️ NADA DE INTERNO CHEGA AQUI porque nada de interno chegou ao servidor:
  * `PublicLandingPage` simplesmente não tem `eventId`, autores, segmentação nem
@@ -174,70 +191,70 @@ function CabecalhoDoEvento({ page }: { page: PublicLandingPage }) {
       : Math.max(page.maxParticipants - page.participantCount, 0);
 
   return (
-    <article className="space-y-5">
-      {page.imageUrl && (
-        <SignedImage
-          url={page.imageUrl}
-          alt={`Imagem de ${page.event.name}`}
-          sizes="w-full"
-          className="h-auto w-full rounded-2xl object-contain"
-        />
-      )}
-
-      <div className="space-y-3 text-center">
-        <h1 className="font-display text-primary-strong text-2xl leading-tight font-extrabold tracking-tight uppercase sm:text-3xl">
-          {page.event.name}
-        </h1>
-
-        <dl className="text-muted-foreground flex flex-col items-center gap-1.5 text-sm">
-          <div className="flex items-center gap-2">
-            <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
-            <dt className="sr-only">Data</dt>
-            <dd>{formatCalendarDate(page.event.eventDate)}</dd>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock className="size-4 shrink-0" aria-hidden="true" />
-            <dt className="sr-only">Horário</dt>
-            <dd>{formatTimeRange(page.event.startTime, page.event.endTime)}</dd>
-          </div>
+    <article>
+      {/*
+        ⚠️ FORA DO `space-y-5` DE PROPÓSITO. `sr-only` posiciona o bloco fora do
+        fluxo, mas o `space-y` não sabe disso: ele daria margem ao vizinho
+        seguinte, e o banner desceria alguns pixels por causa de um elemento que
+        ninguém vê. Um espaçamento que só existe para conteúdo invisível é
+        exatamente o tipo de coisa que alguém "arruma" seis meses depois sem
+        entender o que quebrou.
+      */}
+      <div className="sr-only">
+        <h1>{page.event.name}</h1>
+        <dl>
+          <dt>Data</dt>
+          <dd>{formatCalendarDate(page.event.eventDate)}</dd>
+          <dt>Horário</dt>
+          <dd>{formatTimeRange(page.event.startTime, page.event.endTime)}</dd>
           {page.event.location && (
-            <div className="flex items-center gap-2">
-              <MapPin className="size-4 shrink-0" aria-hidden="true" />
-              <dt className="sr-only">Local</dt>
+            <>
+              <dt>Local</dt>
               <dd>{page.event.location}</dd>
-            </div>
+            </>
           )}
         </dl>
       </div>
 
-      {page.description?.trim() && (
-        // `whitespace-pre-line` porque a descrição é texto simples com quebras
-        // de linha — a plataforma não tem editor rich text em lugar nenhum, e o
-        // §10 do Prompt 2 pediu o formato existente.
-        //
-        // ⚠️ TEXTO, E NÃO `dangerouslySetInnerHTML` (§34). O que um
-        // administrador digitar no Builder aparece como escreveu, e um `<script>`
-        // digitado ali aparece como as letras `<script>`.
-        <p className="text-base leading-relaxed whitespace-pre-line">{page.description}</p>
-      )}
+      <div className="space-y-5">
+        {page.imageUrl && (
+          <SignedImage
+            url={page.imageUrl}
+            alt={`Imagem de ${page.event.name}`}
+            sizes="w-full"
+            className="h-auto w-full rounded-2xl object-contain"
+          />
+        )}
 
-      {/* §12 e §28 — o aviso de vagas só aparece quando ele muda uma decisão.
-          "Restam 180 de 200" no primeiro dia é ruído; "resta 1 vaga" na véspera
-          é a informação mais importante da página. */}
-      {vagas !== null && vagas > 0 && vagas <= 20 && (
-        <p className="text-primary-strong text-center text-sm font-semibold">
-          {PUBLIC_LANDING_COPY.seatsLeft(vagas)}
-        </p>
-      )}
+        {page.description?.trim() && (
+          // `whitespace-pre-line` porque a descrição é texto simples com quebras
+          // de linha — a plataforma não tem editor rich text em lugar nenhum, e o
+          // §10 do Prompt 2 pediu o formato existente.
+          //
+          // ⚠️ TEXTO, E NÃO `dangerouslySetInnerHTML` (§34). O que um
+          // administrador digitar no Builder aparece como escreveu, e um `<script>`
+          // digitado ali aparece como as letras `<script>`.
+          <p className="text-base leading-relaxed whitespace-pre-line">{page.description}</p>
+        )}
 
-      {/* §29 — o prazo, dito ANTES de a pessoa começar a preencher. Descobrir
-          que as inscrições fecham hoje à noite depois de digitar cinco
-          participantes é tarde demais para servir de alguma coisa. */}
-      {page.closesAt && (
-        <p className="text-muted-foreground text-center text-sm">
-          {PUBLIC_LANDING_COPY.deadline(formatDateTime(page.closesAt))}
-        </p>
-      )}
+        {/* §12 e §28 — o aviso de vagas só aparece quando ele muda uma decisão.
+            "Restam 180 de 200" no primeiro dia é ruído; "resta 1 vaga" na véspera
+            é a informação mais importante da página. */}
+        {vagas !== null && vagas > 0 && vagas <= 20 && (
+          <p className="text-primary-strong text-center text-sm font-semibold">
+            {PUBLIC_LANDING_COPY.seatsLeft(vagas)}
+          </p>
+        )}
+
+        {/* §29 — o prazo, dito ANTES de a pessoa começar a preencher. Descobrir
+            que as inscrições fecham hoje à noite depois de digitar cinco
+            participantes é tarde demais para servir de alguma coisa. */}
+        {page.closesAt && (
+          <p className="text-muted-foreground text-center text-sm">
+            {PUBLIC_LANDING_COPY.deadline(formatDateTime(page.closesAt))}
+          </p>
+        )}
+      </div>
     </article>
   );
 }

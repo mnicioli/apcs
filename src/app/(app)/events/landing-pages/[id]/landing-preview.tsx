@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Monitor, Plus, Smartphone, Trash2 } from "lucide-react";
 import { ApcsMark } from "@/components/brand/apcs-logo";
+import { CspiMark } from "@/components/brand/cspi-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SignedImage } from "@/components/ui/signed-image";
@@ -151,21 +152,19 @@ export function LandingPreview({
                 className="h-auto max-h-72 rounded-md object-contain"
               />
 
-              <div className="space-y-1 text-center">
-                {/* §9. O título é o NOME DO EVENTO. Não há campo para
-                    sobrescrevê-lo, e é a decisão do §9: mudar o título da página
-                    não pode mudar o nome oficial do evento — e dois nomes para a
-                    mesma coisa é como eles passam a divergir. */}
-                <h3 className="text-primary-strong text-lg font-bold tracking-tight uppercase">
-                  {event.name}
-                </h3>
-                <p className="text-muted-foreground text-sm">
-                  {formatCalendarDate(event.eventDate)} ·{" "}
-                  {formatTimeRange(event.startTime, event.endTime)}
-                </p>
-                <p className="text-muted-foreground text-sm">{event.location}</p>
-              </div>
+              {/*
+                ⚠️ NOME, DATA, HORA E LOCAL SAÍRAM DAQUI PORQUE SAÍRAM DE LÁ.
+                Eles passaram a viver no banner, e a página pública deixou de
+                desenhá-los. Esta prévia existe para mostrar o que vai ao ar: se
+                ela continuasse exibindo o título vermelho e a linha de data e
+                local, o administrador aprovaria uma composição que ninguém
+                nunca veria.
 
+                É a mesma lição do consentimento, ali embaixo — uma prévia que
+                não acompanha a página real não é ilustrativa, é errada. E o
+                jeito de o banner ficar bom é justamente conferi-lo aqui SEM o
+                texto por baixo, porque é assim que ele chega a quem se inscreve.
+              */}
               {state.description.trim() && (
                 // `whitespace-pre-line` porque a descrição é texto simples com
                 // quebras de linha — o §10 pede o formato que a plataforma já
@@ -228,20 +227,16 @@ function BotaoDispositivo({
 /**
  * §21 — APCS + CSPI, e o usuário não tira.
  *
- * ⚠️ O CSPI APARECE COMO ASSINATURA TIPOGRÁFICA, E NÃO COMO LOGO, PORQUE O
- * ARQUIVO NÃO EXISTE. `public/` tem `logo-apcs.svg` e mais nada. Desenhar um
- * substituto seria inventar a marca de terceiro; deixar um espaço vazio seria
- * fingir que está resolvido. A assinatura por extenso identifica os dois
- * enquanto o arquivo não chega, e trocá-la por uma imagem depois é mexer só
- * aqui. Ver docs/INSCRICOES.md.
+ * ⚠️ O QUE ESTÁ AQUI TEM DE SER O QUE A PÁGINA PÚBLICA MOSTRA — é o ponto de
+ * existir uma prévia. Quando o CSPI deixou de ser a palavra "CSPI" e virou
+ * desenho lá, virou desenho aqui na MESMA mudança. A altura é menor porque
+ * este cabeçalho inteiro é menor (24 contra 32).
  */
 function CabecalhoInstitucional() {
   return (
     <div className="border-border flex items-center justify-between gap-3 border-b px-5 py-3">
       <ApcsMark height={24} />
-      <span className="text-primary-strong text-xs font-semibold tracking-widest uppercase">
-        {LANDING_INSTITUTIONAL_CONTEXT.program}
-      </span>
+      <CspiMark height={20} />
     </div>
   );
 }
@@ -249,7 +244,7 @@ function CabecalhoInstitucional() {
 function RodapeInstitucional() {
   return (
     <div className="border-border text-muted-foreground border-t px-5 py-3 text-center text-[11px]">
-      {LANDING_INSTITUTIONAL_CONTEXT.signature}
+      {LANDING_INSTITUTIONAL_CONTEXT.copyright}
     </div>
   );
 }

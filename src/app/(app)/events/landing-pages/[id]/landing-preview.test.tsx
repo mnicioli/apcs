@@ -70,26 +70,73 @@ function montar(overrides: Partial<LandingPreviewState> = {}) {
   );
 }
 
-describe("os dados do evento (§7, §11)", () => {
-  it("mostra nome, data, horário e local vindos do evento", () => {
+/**
+ * ⚠️ ESTE BLOCO AFIRMAVA O CONTRÁRIO ATÉ AQUI, E A INVERSÃO É O PEDIDO.
+ *
+ * A prévia mostrava nome, data, horário e local abaixo do banner. Passaram a
+ * viver DENTRO da arte do banner, e repeti-los embaixo era dizer a mesma coisa
+ * duas vezes — então a página pública deixou de desenhá-los, e a prévia
+ * acompanhou.
+ *
+ * O teste vira do avesso em vez de sumir porque a pergunta continua valendo, só
+ * que ao contrário: uma prévia que voltasse a escrever o título por cima do
+ * banner faria o administrador aprovar uma composição duplicada. E é o mesmo
+ * motivo de o consentimento ter entrado aqui na revisão do Prompt 3 — prévia
+ * que não acompanha a página real não é ilustrativa, é errada.
+ */
+describe("os dados do evento (§7, §11) vivem no banner, não no texto", () => {
+  it("não repete nome, data, horário e local abaixo da imagem", () => {
     const { container } = montar();
 
-    expect(screen.getByRole("heading", { name: EVENTO.name })).toBeInTheDocument();
-    // A data e o horário dividem o mesmo parágrafo, separados por um ponto —
-    // por isso a asserção é sobre o texto da prévia inteira, e não sobre um nó.
-    expect(container.textContent).toContain("18/09/2026");
-    expect(container.textContent).toContain("08:00 às 13:00");
-    expect(screen.getByText(EVENTO.location)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: EVENTO.name })).not.toBeInTheDocument();
+    expect(container.textContent).not.toContain("18/09/2026");
+    expect(container.textContent).not.toContain("08:00 às 13:00");
+    expect(screen.queryByText(EVENTO.location)).not.toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ MAS O EVENTO CONTINUA IDENTIFICADO. Sair da tela não é sair da página: o
+   * nome permanece no `alt` do banner, que é o que uma pessoa com leitor de tela
+   * ouve — e o que aparece quando a imagem não carrega. Sem esta linha, a
+   * asserção de cima passaria também numa prévia que perdeu o evento de vista.
+   */
+  it("o nome do evento continua no texto alternativo da imagem", () => {
+    // ⚠️ COM IMAGEM DE VERDADE, e não pelo `montar()` — que passa `imageUrl:
+    // null` e faz o `SignedImage` cair no espaço reservado. As duas situações
+    // interessam, e a asserção seguinte cobre a outra.
+    render(
+      <LandingPreview
+        state={estado()}
+        event={EVENTO}
+        imageUrl="https://exemplo.invalid/banner.png"
+        successDefaults={PADROES}
+      />,
+    );
+
+    expect(screen.getByAltText(`Imagem de ${EVENTO.name}`)).toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ E QUANDO A IMAGEM NÃO CARREGA. É o caso que preocupa depois desta
+   * mudança: com o nome, a data e o local dentro da arte, um banner que não
+   * chega deixaria a página sem dizer para qual evento é. O espaço reservado do
+   * `SignedImage` nomeia o evento, então o pior caso continua identificado.
+   */
+  it("sem imagem, o espaço reservado ainda nomeia o evento", () => {
+    montar();
+    expect(
+      screen.getByLabelText(`Sem imagem disponível para Imagem de ${EVENTO.name}`),
+    ).toBeInTheDocument();
   });
 
   /**
    * §9: "A alteração do título da Landing Page não deve alterar o nome oficial
-   * do evento." A forma escolhida de garantir isso é não haver campo de título
-   * — o cabeçalho da prévia é o nome do evento, e ponto.
+   * do evento." A garantia sempre foi a mesma e não mudou: não existe campo de
+   * título em lugar nenhum do Builder. O que mudou foi onde o nome aparece.
    */
-  it("o título é o nome do evento, sem override", () => {
-    montar({ description: "Um texto qualquer" });
-    expect(screen.getByRole("heading", { name: EVENTO.name })).toBeInTheDocument();
+  it("não há campo para sobrescrever o nome do evento", () => {
+    const { container } = montar({ description: "Um texto qualquer" });
+    expect(within(container).queryByRole("textbox")).not.toBeInTheDocument();
   });
 });
 
@@ -254,13 +301,20 @@ describe("a mensagem de confirmação (§17, §18)", () => {
 });
 
 describe("identidade institucional (§21)", () => {
-  it("APCS e CSPI aparecem, e não há como removê-los", () => {
+  it("APCS e CSP aparecem, e não há como removê-los", () => {
     const { container } = montar();
 
-    // O logo da APCS, pelo texto alternativo.
+    // ⚠️ OS DOIS LOGOS PELO TEXTO ALTERNATIVO, e não mais um deles por texto na
+    // tela. O CSP era a PALAVRA "CSPI" enquanto o arquivo do desenho não
+    // existia; quando ele chegou, `getByText("CSPI")` passou a procurar um
+    // texto que a página não escreve mais. Procurar pelo `alt` cobre as duas
+    // épocas e cobra o que realmente importa: que a marca esteja anunciada para
+    // quem não enxerga a imagem.
     expect(screen.getByAltText(/APCS/)).toBeInTheDocument();
-    expect(screen.getByText("CSPI")).toBeInTheDocument();
-    expect(screen.getByText("APCS · CSPI")).toBeInTheDocument();
+    expect(screen.getByAltText("CSP")).toBeInTheDocument();
+    expect(
+      screen.getByText("© APCS | CSP 2026 - Todos os direitos reservados"),
+    ).toBeInTheDocument();
 
     // ⚠️ NENHUM CONTROLE PARA MEXER NISSO. A identidade não é um dado — não há
     // campo, não há coluna, não há botão. É o §19 do Prompt 1 sendo cobrado

@@ -170,9 +170,25 @@ export const LANDING_AUDIT_FIELD_LABELS: Record<string, string> = {
  */
 export const LANDING_INSTITUTIONAL_CONTEXT = {
   organization: "APCS",
-  program: "CSPI",
-  /** Como as duas aparecem juntas no cabeçalho e no rodapé da página. */
-  signature: "APCS · CSPI",
+  /**
+   * ⚠️ "CSP", E NÃO MAIS "CSPI". Este texto é o `alt` do logo, ou seja: o que
+   * uma pessoa que não enxerga a imagem ouve no lugar dela. O desenho que
+   * chegou escreve **CSP**, e é assim que a marca aparece no nome do evento e
+   * no rodapé que o próprio cliente ditou. Um `alt` que diz uma sigla diferente
+   * da que está desenhada descreve outra coisa.
+   */
+  program: "CSP",
+  /**
+   * O rodapé, palavra por palavra como foi pedido.
+   *
+   * ⚠️ O ANO ESTÁ FIXO, e é uma escolha a rever em janeiro. `2026` foi ditado
+   * assim; derivar de `new Date()` mudaria sozinho na virada do ano — o que
+   * costuma ser o desejado num aviso de direitos, mas é uma decisão de quem
+   * responde pela marca, não uma esperteza para tomar de surpresa.
+   */
+  copyright: "© APCS | CSP 2026 - Todos os direitos reservados",
+  /** Para onde os dois logos do cabeçalho levam. */
+  website: "https://apcs.com.br/",
 } as const;
 
 /* -------------------------------------------------------------------------- */

@@ -10,9 +10,11 @@ EVENTOS
 └── Inscrições       ← quem se inscreveu
 ```
 
-> **Estado:** Prompts 1 e 2 de 5 implementados — banco, domínio, services,
-> actions, **o menu, a listagem, a criação e o Builder com prévia**. A página
-> pública é o Prompt 3; a tela de Inscrições é o Prompt 4.
+> **Estado:** os 5 prompts estão implementados e **em produção**. Banco,
+> domínio, services, actions, o Builder com prévia, a página pública de
+> inscrição, o backoffice com confirmação e a exportação. A seção 18 registra o
+> que quebrou depois do go live — inclusive um defeito que atravessou as cinco
+> etapas sem aparecer.
 
 ---
 
@@ -292,11 +294,11 @@ texto precisa poder mover o nome do evento de lugar na frase.
 
 ### Pendências declaradas
 
-1. **Não existe arquivo de logo do CSPI.** `public/` tem `logo-apcs.svg` e mais
-   nada. O §21 do Prompt 2 pede os dois logos; a prévia identifica o CSPI por
-   **assinatura tipográfica** enquanto o arquivo não chega. Desenhar um
-   substituto seria inventar a marca de terceiro. Quando o SVG existir, o
-   caminho é `CabecalhoInstitucional` em `landing-preview.tsx` — um lugar só.
+1. ~~**Não existe arquivo de logo do CSPI.**~~ **Resolvido depois do Prompt 5.**
+   O arquivo chegou (`public/logo-cspi.png`, 924 × 258) e a assinatura
+   tipográfica saiu dos dois lugares que a usavam. O desenho agora é
+   `CspiMark`, em `src/components/brand/cspi-logo.tsx` — um componente só, lido
+   pela página pública e pela prévia, como o `ApcsMark`.
 
 2. **`events.registration_url` continua sendo um link externo livre.** É a
    decisão arquitetural que o §34 do Prompt 1 manda reportar antes de resolver
@@ -523,10 +525,8 @@ falhar mais traiçoeiro de uma prévia: ela não quebra, ela mente.
 
 ### Pendências para o Prompt 4
 
-1. **O logo do CSPI continua não existindo.** Agora são DOIS lugares para trocar
-   quando o SVG chegar: `CabecalhoInstitucional` em `landing-preview.tsx`
-   (backoffice) e o de `eventos/[slug]/landing-chrome.tsx` (público). O
-   comentário está nos dois.
+1. ~~**O logo do CSPI continua não existindo.**~~ **Resolvido depois do Prompt 5.** Os dois lugares previstos aqui foram exatamente os dois que mudaram, e
+   passaram a ler o mesmo `CspiMark` — ver a pendência 1 do Prompt 2.
 
 2. **`events.registration_url` continua em aberto** — seção 13. Agora é mais
    concreto: o endereço público existe de verdade, e alguém vai colar um link
@@ -814,3 +814,136 @@ suas inscrições só poderiam ser inativadas e canceladas, nunca removidas — 
 publicá-la colocaria um endereço público no ar.
 
 É decisão de quem responde pelo dado, não minha.
+
+---
+
+## 18. Depois do go live: o que quebrou de verdade
+
+Três relatos chegaram depois que o módulo subiu. Dois eram acabamento; um era
+um defeito que estava lá desde o Prompt 1 e que nenhuma das cinco etapas pegou.
+
+### CRÍTICO — o toggle "Confirmado" nunca funcionou
+
+Marcar um participante como "Não confirmado" devolvia:
+
+> O banco recusou esta gravação por configuração interna — não é o seu perfil.
+
+Editar a ficha de um participante falhava igual. Era o mesmo defeito.
+
+**A causa.** `event_registration_audit_logs` é fechada por dois lados, de
+propósito: `revoke insert ... from authenticated` e nenhuma policy de insert. A
+migration que fez isso explica a intenção num comentário — "quem escreve na
+trilha é `create_event_registration` / `update_event_registration` /
+`set_participant_confirmation`, **todas SECURITY DEFINER**". Só que das três,
+**apenas a primeira era**. As outras duas nasceram `SECURITY INVOKER`, e a
+terceira (`update_event_participant`) nasceu igual no Prompt 4.
+
+Uma função `SECURITY INVOKER` roda com o privilégio de quem chamou. Quem chama é
+`authenticated`. `authenticated` não pode inserir na trilha. O UPDATE passava; a
+linha seguinte morria em 42501.
+
+⚠️ **O comentário descrevia um mundo que o código ao lado dele não construiu.**
+
+**Por que nada pegou.** A função é criada sem reclamar (o PL/pgSQL só planeja
+cada comando na primeira execução); type-check, lint e build não falam com o
+Postgres; os testes das actions mockam o Supabase, que é justamente quem
+recusava. E o ciclo de homologação exercitou `create_event_registration` — a
+única das quatro que estava certa. Inscrever funcionava. Confirmar, não.
+
+Isto é exatamente a pendência que o relatório do Prompt 5 declarou em aberto
+("o toggle e o diálogo de edição não foram exercitados na interface"). O item
+não era formalidade: era este defeito, esperando o primeiro clique.
+
+**A correção.** `20260927000000_registration_writes_security_definer.sql` —
+`alter function ... security definer` nas três, sem tocar nos corpos. A checagem
+de papel que elas já faziam na primeira linha (`registrations_is_writer()`) é
+exatamente o que as policies de update checavam, então a barreira é a mesma, um
+nível acima. `auth.uid()` lê o JWT, não o papel do banco: a trilha continua
+registrando quem clicou.
+
+**O guarda.** `src/test/sql-audit-writes.test.ts` varre as 145 funções de todas
+as migrations e recusa `SECURITY INVOKER` gravando em tabela onde
+`authenticated` não tem insert. Ele foi escrito **antes** da correção, e acusou
+as três — e só as três.
+
+### A mensagem de erro apontava para o lugar errado
+
+`dbPrivilege` dizia "o log do servidor diz qual **coluna** faltou liberar",
+porque o caso que a criou era mesmo de coluna (`events.description`). Aqui
+faltava o insert numa **tabela**, e a mensagem mandou toda a investigação para
+os grants de coluna — que estavam certos. Passou a dizer "tabela ou coluna".
+
+⚠️ Uma mensagem de erro que descreve só o último caso conhecido aponta para o
+lugar errado com toda a confiança do mundo.
+
+### O rótulo "E-mail" saía torto
+
+Só o primeiro rótulo de cada bloco de participante, e só em tela larga.
+
+A `<legend>` usa `float-left` para escapar da renderização especial que o
+navegador dá a ela. Um float **estreito** deixa espaço à direita, e a primeira
+linha do primeiro rótulo escorregava para esse espaço: o texto começava 118px
+adiantado — a largura exata de "PARTICIPANTE 1". No celular não cabia texto ao
+lado do float, então a linha já descia sozinha, e o defeito sumia.
+
+`w-full` na legenda resolve: um float de largura total não deixa vão nenhum ao
+lado. O `pt-5` que tentava empurrar os campos para baixo saiu junto — ele nunca
+funcionou, porque a caixa de **margem** do float contava também.
+
+⚠️ O DOM estava certo, os papéis estavam certos, os nomes acessíveis estavam
+certos. O que estava errado era onde o navegador desenhou — e é por isso que
+nenhum teste de unidade encontraria isso.
+
+### O logo do CSPI existe agora
+
+A pendência número 1 do Prompt 2, aberta desde então, fechou: o arquivo chegou
+(`public/logo-cspi.png`). A assinatura tipográfica saiu dos dois lugares
+previstos, e os dois passaram a ler o mesmo `CspiMark` — como já faziam com
+`ApcsMark`.
+
+### Ajustes de arte pedidos depois do go live
+
+**Os dois logos levam a `https://apcs.com.br/`**, em outra aba. O `target` não é
+enfeite: esta página é uma inscrição pela metade na maior parte do tempo que
+fica aberta, e sair dela no mesmo separador jogaria fora o que a pessoa já
+digitou — o formulário não guarda rascunho. `rel="noopener noreferrer"` vai
+junto, sempre.
+
+**Nome, data, hora e local saíram da tela.** Passaram a viver dentro da arte do
+banner, e repeti-los embaixo dele era dizer a mesma coisa duas vezes.
+
+⚠️ **Saíram da TELA, não da página.** A versão `sr-only` continua no HTML, e não
+é teimosia com o pedido — é o pedido inteiro:
+
+- o banner é uma **imagem**; quem usa leitor de tela recebe o `alt` e mais nada.
+  Apagar o texto tiraria data, hora e local de quem não enxerga: a informação
+  não estaria "no banner" para essa pessoa, estaria em lugar nenhum;
+- imagem que não carrega acontece (rede ruim, URL assinada expirada). Sem o
+  texto, a página viraria um formulário sem dizer para qual evento é — e o
+  espaço reservado do `SignedImage` nomeia o evento justamente por isso;
+- uma página sem `<h1>` não tem nome para o buscador nem para o índice de
+  cabeçalhos do leitor de tela.
+
+O bloco `sr-only` fica **fora** do `space-y-5`. `sr-only` tira o elemento do
+fluxo, mas o `space-y` não sabe disso: daria margem ao vizinho, e o banner
+desceria alguns pixels por causa de algo que ninguém vê.
+
+**A prévia do Builder acompanhou.** Ela existe para mostrar o que vai ao ar; se
+continuasse desenhando o título e a linha de data e local, o administrador
+aprovaria uma composição que ninguém veria. É a mesma lição do consentimento no
+Prompt 3 — prévia que não acompanha a página real não é ilustrativa, é errada.
+O teste que afirmava "mostra nome, data, horário e local" foi **invertido** em
+vez de apagado: a pergunta continua valendo, ao contrário.
+
+**O rodapé virou uma linha:** `© APCS | CSP 2026 - Todos os direitos
+reservados`. Saíram a assinatura "APCS · CSPI" e a razão social por extenso — o
+aviso de direitos já nomeia as duas marcas.
+
+⚠️ **O ano está fixo em 2026**, como foi ditado. Derivar de `new Date()` mudaria
+sozinho na virada — o que costuma ser o desejado, mas é decisão de quem responde
+pela marca.
+
+⚠️ **E `program` virou "CSP", não "CSPI".** Esse texto é o `alt` do logo: o que
+alguém ouve no lugar da imagem. O desenho escreve **CSP**, e é assim que a marca
+aparece no nome do evento e no rodapé. Um `alt` com sigla diferente da que está
+desenhada descreve outra coisa.
