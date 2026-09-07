@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { fail, mapPostgresError, ok, type ActionResult } from "@/lib/actions/errors";
+import {
+  fail,
+  failFromPostgres,
+  mapPostgresError,
+  ok,
+  type ActionResult,
+} from "@/lib/actions/errors";
 import { assertPermission } from "@/lib/auth/assert-permission";
 import { clientIpHashFromHeaders } from "@/lib/security/client-ip";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -182,7 +188,8 @@ export async function startMembershipReviewAction(id: string): Promise<ActionRes
     const { error } = await supabase.rpc("start_membership_review", {
       p_application_id: parsed.data.id,
     } as never);
-    if (error) return fail(mapPostgresError(error).code);
+    if (error)
+      return failFromPostgres("membership.startReview", error, { applicationId: parsed.data.id });
 
     revalidateMembership();
     return ok(null);
@@ -211,7 +218,8 @@ export async function approveMembershipApplicationAction(
       p_note: parsed.data.note,
     } as never);
 
-    if (error) return fail(mapPostgresError(error).code);
+    if (error)
+      return failFromPostgres("membership.approve", error, { applicationId: parsed.data.id });
     const membro = data as { id: string } | null;
     if (!membro?.id) return fail("unexpected");
 
@@ -238,7 +246,8 @@ export async function rejectMembershipApplicationAction(
       p_application_id: parsed.data.id,
       p_reason: parsed.data.reason,
     } as never);
-    if (error) return fail(mapPostgresError(error).code);
+    if (error)
+      return failFromPostgres("membership.reject", error, { applicationId: parsed.data.id });
 
     revalidateMembership();
     return ok(null);
@@ -302,7 +311,31 @@ export async function updateMemberAction(
       p_notes: dados.notes,
     } as never);
 
-    if (error) return fail(mapPostgresError(error).code);
+    /*
+      ============================================================================
+      ⚠️ ISTO ERA `fail(mapPostgresError(error).code)`, E O SILÊNCIO CUSTOU CARO.
+      ============================================================================
+      Um associado passou a recusar QUALQUER edição com "Dados inválidos". A
+      tela dizia isso, e não havia mais nada: nem no log da Vercel, nem no
+      console. `mapPostgresError` traduz o código e joga fora o resto — a
+      mensagem do Postgres, o `detail`, o `hint` e o nome da CONSTRAINT, que é
+      justamente o que diz QUAL regra o banco recusou.
+
+      Pior: "Dados inválidos" é a tradução de DOIS caminhos muito diferentes —
+      o Zod recusando o formulário, e o banco recusando um CHECK (23514) ou uma
+      conversão de tipo (22P02). Quem lê a tela não tem como saber em qual dos
+      dois olhar, e quem lê o código descobre que os dois chegam aqui iguais.
+
+      `failFromPostgres` é a peça que este projeto já tinha para isso, e o
+      cabeçalho dela em `errors.ts` descreve exatamente este defeito. Seis
+      chamadas deste arquivo ainda faziam da forma antiga; agora nenhuma faz.
+
+      ⚠️ O CONTEXTO É SÓ O ID. Um log de produção que despeje nome, e-mail ou
+      telefone de associado é um vazamento silencioso — o mesmo cuidado do
+      `[membership.submit]`, ali em cima.
+    */
+    if (error)
+      return failFromPostgres("membership.updateMember", error, { memberId: dados.memberId });
 
     revalidateMembership();
     return ok({ memberId: dados.memberId });
@@ -340,7 +373,10 @@ export async function resumeMemberNotificationsAction(
       p_note: parsed.data.note,
     } as never);
 
-    if (error) return fail(mapPostgresError(error).code);
+    if (error)
+      return failFromPostgres("membership.resumeNotifications", error, {
+        memberId: parsed.data.memberId,
+      });
 
     revalidateMembership();
     return ok({ unblocked: typeof data === "number" ? data : 0 });
@@ -362,7 +398,8 @@ export async function reopenMembershipApplicationAction(id: string): Promise<Act
     const { error } = await supabase.rpc("reopen_membership_application", {
       p_application_id: parsed.data.id,
     } as never);
-    if (error) return fail(mapPostgresError(error).code);
+    if (error)
+      return failFromPostgres("membership.reopen", error, { applicationId: parsed.data.id });
 
     revalidateMembership();
     return ok(null);
