@@ -65,8 +65,8 @@ const LANDING_LIMIT = 200;
  * seguir e devolve erro de ambiguidade.
  */
 const LANDING_COLUMNS =
-  "id, event_id, status, slug, description, image_path, form_fields, " +
-  "success_title, success_message, success_footer, closes_at, max_participants, " +
+  "id, event_id, status, slug, image_path, success_image_path, form_fields, " +
+  "closes_at, max_participants, " +
   "created_at, updated_at, published_at, " +
   "creator:profiles!event_landing_pages_created_by_fkey (id, full_name), " +
   "editor:profiles!event_landing_pages_updated_by_fkey (id, full_name), " +
@@ -130,12 +130,9 @@ interface LandingRow {
   event_id: string;
   status: LandingPageStatus;
   slug: string;
-  description: string | null;
   image_path: string | null;
+  success_image_path: string | null;
   form_fields: unknown;
-  success_title: string | null;
-  success_message: string | null;
-  success_footer: string | null;
   closes_at: string | null;
   max_participants: number | null;
   created_at: string;
@@ -221,12 +218,9 @@ function toLandingPage(
     eventId: row.event_id,
     status: row.status,
     slug: row.slug,
-    description: row.description,
     imageUrl: row.image_path ? (urls.get(row.image_path) ?? null) : null,
+    successImageUrl: row.success_image_path ? (urls.get(row.success_image_path) ?? null) : null,
     formFields: readLandingFields(row.form_fields),
-    successTitle: row.success_title,
-    successMessage: row.success_message,
-    successFooter: row.success_footer,
     closesAt: row.closes_at,
     maxParticipants: row.max_participants,
     participantCount,
@@ -378,6 +372,7 @@ export async function listLandingPages(
   const contagem = await countParticipantsByLanding(rows.map((row) => row.id));
   const urls = await signImages([
     ...rows.map((row) => row.image_path ?? ""),
+    ...rows.map((row) => row.success_image_path ?? ""),
     ...rows.map((row) => row.event?.image_path ?? ""),
   ]);
 
@@ -411,7 +406,11 @@ export async function getLandingPage(landingPageId: string): Promise<LandingPage
   if (!data) return null;
 
   const contagem = await countParticipantsByLanding([data.id]);
-  const urls = await signImages([data.image_path ?? "", data.event?.image_path ?? ""]);
+  const urls = await signImages([
+    data.image_path ?? "",
+    data.success_image_path ?? "",
+    data.event?.image_path ?? "",
+  ]);
 
   return toLandingPage(data, contagem.get(data.id) ?? 0, urls);
 }
@@ -440,7 +439,11 @@ export async function getLandingPageByEvent(eventId: string): Promise<LandingPag
   if (!data) return null;
 
   const contagem = await countParticipantsByLanding([data.id]);
-  const urls = await signImages([data.image_path ?? "", data.event?.image_path ?? ""]);
+  const urls = await signImages([
+    data.image_path ?? "",
+    data.success_image_path ?? "",
+    data.event?.image_path ?? "",
+  ]);
 
   return toLandingPage(data, contagem.get(data.id) ?? 0, urls);
 }

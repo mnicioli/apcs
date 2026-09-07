@@ -399,28 +399,36 @@ export function applyTemplateVariables(texto: string, event: LandingTemplateEven
 /**
  * O texto de confirmação, resolvido.
  *
- * ⚠️ DUAS FONTES, NUNCA DUAS VERDADES. A Landing Page pode sobrescrever cada um
- * dos três pedaços; o que ela não define vem do texto padrão da plataforma
- * (`app_settings`, editável em /settings/texts). O padrão só é consultado
- * quando a específica não existe — e é por isso que não há hardcode em service
- * nem em controller, como o §18 exige.
+ * ============================================================================
+ * ⚠️ UMA FONTE SÓ, DESDE QUE A CONFIRMAÇÃO VIROU BANNER.
+ * ============================================================================
+ * Ela recebia um segundo argumento — os três pedaços sobrescritos pela Landing
+ * Page — e escolhia entre eles e o padrão da plataforma. Esses três campos não
+ * existem mais: a confirmação passou a ser uma IMAGEM, e o texto que sobrou é o
+ * da plataforma (`app_settings`, editável em /settings/texts).
  *
- * A substituição acontece aqui, e não concatenada no SQL, porque quem edita o
- * texto precisa poder mover o nome do evento de lugar na frase.
+ * A função continua existindo, e não virou uma linha solta na tela, por dois
+ * motivos que não mudaram:
+ *
+ *   * a substituição das variáveis (`{{event_name}}`, `<DATA>`) acontece aqui, e
+ *     não concatenada no SQL, porque quem edita o texto precisa poder mover o
+ *     nome do evento de lugar na frase;
+ *   * são DUAS telas mostrando a mesma confirmação — a prévia do Builder e a
+ *     página pública. Enquanto as duas chamarem esta função, elas não têm como
+ *     discordar sobre o que a granja vê.
+ *
+ * ⚠️ E O TEXTO NÃO SUMIU DA TELA POR CAUSA DO BANNER. Ele é o que aparece
+ * quando a página ainda não tem banner de confirmação, e é o que um leitor de
+ * tela recebe quando ela tem.
  */
 export function resolveSuccessMessage(
-  page: {
-    successTitle: string | null;
-    successMessage: string | null;
-    successFooter: string | null;
-  },
   defaults: LandingSuccessMessage,
   event: LandingTemplateEvent,
 ): LandingSuccessMessage {
   return {
-    title: applyTemplateVariables(page.successTitle ?? defaults.title, event),
-    message: applyTemplateVariables(page.successMessage ?? defaults.message, event),
-    footer: applyTemplateVariables(page.successFooter ?? defaults.footer, event),
+    title: applyTemplateVariables(defaults.title, event),
+    message: applyTemplateVariables(defaults.message, event),
+    footer: applyTemplateVariables(defaults.footer, event),
   };
 }
 

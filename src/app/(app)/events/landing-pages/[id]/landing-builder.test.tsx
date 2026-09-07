@@ -44,12 +44,9 @@ function pagina(overrides: Partial<LandingPageWithEvent> = {}): LandingPageWithE
     eventId: "e1",
     status: "draft",
     slug: "encontro-tecnico",
-    description: "",
     imageUrl: null,
+    successImageUrl: null,
     formFields: ["GRANJA_EMPRESA", "EMAIL", "NOME_PARTICIPANTE", "TELEFONE", "WHATSAPP"],
-    successTitle: null,
-    successMessage: null,
-    successFooter: null,
     closesAt: null,
     maxParticipants: null,
     participantCount: 0,
@@ -149,7 +146,7 @@ describe("salvar (§22, §28)", () => {
     const user = userEvent.setup();
     montar();
 
-    await user.type(screen.getByLabelText("Descrição"), "Dois dias de conteúdo.");
+    await user.type(screen.getByLabelText("Capacidade máxima"), "120");
 
     expect(screen.getByRole("button", { name: "Salvar" })).toBeEnabled();
     expect(screen.getByText("Há alterações não salvas.")).toBeInTheDocument();
@@ -159,12 +156,36 @@ describe("salvar (§22, §28)", () => {
     const user = userEvent.setup();
     montar();
 
-    await user.type(screen.getByLabelText("Descrição"), "Texto novo");
+    await user.type(screen.getByLabelText("Capacidade máxima"), "120");
     await user.click(screen.getByRole("button", { name: "Salvar" }));
 
     expect(updateLandingPageAction).toHaveBeenCalledTimes(1);
-    const enviado = updateLandingPageAction.mock.calls[0]?.[0] as { description: string };
-    expect(enviado.description).toBe("Texto novo");
+    const enviado = updateLandingPageAction.mock.calls[0]?.[0] as { maxParticipants: string };
+    expect(enviado.maxParticipants).toBe("120");
+  });
+
+  /**
+   * ⚠️ O QUE O BUILDER NÃO MANDA MAIS. Os quatro textos saíram do schema, e a
+   * função Postgres perdeu os quatro parâmetros — mas uma action que continuasse
+   * mandando `description: ""` compilaria (o schema ignora chave extra) e
+   * apagaria em produção um texto que ninguém pediu para apagar. Esta asserção
+   * é o que cobra o silêncio.
+   */
+  it("não manda mais descrição nem mensagem de confirmação", async () => {
+    const user = userEvent.setup();
+    montar();
+
+    await user.type(screen.getByLabelText("Capacidade máxima"), "120");
+    await user.click(screen.getByRole("button", { name: "Salvar" }));
+
+    const enviado = updateLandingPageAction.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(Object.keys(enviado).sort()).toEqual([
+      "closesAt",
+      "formFields",
+      "landingPageId",
+      "maxParticipants",
+      "slug",
+    ]);
   });
 
   /**
@@ -198,7 +219,7 @@ describe("salvar (§22, §28)", () => {
     });
     montar();
 
-    await user.type(screen.getByLabelText("Descrição"), "x");
+    await user.type(screen.getByLabelText("Capacidade máxima"), "1");
     await user.click(screen.getByRole("button", { name: "Salvar" }));
 
     const alerta = await screen.findByRole("alert");
@@ -240,27 +261,37 @@ describe("a capacidade (§16)", () => {
   });
 });
 
-describe("a mensagem de confirmação (§17, §18)", () => {
-  it("o campo vazio mostra o texto padrão como placeholder", () => {
+/**
+ * ============================================================================
+ * ⚠️ A CONFIRMAÇÃO VIROU UMA IMAGEM, E O TEXTO SAIU DO BUILDER.
+ * ============================================================================
+ * Aqui havia três casos sobre os campos de título, mensagem e rodapé, e sobre a
+ * lista de variáveis que os acompanhava. Eles não foram esquecidos: o cliente
+ * pediu a confirmação como BANNER, e os três campos deixaram de existir — na
+ * tela, no schema e na assinatura da função Postgres.
+ *
+ * O que ficou no lugar são estas duas asserções, e elas são o oposto das
+ * anteriores: a tela NÃO oferece mais o que a página não usa. Um teste que
+ * apenas some deixaria a volta acidental dos campos passar sem uma palavra.
+ */
+describe("a confirmação é um banner, não um texto (§17)", () => {
+  it("não há mais campo de título, mensagem ou rodapé de confirmação", () => {
     montar();
-    expect(screen.getByLabelText("Título")).toHaveAttribute("placeholder", "INSCRIÇÃO CONFIRMADA!");
+    expect(screen.queryByLabelText("Título")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mensagem")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mensagem final")).not.toBeInTheDocument();
+    expect(screen.queryByText("{{event_name}}")).not.toBeInTheDocument();
   });
 
-  /**
-   * ⚠️ A LISTA DE VARIÁVEIS APARECE NA TELA porque o §18 proíbe variável
-   * arbitrária — e a única forma de isso não virar tentativa e erro é MOSTRAR
-   * quais existem, ao lado do campo em que se digita.
-   */
-  it("lista as quatro variáveis permitidas", () => {
+  it("nem campo de descrição da página", () => {
     montar();
-    for (const variavel of [
-      "{{event_name}}",
-      "{{event_date}}",
-      "{{event_start_time}}",
-      "{{event_end_time}}",
-    ]) {
-      expect(screen.getByText(variavel)).toBeInTheDocument();
-    }
+    expect(screen.queryByLabelText("Descrição")).not.toBeInTheDocument();
+  });
+
+  it("no lugar deles há o envio das duas artes", () => {
+    montar();
+    expect(screen.getByLabelText("Imagem da página")).toBeInTheDocument();
+    expect(screen.getByLabelText("Imagem da confirmação")).toBeInTheDocument();
   });
 });
 
@@ -270,23 +301,13 @@ describe("a prévia acompanha o Builder (§19)", () => {
    * que faz a prévia em tempo real ser consequência do desenho em vez de um
    * recurso à parte.
    */
-  it("digitar a descrição muda a prévia no mesmo instante", async () => {
-    const user = userEvent.setup();
-    montar();
-
-    await user.type(screen.getByLabelText("Descrição"), "Conteúdo técnico");
-
-    // Duas vezes no DOM: o conteúdo do textarea e o parágrafo da prévia.
-    expect(screen.getAllByText("Conteúdo técnico")).toHaveLength(2);
-    expect(screen.getByLabelText("Descrição")).toHaveValue("Conteúdo técnico");
-    expect(updateLandingPageAction).not.toHaveBeenCalled();
-  });
-
   it("reordenar os campos muda a prévia sem salvar", async () => {
     const user = userEvent.setup();
     montar();
 
-    await user.click(screen.getByRole("button", { name: "Mover WhatsApp para cima" }));
+    // WhatsApp é o 5º campo; mandá-lo para a 4ª posição o põe antes do
+    // Telefone. É o `<select>` que substituiu as setas.
+    await user.selectOptions(screen.getByLabelText("Posição de WhatsApp"), "4");
 
     const bloco = screen.getByText("Participante 1").parentElement?.parentElement;
     const texto = bloco?.textContent ?? "";
@@ -324,15 +345,13 @@ describe("somente leitura (§30)", () => {
   it("todos os campos vêm desabilitados", () => {
     montar({}, false);
 
-    expect(screen.getByLabelText("Descrição")).toBeDisabled();
     expect(screen.getByLabelText("Endereço personalizado")).toBeDisabled();
     expect(screen.getByLabelText("Capacidade máxima")).toBeDisabled();
-    expect(screen.getByLabelText("Título")).toBeDisabled();
   });
 
-  it("as setas de reordenar também", () => {
+  it("a escolha de posição dos campos também", () => {
     montar({}, false);
-    expect(screen.getByRole("button", { name: "Mover E-mail para baixo" })).toBeDisabled();
+    expect(screen.getByLabelText("Posição de E-mail")).toBeDisabled();
   });
 
   /** A tela continua servindo para CONSULTAR — que é para isso que ela abre. */

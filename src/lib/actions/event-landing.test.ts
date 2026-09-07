@@ -490,6 +490,7 @@ describe("a imagem da página", () => {
 
     const resultado = await requestLandingImageUploadAction({
       landingPageId: LANDING,
+      slot: "page",
       filename: "cartaz.jpg",
       sizeBytes: 1024,
     });
@@ -503,9 +504,10 @@ describe("a imagem da página", () => {
 
     const gravar = await setLandingPageImageAction({
       landingPageId: LANDING,
+      slot: "page",
       storagePath: `${EVENTO}/landing/x.jpg`,
     });
-    const remover = await removeLandingPageImageAction({ landingPageId: LANDING });
+    const remover = await removeLandingPageImageAction({ landingPageId: LANDING, slot: "page" });
 
     expect(gravar.ok).toBe(false);
     expect(remover.ok).toBe(false);
@@ -522,6 +524,7 @@ describe("a imagem da página", () => {
 
     const resultado = await requestLandingImageUploadAction({
       landingPageId: LANDING,
+      slot: "page",
       filename: "cartaz.jpg",
       sizeBytes: 6 * 1024 * 1024,
     });
@@ -535,6 +538,7 @@ describe("a imagem da página", () => {
 
     const resultado = await requestLandingImageUploadAction({
       landingPageId: LANDING,
+      slot: "page",
       filename: "planilha.xlsx",
       sizeBytes: 1024,
     });
@@ -548,6 +552,7 @@ describe("a imagem da página", () => {
 
     const resultado = await setLandingPageImageAction({
       landingPageId: "não-é-uuid",
+      slot: "page",
       storagePath: "x.jpg",
     });
 

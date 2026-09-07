@@ -87,12 +87,9 @@ function landing(over: Partial<LandingPageWithEvent> = {}): LandingPageWithEvent
     eventId: EVENTO.id,
     status: "published",
     slug: SLUG,
-    description: "Encontro técnico e comercial da APCS.",
     imageUrl: null,
+    successImageUrl: null,
     formFields: ["GRANJA_EMPRESA", "EMAIL", "NOME_PARTICIPANTE", "TELEFONE", "WHATSAPP"],
-    successTitle: null,
-    successMessage: null,
-    successFooter: null,
     closesAt: null,
     maxParticipants: null,
     participantCount: 0,
@@ -324,11 +321,7 @@ describe("Etapa 4 — a tela de sucesso", () => {
    * administrador aprovaria um texto e a granja leria outro.
    */
   it("mostra a mensagem configurada, com o nome do evento", () => {
-    const mensagem = resolveSuccessMessage(
-      { successTitle: null, successMessage: null, successFooter: null },
-      PADROES,
-      landing().event,
-    );
+    const mensagem = resolveSuccessMessage(PADROES, landing().event);
 
     expect(mensagem.title).toBe("INSCRIÇÃO CONFIRMADA!");
     expect(mensagem.message).toBe(

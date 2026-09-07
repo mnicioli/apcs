@@ -52,11 +52,7 @@ export function NewLandingForm({ events }: { events: EventForLanding[] }) {
       const resultado = await createLandingPageAction({
         eventId: escolhido.id,
         slug: "",
-        description: "",
         formFields: [...LANDING_FIELD_KEYS],
-        successTitle: "",
-        successMessage: "",
-        successFooter: "",
         // ⚠️ CONVERTIDO NO NAVEGADOR (`fromLocalInput`), porque o horário do
         // evento é hora LOCAL da APCS e o banco guarda um instante absoluto.
         // Montar isto no servidor leria "08:00" como UTC e fecharia as

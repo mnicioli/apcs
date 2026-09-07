@@ -1051,6 +1051,9 @@ export type Database = {
           slug: string;
           status: Database["public"]["Enums"]["event_landing_page_status"];
           success_footer: string | null;
+          success_image_mime: string | null;
+          success_image_path: string | null;
+          success_image_size_bytes: number | null;
           success_message: string | null;
           success_title: string | null;
           updated_at: string;
@@ -1073,6 +1076,9 @@ export type Database = {
           slug: string;
           status?: Database["public"]["Enums"]["event_landing_page_status"];
           success_footer?: string | null;
+          success_image_mime?: string | null;
+          success_image_path?: string | null;
+          success_image_size_bytes?: number | null;
           success_message?: string | null;
           success_title?: string | null;
           updated_at?: string;
@@ -1095,6 +1101,9 @@ export type Database = {
           slug?: string;
           status?: Database["public"]["Enums"]["event_landing_page_status"];
           success_footer?: string | null;
+          success_image_mime?: string | null;
+          success_image_path?: string | null;
+          success_image_size_bytes?: number | null;
           success_message?: string | null;
           success_title?: string | null;
           updated_at?: string;
@@ -4524,14 +4533,10 @@ export type Database = {
       create_event_landing_page: {
         Args: {
           p_closes_at?: string;
-          p_description?: string;
           p_event_id: string;
           p_form_fields?: Json;
           p_max_participants?: number;
           p_slug?: string;
-          p_success_footer?: string;
-          p_success_message?: string;
-          p_success_title?: string;
         };
         Returns: {
           closes_at: string | null;
@@ -4550,6 +4555,9 @@ export type Database = {
           slug: string;
           status: Database["public"]["Enums"]["event_landing_page_status"];
           success_footer: string | null;
+          success_image_mime: string | null;
+          success_image_path: string | null;
+          success_image_size_bytes: number | null;
           success_message: string | null;
           success_title: string | null;
           updated_at: string;
@@ -5863,6 +5871,9 @@ export type Database = {
           slug: string;
           status: Database["public"]["Enums"]["event_landing_page_status"];
           success_footer: string | null;
+          success_image_mime: string | null;
+          success_image_path: string | null;
+          success_image_size_bytes: number | null;
           success_message: string | null;
           success_title: string | null;
           updated_at: string;
@@ -5894,6 +5905,48 @@ export type Database = {
           slug: string;
           status: Database["public"]["Enums"]["event_landing_page_status"];
           success_footer: string | null;
+          success_image_mime: string | null;
+          success_image_path: string | null;
+          success_image_size_bytes: number | null;
+          success_message: string | null;
+          success_title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_landing_pages";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_event_landing_page_success_image: {
+        Args: {
+          p_landing_page_id: string;
+          p_success_image_mime: string;
+          p_success_image_path: string;
+          p_success_image_size_bytes: number;
+        };
+        Returns: {
+          closes_at: string | null;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          event_id: string;
+          form_fields: Json;
+          id: string;
+          image_mime: string | null;
+          image_path: string | null;
+          image_size_bytes: number | null;
+          max_participants: number | null;
+          published_at: string | null;
+          published_by: string | null;
+          slug: string;
+          status: Database["public"]["Enums"]["event_landing_page_status"];
+          success_footer: string | null;
+          success_image_mime: string | null;
+          success_image_path: string | null;
+          success_image_size_bytes: number | null;
           success_message: string | null;
           success_title: string | null;
           updated_at: string;
@@ -6452,14 +6505,10 @@ export type Database = {
       update_event_landing_page: {
         Args: {
           p_closes_at: string;
-          p_description: string;
           p_form_fields: Json;
           p_landing_page_id: string;
           p_max_participants: number;
           p_slug: string;
-          p_success_footer: string;
-          p_success_message: string;
-          p_success_title: string;
         };
         Returns: {
           closes_at: string | null;
@@ -6478,6 +6527,9 @@ export type Database = {
           slug: string;
           status: Database["public"]["Enums"]["event_landing_page_status"];
           success_footer: string | null;
+          success_image_mime: string | null;
+          success_image_path: string | null;
+          success_image_size_bytes: number | null;
           success_message: string | null;
           success_title: string | null;
           updated_at: string;

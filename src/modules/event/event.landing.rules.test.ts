@@ -281,36 +281,30 @@ describe("mensagem de confirmação (§18)", () => {
   };
 
   it("usa o padrão da plataforma quando a página não define nada", () => {
-    const resolvido = resolveSuccessMessage(
-      { successTitle: null, successMessage: null, successFooter: null },
-      PADRAO,
-      EVENTO,
-    );
+    const resolvido = resolveSuccessMessage(PADRAO, EVENTO);
     expect(resolvido.title).toBe("INSCRIÇÃO CONFIRMADA!");
     expect(resolvido.message).toBe(
       "Seu cadastro para o Encontro Técnico foi realizado com sucesso.",
     );
   });
 
-  it("a página sobrescreve pedaço a pedaço, sem tudo ou nada", () => {
+  /**
+   * ==========================================================================
+   * ⚠️ A PÁGINA NÃO SOBRESCREVE MAIS NADA — E ESTE BLOCO ENCOLHEU POR ISSO.
+   * ==========================================================================
+   * Havia aqui um caso provando que a Landing Page substituía cada pedaço do
+   * texto separadamente. Os três campos que faziam isso saíram: a confirmação
+   * virou um BANNER, e o texto que sobrou é o único que existia por baixo — o
+   * padrão da plataforma.
+   *
+   * O que NÃO saiu é a substituição de variável, e é por isso que a função
+   * continua existindo em vez de virar uma linha na tela: quem escreve o texto
+   * padrão precisa poder mover o nome do evento de lugar na frase, e são DUAS
+   * telas (a prévia e a página pública) que precisam resolver isso igual.
+   */
+  it("substitui os marcadores do texto padrão", () => {
     const resolvido = resolveSuccessMessage(
-      { successTitle: "TUDO CERTO!", successMessage: null, successFooter: null },
-      PADRAO,
-      EVENTO,
-    );
-    expect(resolvido.title).toBe("TUDO CERTO!");
-    // O que ela não definiu continua vindo do padrão.
-    expect(resolvido.footer).toBe("Esperamos você! Nos vemos no evento.");
-  });
-
-  it("substitui os marcadores no texto da própria página", () => {
-    const resolvido = resolveSuccessMessage(
-      {
-        successTitle: null,
-        successMessage: "Nos vemos no <EVENTO>, dia <DATA>.",
-        successFooter: null,
-      },
-      PADRAO,
+      { ...PADRAO, message: "Nos vemos no <EVENTO>, dia <DATA>." },
       EVENTO,
     );
     expect(resolvido.message).toBe("Nos vemos no Encontro Técnico, dia 18/09/2026.");
@@ -322,9 +316,13 @@ describe("mensagem de confirmação (§18)", () => {
    */
   it("a data não desliza um dia por causa de fuso", () => {
     const resolvido = resolveSuccessMessage(
-      { successTitle: null, successMessage: "<DATA>", successFooter: null },
-      PADRAO,
-      { name: "X", eventDate: "2026-01-01", startTime: "08:00", endTime: null },
+      { ...PADRAO, message: "<DATA>" },
+      {
+        name: "X",
+        eventDate: "2026-01-01",
+        startTime: "08:00",
+        endTime: null,
+      },
     );
     expect(resolvido.message).toBe("01/01/2026");
   });
@@ -340,12 +338,9 @@ function landing(overrides: Partial<LandingPageWithEvent> = {}): LandingPageWith
     eventId: "e1",
     status: "published",
     slug: "encontro-tecnico",
-    description: null,
     imageUrl: null,
+    successImageUrl: null,
     formFields: ["GRANJA_EMPRESA", "EMAIL", "NOME_PARTICIPANTE", "TELEFONE", "WHATSAPP"],
-    successTitle: null,
-    successMessage: null,
-    successFooter: null,
     closesAt: null,
     maxParticipants: null,
     participantCount: 0,

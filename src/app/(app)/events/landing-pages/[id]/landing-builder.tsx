@@ -12,12 +12,10 @@ import {
   LANDING_PAGE_STATUS_LABELS,
   LANDING_PUBLISHED_EDIT_WARNING,
   LANDING_STATUS_REASON_LABELS,
-  LANDING_TEMPLATE_VARIABLE_LABELS,
 } from "@/modules/event/event.landing.labels";
 import {
   landingEffectiveStatus,
   landingStatusReason,
-  LANDING_TEMPLATE_VARIABLES,
   slugPreview,
   slugWhileTyping,
   validateLandingFields,
@@ -35,7 +33,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DateTimeSelect } from "@/components/ui/date-time-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { LANDING_STATUS_BADGE_VARIANT } from "../landing-badges";
 import { LandingStatusActions } from "../landing-status-actions";
 import { LandingFieldList } from "./landing-field-list";
@@ -47,12 +44,28 @@ import { LandingUrl } from "./landing-url";
  * O BUILDER (§6 a §28).
  *
  * ============================================================================
- * ⚠️ CONFIGURAÇÃO À ESQUERDA, PRÉVIA À DIREITA — E A PRÉVIA NÃO SALVA NADA.
+ * ⚠️ QUATRO BLOCOS EMPILHADOS, CADA UM COM DUAS COLUNAS — E NÃO MAIS UMA
+ *    COLUNA DE CONFIGURAÇÃO COM A PRÉVIA GRUDADA AO LADO.
  * ============================================================================
- * Todo o estado do formulário mora AQUI, num `useState` só, e desce para as
- * duas colunas por props. É isso que faz o §19 (prévia em tempo real) ser
- * consequência do desenho em vez de um recurso: digitar redesenha a coluna da
- * direita no mesmo quadro, porque as duas leem o mesmo objeto.
+ * O desenho anterior era: tudo o que se configura à esquerda, numa lista
+ * vertical longa, e a prévia à direita, `sticky`. Ele envelheceu mal por dois
+ * motivos que se somaram.
+ *
+ * O primeiro: a coluna da esquerda tinha SEIS cartões, e três deles eram texto.
+ * O cliente removeu o texto — descrição e mensagem de confirmação —, e o que
+ * sobrou são pares que se leem juntos: o evento e o endereço dele; as duas
+ * artes; os campos e as regras de inscrição. Empilhá-los numa coluna estreita
+ * escondia justamente a relação entre eles.
+ *
+ * O segundo: a prévia deixou de ser uma tela e passou a ser DUAS (o formulário e
+ * a confirmação). Duas páginas em miniatura não cabem numa coluna de metade da
+ * tela, e a prévia parou de fazer sentido como coluna: virou o quarto bloco,
+ * ocupando a largura inteira.
+ *
+ * ⚠️ A PRÉVIA DEIXOU DE SER `sticky`, E FOI DE PROPÓSITO. Ela acompanhava a
+ * rolagem porque a configuração era uma coluna longa; com os blocos em duas
+ * colunas a página encurtou pela metade, e uma prévia grudada no topo passaria a
+ * cobrir o bloco que a pessoa está editando em vez de acompanhá-lo.
  *
  * ⚠️ NÃO HÁ AUTOSAVE, e o §28 diz para não inventar um: "Não implementar
  * autosave se isso não fizer parte do padrão da aplicação." O padrão desta
@@ -61,19 +74,16 @@ import { LandingUrl } from "./landing-url";
  * aba e recarregar; NÃO intercepta navegação interna do App Router, que não
  * expõe gancho para bloquear rota).
  *
- * ⚠️ A IMAGEM É A EXCEÇÃO, E ELA SALVA SOZINHA. Um arquivo não cabe no estado
- * de um formulário que só vai ao servidor depois — ele precisa subir ao Storage
- * quando é escolhido. Por isso `LandingImageField` grava na hora e avisa aqui
- * para reler; e por isso ela não entra na conta de "alterações não salvas".
+ * ⚠️ AS IMAGENS SÃO A EXCEÇÃO, E ELAS SALVAM SOZINHAS. Um arquivo não cabe no
+ * estado de um formulário que só vai ao servidor depois — ele precisa subir ao
+ * Storage quando é escolhido. Por isso `LandingImageField` grava na hora e avisa
+ * aqui para reler; e por isso as duas não entram na conta de "alterações não
+ * salvas".
  */
 
 type Estado = {
   slug: string;
-  description: string;
   formFields: LandingFieldKey[];
-  successTitle: string;
-  successMessage: string;
-  successFooter: string;
   /** "AAAA-MM-DDTHH:MM" — hora local, que é o que o campo fala. */
   closesAt: string;
   maxParticipants: string;
@@ -82,11 +92,7 @@ type Estado = {
 function estadoInicial(page: LandingPageWithEvent): Estado {
   return {
     slug: page.slug,
-    description: page.description ?? "",
     formFields: page.formFields,
-    successTitle: page.successTitle ?? "",
-    successMessage: page.successMessage ?? "",
-    successFooter: page.successFooter ?? "",
     closesAt: toLocalInput(page.closesAt),
     maxParticipants: page.maxParticipants === null ? "" : String(page.maxParticipants),
   };
@@ -111,12 +117,8 @@ export function LandingBuilder({
   const [isPending, startTransition] = useTransition();
 
   const slugId = useId();
-  const descricaoId = useId();
   const encerramentoId = useId();
   const capacidadeId = useId();
-  const tituloId = useId();
-  const mensagemId = useId();
-  const rodapeId = useId();
 
   const agora = useMemo(() => new Date(), []);
   const efetiva = landingEffectiveStatus(withEventDate(page), agora);
@@ -127,13 +129,14 @@ export function LandingBuilder({
 
   /**
    * ⚠️ RESSINCRONIZA QUANDO O SERVIDOR MANDA DADO NOVO. Publicar, encerrar e
-   * trocar a imagem passam por `router.refresh()`: a página volta com `status`,
-   * `slug` e `imageUrl` novos. Sem isto, o Builder continuaria mostrando o
-   * estado de antes de publicar — e o botão "Publicar" seguiria na tela.
+   * trocar qualquer uma das duas artes passam por `router.refresh()`: a página
+   * volta com `status`, `slug`, `imageUrl` e `successImageUrl` novos. Sem isto,
+   * o Builder continuaria mostrando o estado de antes de publicar — e o botão
+   * "Publicar" seguiria na tela.
    *
    * ⚠️ E NÃO PISA NO QUE NÃO FOI SALVO. A comparação é contra `salvo`, não
    * contra `estado`: se o servidor traz o mesmo conteúdo que já estava gravado,
-   * nada é tocado, e o texto que a pessoa está digitando sobrevive ao refresh.
+   * nada é tocado, e o que a pessoa está editando sobrevive ao refresh.
    */
   useEffect(() => {
     const doServidor = estadoInicial(page);
@@ -284,247 +287,192 @@ export function LandingBuilder({
         </p>
       )}
 
-      {/* -------------------------------------------------------------- §32
-          Duas colunas a partir de `lg`; empilhadas abaixo disso. Em tablet as
-          duas apertadas ficariam ilegíveis, e a ordem empilhada — configuração
-          e depois prévia — é a que o §32 pede. */}
+      {/* ================================================================= 1
+          O EVENTO E O ENDEREÇO DELE.
+
+          Os dois juntos porque respondem à mesma pergunta — "que página é
+          esta, e onde ela fica?" — e porque nenhum dos dois se edita muito:
+          são o cabeçalho de identidade da tela. §32: duas colunas a partir de
+          `lg`, empilhadas abaixo disso, porque em tablet as duas apertadas
+          ficariam ilegíveis. */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-6">
-          {/* ------------------------------------------------- §7, §9, §11 */}
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <h2 className="text-sm font-medium">Evento</h2>
-              {/* ⚠️ SÓ LEITURA, E É O §7 + O §9. Nome, data e local vêm do
-                  evento e continuam morando lá. Um campo editável aqui criaria
-                  um segundo nome para a mesma coisa — e o §9 é explícito: "A
-                  alteração do título da Landing Page não deve alterar o nome
-                  oficial do evento." A forma mais segura de garantir isso é não
-                  haver o que alterar. */}
-              <dl className="space-y-2 text-sm">
-                <div className="flex flex-wrap justify-between gap-2">
-                  <dt className="text-muted-foreground">Nome</dt>
-                  <dd className="font-medium">{page.event.name}</dd>
-                </div>
-                <div className="flex flex-wrap justify-between gap-2">
-                  <dt className="text-muted-foreground">Data e horário</dt>
-                  <dd className="tabular-nums">
-                    {page.event.eventDate.split("-").reverse().join("/")} · {page.event.startTime}
-                    {page.event.endTime ? ` às ${page.event.endTime}` : ""}
-                  </dd>
-                </div>
-                <div className="flex flex-wrap justify-between gap-2">
-                  <dt className="text-muted-foreground">Local</dt>
-                  <dd>{page.event.location}</dd>
-                </div>
-              </dl>
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/events/${page.eventId}/edit`}>Editar o evento</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* --------------------------------------------------------- §27 */}
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <LandingUrl
-                origin={origin}
-                slug={page.slug}
-                published={page.status === "published"}
-              />
-
-              <div className="space-y-2">
-                <Label htmlFor={slugId}>Endereço personalizado</Label>
-                {/* ⚠️ DUAS NORMALIZAÇÕES, E A DIFERENÇA É UM HÍFEN NO FIM.
-                    Enquanto se digita, um hífen no fim é uma palavra que ainda
-                    não terminou; cortá-lo a cada tecla tornava impossível
-                    escrever um endereço de duas palavras. Ao sair do campo, ele
-                    é lixo. Ver `slugWhileTyping` em event.landing.rules.ts. */}
-                <Input
-                  id={slugId}
-                  value={estado.slug}
-                  disabled={!canWrite || ocupado}
-                  onChange={(event) => alterar("slug", slugWhileTyping(event.target.value))}
-                  onBlur={(event) => alterar("slug", slugPreview(event.target.value))}
-                  aria-describedby={`${slugId}-ajuda`}
-                />
-                <p id={`${slugId}-ajuda`} className="text-muted-foreground text-xs">
-                  Letras minúsculas, números e hífen. Se o endereço já estiver em uso, o sistema
-                  acrescenta um número ao final.
-                </p>
+        {/* ---------------------------------------------------- §7, §9, §11 */}
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <h2 className="text-sm font-medium">Evento</h2>
+            {/* ⚠️ SÓ LEITURA, E É O §7 + O §9. Nome, data e local vêm do
+                evento e continuam morando lá. Um campo editável aqui criaria
+                um segundo nome para a mesma coisa — e o §9 é explícito: "A
+                alteração do título da Landing Page não deve alterar o nome
+                oficial do evento." A forma mais segura de garantir isso é não
+                haver o que alterar. */}
+            <dl className="space-y-2 text-sm">
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-muted-foreground">Nome</dt>
+                <dd className="font-medium">{page.event.name}</dd>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* ----------------------------------------------------- §8 e §10 */}
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <LandingImageField
-                landingPageId={page.id}
-                imageUrl={page.imageUrl}
-                eventImageUrl={page.event.imageUrl}
-                eventName={page.event.name}
-                disabled={!canWrite}
-                onSaved={() => router.refresh()}
-              />
-
-              <div className="space-y-2">
-                <Label htmlFor={descricaoId}>Descrição</Label>
-                <Textarea
-                  id={descricaoId}
-                  rows={5}
-                  maxLength={4000}
-                  value={estado.description}
-                  disabled={!canWrite || ocupado}
-                  placeholder="O que a pessoa precisa saber para decidir ir."
-                  onChange={(event) => alterar("description", event.target.value)}
-                  aria-describedby={`${descricaoId}-ajuda`}
-                />
-                <p id={`${descricaoId}-ajuda`} className="text-muted-foreground text-xs">
-                  Texto simples. As quebras de linha aparecem na página como você as digitar.
-                </p>
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-muted-foreground">Data e horário</dt>
+                <dd className="tabular-nums">
+                  {page.event.eventDate.split("-").reverse().join("/")} · {page.event.startTime}
+                  {page.event.endTime ? ` às ${page.event.endTime}` : ""}
+                </dd>
               </div>
-            </CardContent>
-          </Card>
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-muted-foreground">Local</dt>
+                <dd>{page.event.location}</dd>
+              </div>
+            </dl>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/events/${page.eventId}/edit`}>Editar o evento</Link>
+            </Button>
+          </CardContent>
+        </Card>
 
-          {/* ------------------------------------------------- §12, §13, §14 */}
-          <Card>
-            <CardContent className="space-y-3 p-5">
-              <LandingFieldList
-                fields={estado.formFields}
-                onChange={(campos) => alterar("formFields", campos)}
+        {/* ------------------------------------------------------------ §27 */}
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <LandingUrl origin={origin} slug={page.slug} published={page.status === "published"} />
+
+            <div className="space-y-2">
+              <Label htmlFor={slugId}>Endereço personalizado</Label>
+              {/* ⚠️ DUAS NORMALIZAÇÕES, E A DIFERENÇA É UM HÍFEN NO FIM.
+                  Enquanto se digita, um hífen no fim é uma palavra que ainda
+                  não terminou; cortá-lo a cada tecla tornava impossível
+                  escrever um endereço de duas palavras. Ao sair do campo, ele
+                  é lixo. Ver `slugWhileTyping` em event.landing.rules.ts. */}
+              <Input
+                id={slugId}
+                value={estado.slug}
                 disabled={!canWrite || ocupado}
+                onChange={(event) => alterar("slug", slugWhileTyping(event.target.value))}
+                onBlur={(event) => alterar("slug", slugPreview(event.target.value))}
+                aria-describedby={`${slugId}-ajuda`}
               />
-              {problemaDosCampos && (
-                <p role="alert" className="text-destructive text-sm">
-                  A configuração atual não pode ser salva. Granja/Empresa, E-mail e Nome do
-                  Participante são obrigatórios, e é preciso ter Telefone ou WhatsApp.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              <p id={`${slugId}-ajuda`} className="text-muted-foreground text-xs">
+                Letras minúsculas, números e hífen. Se o endereço já estiver em uso, o sistema
+                acrescenta um número ao final.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-          {/* --------------------------------------------------------- §16 */}
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <h2 className="text-sm font-medium">Configurações de inscrição</h2>
+      {/* ================================================================= 2
+          AS DUAS ARTES, LADO A LADO (§8 e o banner de confirmação).
 
-              <div className="space-y-2">
-                <Label htmlFor={encerramentoId}>Encerramento das inscrições</Label>
-                <DateTimeSelect
-                  id={encerramentoId}
-                  label="Encerramento das inscrições"
-                  value={estado.closesAt}
-                  disabled={!canWrite || ocupado}
-                  onChange={(valor) => alterar("closesAt", valor)}
-                />
-                <p className="text-muted-foreground text-xs">
-                  Em branco significa sem prazo. O padrão é o início do evento.
-                </p>
-              </div>
+          ⚠️ ELAS FICAM JUNTAS PORQUE SÃO A PÁGINA INTEIRA AGORA. Depois que a
+          descrição e a mensagem de confirmação saíram, o que a granja lê nesta
+          landing page são estas duas imagens e mais nada. Pô-las lado a lado é
+          o que permite ver se as duas conversam — mesma paleta, mesma marca,
+          mesma linguagem —, que é a única conferência que restou. */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardContent className="p-5">
+            <LandingImageField
+              landingPageId={page.id}
+              slot="page"
+              imageUrl={page.imageUrl}
+              fallbackUrl={page.event.imageUrl}
+              eventName={page.event.name}
+              disabled={!canWrite}
+              onSaved={() => router.refresh()}
+            />
+          </CardContent>
+        </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor={capacidadeId}>Capacidade máxima</Label>
-                <Input
-                  id={capacidadeId}
-                  inputMode="numeric"
-                  value={estado.maxParticipants}
-                  disabled={!canWrite || ocupado}
-                  placeholder="Sem limite"
-                  onChange={(event) =>
-                    // Só dígitos entram: o schema recusaria "100 pessoas", e
-                    // deixar digitar para recusar depois é pior do que não
-                    // deixar digitar.
-                    alterar("maxParticipants", event.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
-                  aria-describedby={`${capacidadeId}-ajuda`}
-                />
-                <p id={`${capacidadeId}-ajuda`} className="text-muted-foreground text-xs">
-                  Em branco significa ilimitado. O limite conta PARTICIPANTES, não inscrições — hoje
-                  há {page.participantCount}.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardContent className="p-5">
+            <LandingImageField
+              landingPageId={page.id}
+              slot="success"
+              imageUrl={page.successImageUrl}
+              eventName={page.event.name}
+              disabled={!canWrite}
+              onSaved={() => router.refresh()}
+            />
+          </CardContent>
+        </Card>
+      </div>
 
-          {/* ---------------------------------------------------- §17 e §18 */}
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <div>
-                <h2 className="text-sm font-medium">Mensagem após a inscrição</h2>
-                <p className="text-muted-foreground text-xs">
-                  Deixe em branco para usar o texto padrão da APCS, configurável em Configurações →
-                  Textos.
-                </p>
-              </div>
+      {/* ================================================================= 3
+          O QUE A PESSOA PREENCHE, E SOB QUE REGRAS.
 
-              <div className="space-y-2">
-                <Label htmlFor={tituloId}>Título</Label>
-                <Input
-                  id={tituloId}
-                  value={estado.successTitle}
-                  maxLength={160}
-                  disabled={!canWrite || ocupado}
-                  placeholder={successDefaults.title}
-                  onChange={(event) => alterar("successTitle", event.target.value)}
-                />
-              </div>
+          §12, §13, §14 à esquerda; §16 à direita. Os dois juntos porque a
+          capacidade e o prazo só significam alguma coisa em relação ao
+          formulário que está ao lado. */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardContent className="space-y-3 p-5">
+            <LandingFieldList
+              fields={estado.formFields}
+              onChange={(campos) => alterar("formFields", campos)}
+              disabled={!canWrite || ocupado}
+            />
+            {problemaDosCampos && (
+              <p role="alert" className="text-destructive text-sm">
+                A configuração atual não pode ser salva. Granja/Empresa, E-mail e Nome do
+                Participante são obrigatórios, e é preciso ter Telefone ou WhatsApp.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor={mensagemId}>Mensagem</Label>
-                <Textarea
-                  id={mensagemId}
-                  rows={3}
-                  maxLength={1000}
-                  value={estado.successMessage}
-                  disabled={!canWrite || ocupado}
-                  placeholder={successDefaults.message}
-                  onChange={(event) => alterar("successMessage", event.target.value)}
-                />
-              </div>
+        {/* ------------------------------------------------------------ §16 */}
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <h2 className="text-sm font-medium">Configurações de inscrição</h2>
 
-              <div className="space-y-2">
-                <Label htmlFor={rodapeId}>Mensagem final</Label>
-                <Input
-                  id={rodapeId}
-                  value={estado.successFooter}
-                  maxLength={300}
-                  disabled={!canWrite || ocupado}
-                  placeholder={successDefaults.footer}
-                  onChange={(event) => alterar("successFooter", event.target.value)}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor={encerramentoId}>Encerramento das inscrições</Label>
+              <DateTimeSelect
+                id={encerramentoId}
+                label="Encerramento das inscrições"
+                value={estado.closesAt}
+                disabled={!canWrite || ocupado}
+                onChange={(valor) => alterar("closesAt", valor)}
+              />
+              <p className="text-muted-foreground text-xs">
+                Em branco significa sem prazo. O padrão é o início do evento.
+              </p>
+            </div>
 
-              {/* ⚠️ A LISTA APARECE NA TELA porque o §18 proíbe variável
-                  arbitrária — e a única forma de isso não virar tentativa e erro
-                  é MOSTRAR quais existem, ao lado do campo em que se digita. */}
-              <div className="space-y-1">
-                <p className="text-xs font-medium">Variáveis disponíveis</p>
-                <ul className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                  {LANDING_TEMPLATE_VARIABLES.map((variavel) => (
-                    <li key={variavel}>
-                      <code>{`{{${variavel}}}`}</code> —{" "}
-                      {LANDING_TEMPLATE_VARIABLE_LABELS[variavel]}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor={capacidadeId}>Capacidade máxima</Label>
+              <Input
+                id={capacidadeId}
+                inputMode="numeric"
+                value={estado.maxParticipants}
+                disabled={!canWrite || ocupado}
+                placeholder="Sem limite"
+                onChange={(event) =>
+                  // Só dígitos entram: o schema recusaria "100 pessoas", e
+                  // deixar digitar para recusar depois é pior do que não
+                  // deixar digitar.
+                  alterar("maxParticipants", event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                aria-describedby={`${capacidadeId}-ajuda`}
+              />
+              <p id={`${capacidadeId}-ajuda`} className="text-muted-foreground text-xs">
+                Em branco significa ilimitado. O limite conta PARTICIPANTES, não inscrições — hoje
+                há {page.participantCount}.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* --------------------------------------------------- §19, §20, §21
-            `lg:sticky` mantém a prévia visível enquanto se rola a coluna de
-            configuração — que é longa. Sem isso, mexer na mensagem de sucesso
-            (o último cartão) deixaria a prévia fora da tela, e a alteração em
-            tempo real não seria vista por ninguém. */}
-        <div className="lg:sticky lg:top-4 lg:self-start">
+      {/* ================================================================= 4
+          A PRÉVIA — §19, §20, §21.
+
+          Largura inteira, e as duas telas em duas colunas por dentro. Ver o
+          cabeçalho deste arquivo para o porquê de ela ter deixado de ser uma
+          coluna `sticky`. */}
+      <Card>
+        <CardContent className="p-5">
           <LandingPreview
             state={{
-              description: estado.description,
               formFields: estado.formFields,
-              successTitle: estado.successTitle,
-              successMessage: estado.successMessage,
-              successFooter: estado.successFooter,
               maxParticipants: estado.maxParticipants,
             }}
             event={{
@@ -535,10 +483,11 @@ export function LandingBuilder({
               location: page.event.location,
             }}
             imageUrl={page.imageUrl ?? page.event.imageUrl}
+            successImageUrl={page.successImageUrl}
             successDefaults={successDefaults}
           />
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

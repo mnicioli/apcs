@@ -82,21 +82,30 @@ export async function discardOrphan(storagePath: string): Promise<void> {
  * que a primeira ia apagar. Perguntar ao banco antes troca "apagar a imagem
  * viva de um evento" por "deixar um órfão", que é o lado certo da troca.
  *
- * ⚠️ A TABELA É PARÂMETRO porque o mesmo bucket guarda duas coisas: o cartaz do
- * evento (`events.image_path`) e a arte da página de inscrição
- * (`event_landing_pages.image_path`). Perguntar à tabela errada devolveria "não
- * está mais em uso" sobre um arquivo que está — e apagaria a imagem viva.
+ * ⚠️ A TABELA É PARÂMETRO porque o mesmo bucket guarda três coisas: o cartaz do
+ * evento (`events.image_path`), a arte da página de inscrição
+ * (`event_landing_pages.image_path`) e o banner de confirmação
+ * (`event_landing_pages.success_image_path`). Perguntar no lugar errado
+ * devolveria "não está mais em uso" sobre um arquivo que está — e apagaria a
+ * imagem viva.
+ *
+ * ⚠️ E A COLUNA TAMBÉM É PARÂMETRO, DESDE O BANNER DE CONFIRMAÇÃO. Uma tabela
+ * passou a ter DUAS colunas de caminho, e perguntar sempre por `image_path`
+ * responderia "ninguém referencia" sobre um banner de confirmação em uso. O
+ * padrão é `image_path` porque é o caso de todas as chamadas anteriores a esta
+ * mudança — quem precisa da outra coluna diz.
  */
 export async function discardReplacedImage(
   storagePath: string,
   table: "events" | "event_landing_pages",
+  column: "image_path" | "success_image_path" = "image_path",
 ): Promise<void> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from(table)
     .select("id")
-    .eq("image_path", storagePath)
+    .eq(column, storagePath)
     .returns<{ id: string }[]>()
     .maybeSingle();
 

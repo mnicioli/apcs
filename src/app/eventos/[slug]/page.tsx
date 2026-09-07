@@ -59,8 +59,14 @@ const carregar = cache(getPublicLandingPage);
 /**
  * §39 — o que aparece quando alguém cola o link no WhatsApp.
  *
- * ⚠️ NENHUM DADO PESSOAL AQUI, e nenhuma informação interna do evento: nome,
- * data e a descrição pública. A imagem NÃO entra no Open Graph, e a ausência é
+ * ⚠️ A DESCRIÇÃO ERA EDITÁVEL E DEIXOU DE SER. A frase de prévia saía do texto
+ * que o Builder oferecia; ele foi removido junto com o resto do texto solto da
+ * página, e o que sobrou é a frase montada a partir do EVENTO. Não é perda: a
+ * anterior só existia quando alguém tinha lembrado de escrevê-la, e caía nesta
+ * mesma frase quando não.
+ *
+ * ⚠️ NENHUM DADO PESSOAL AQUI, e nenhuma informação interna do evento: nome e
+ * data, e mais nada. A imagem NÃO entra no Open Graph, e a ausência é
  * deliberada — ela vive em bucket privado e o que temos é uma URL ASSINADA que
  * expira em uma hora. Um `og:image` que morre em sessenta minutos é pior que
  * nenhum: o WhatsApp guarda a prévia em cache e passaria a mostrar um retângulo
@@ -79,9 +85,7 @@ export async function generateMetadata({
   }
 
   const titulo = `${page.event.name} | ${APP_SHORT_NAME}`;
-  const descricao =
-    page.description?.trim().slice(0, 300) ??
-    `Inscrições para ${page.event.name}, em ${formatCalendarDate(page.event.eventDate)}.`;
+  const descricao = `Inscrições para ${page.event.name}, em ${formatCalendarDate(page.event.eventDate)}.`;
 
   return {
     title: titulo,
@@ -137,9 +141,7 @@ export default async function PaginaPublicaDeInscricao({
             page={{
               slug: page.slug,
               formFields: page.formFields,
-              successTitle: page.successTitle,
-              successMessage: page.successMessage,
-              successFooter: page.successFooter,
+              successImageUrl: page.successImageUrl,
               successDefaults: page.successDefaults,
               event: page.event,
               consent: page.consent,
@@ -155,7 +157,7 @@ export default async function PaginaPublicaDeInscricao({
 }
 
 /**
- * §8 — a imagem, a descrição, e o resto SÓ PARA LEITOR DE TELA.
+ * §8 — a imagem, e o resto SÓ PARA LEITOR DE TELA.
  *
  * ============================================================================
  * ⚠️ NOME, DATA, HORA E LOCAL SAÍRAM DA TELA — MAS NÃO DA PÁGINA.
@@ -226,16 +228,16 @@ function CabecalhoDoEvento({ page }: { page: PublicLandingPage }) {
           />
         )}
 
-        {page.description?.trim() && (
-          // `whitespace-pre-line` porque a descrição é texto simples com quebras
-          // de linha — a plataforma não tem editor rich text em lugar nenhum, e o
-          // §10 do Prompt 2 pediu o formato existente.
-          //
-          // ⚠️ TEXTO, E NÃO `dangerouslySetInnerHTML` (§34). O que um
-          // administrador digitar no Builder aparece como escreveu, e um `<script>`
-          // digitado ali aparece como as letras `<script>`.
-          <p className="text-base leading-relaxed whitespace-pre-line">{page.description}</p>
-        )}
+        {/*
+          ⚠️ A DESCRIÇÃO SAIU DAQUI, e não é a mesma decisão de nome/data/local.
+          Aqueles continuam no HTML em `sr-only` porque o BANNER passou a
+          carregá-los e alguém que não enxerga precisa recebê-los de algum
+          lugar. A descrição não foi movida para lugar nenhum: o cliente pediu
+          a página sem texto solto, e a arte é que diz o que precisa ser dito.
+
+          Guardá-la em `sr-only` seria inventar uma versão da página que só
+          quem usa leitor de tela lê — o oposto do que aquele bloco faz.
+        */}
 
         {/* §12 e §28 — o aviso de vagas só aparece quando ele muda uma decisão.
             "Restam 180 de 200" no primeiro dia é ruído; "resta 1 vaga" na véspera

@@ -202,6 +202,23 @@ export const LANDING_INSTITUTIONAL_CONTEXT = {
  * e a única forma de isso não virar tentativa e erro é o Builder MOSTRAR quais
  * existem, ao lado do campo em que se digita.
  */
+/**
+ * ⚠️ SEM LEITOR HOJE, E DE PROPÓSITO — MAS É UMA PONTA SOLTA.
+ *
+ * Esta lista era desenhada no Builder, ao lado dos campos da mensagem de
+ * confirmação. Aqueles campos saíram (a confirmação virou um banner — ver a
+ * seção 19 de docs/INSCRICOES.md), e com eles saiu a única tela que MOSTRAVA
+ * quais variáveis existem.
+ *
+ * As variáveis continuam funcionando: elas valem para o texto PADRÃO da
+ * plataforma, editável em Configurações → Textos. Só que aquela tela nunca
+ * listou as variáveis, e agora nenhuma lista. Quem for editar aquele texto
+ * descobre `{{event_name}}` por tentativa e erro ou lendo este arquivo — que é
+ * exatamente o que o §18 queria evitar quando pediu a lista na tela.
+ *
+ * A constante fica porque a correção é justamente exibi-la em
+ * `/settings/texts`, e não porque alguém a use hoje.
+ */
 export const LANDING_TEMPLATE_VARIABLE_LABELS: Record<LandingTemplateVariable, string> = {
   event_name: "Nome do evento",
   event_date: "Data do evento",

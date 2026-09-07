@@ -7,10 +7,10 @@ import type { LandingFieldKey } from "@/modules/event/event.landing.types";
 /**
  * A REORDENAÇÃO DOS CAMPOS (§13, §14, §31).
  *
- * ⚠️ OS TESTES ATACAM AS SETAS, NÃO O ARRASTAR — e isso é sobre o §31, não
- * sobre preguiça. "Não fazer o Drag & Drop depender exclusivamente do mouse":
- * se as setas fazem tudo o que o arrastar faz, quem navega por teclado
- * consegue trabalhar. Testar as setas é testar a garantia de acessibilidade; o
+ * ⚠️ OS TESTES ATACAM O SELETOR DE POSIÇÃO, NÃO O ARRASTAR — e isso é sobre o
+ * §31, não sobre preguiça. "Não fazer o Drag & Drop depender exclusivamente do
+ * mouse": se o seletor faz tudo o que o arrastar faz, quem navega por teclado
+ * consegue trabalhar. Testá-lo é testar a garantia de acessibilidade; o
  * arrastar é o atalho por cima dela.
  *
  * (`happy-dom` não simula uma sessão de drag & drop nativa de forma fiel — os
@@ -68,12 +68,27 @@ describe("obrigatoriedade é APRESENTADA, não editável (§14)", () => {
   });
 });
 
-describe("reordenar pelo teclado (§31)", () => {
-  it("mover para baixo troca com o vizinho de baixo", async () => {
+/**
+ * ============================================================================
+ * ⚠️ AS SETAS SAÍRAM E O `<select>` DE POSIÇÃO ENTROU — O §31 CONTINUA DE PÉ.
+ * ============================================================================
+ * O pedido foi remover as duas setas de cada linha. Elas eram a ÚNICA forma de
+ * reordenar sem mouse, então tirá-las e não pôr nada no lugar quebraria o §31
+ * ("Não fazer o Drag & Drop depender exclusivamente do mouse") sem que nenhum
+ * teste percebesse — os casos deste bloco simplesmente sumiriam.
+ *
+ * Eles não sumiram: mudaram de controle. A pergunta continua sendo a mesma —
+ * dá para reordenar pelo teclado, e cada controle diz de que campo ele é? — e a
+ * resposta agora é um `<select>` nativo, que traz teclado e leitor de tela de
+ * graça.
+ */
+describe("reordenar sem mouse (§31)", () => {
+  it("escolher uma posição maior empurra o campo para baixo", async () => {
     const user = userEvent.setup();
     const { onChange } = montar();
 
-    await user.click(screen.getByRole("button", { name: "Mover E-mail para baixo" }));
+    // E-mail está na posição 2; mandá-lo para a 3ª.
+    await user.selectOptions(screen.getByLabelText("Posição de E-mail"), "3");
 
     expect(onChange).toHaveBeenCalledWith([
       "GRANJA_EMPRESA",
@@ -84,11 +99,11 @@ describe("reordenar pelo teclado (§31)", () => {
     ]);
   });
 
-  it("mover para cima troca com o vizinho de cima", async () => {
+  it("escolher uma posição menor puxa o campo para cima", async () => {
     const user = userEvent.setup();
     const { onChange } = montar();
 
-    await user.click(screen.getByRole("button", { name: "Mover WhatsApp para cima" }));
+    await user.selectOptions(screen.getByLabelText("Posição de WhatsApp"), "4");
 
     expect(onChange).toHaveBeenCalledWith([
       "GRANJA_EMPRESA",
@@ -97,20 +112,44 @@ describe("reordenar pelo teclado (§31)", () => {
       "WHATSAPP",
       "TELEFONE",
     ]);
-  });
-
-  it("o primeiro não sobe e o último não desce", () => {
-    montar();
-    expect(screen.getByRole("button", { name: "Mover Granja / Empresa para cima" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Mover WhatsApp para baixo" })).toBeDisabled();
   });
 
   /**
-   * ⚠️ CADA BOTÃO DIZ O QUE FAZ E COM QUÊ. "Mover para cima" repetido cinco
-   * vezes não serve a quem não vê a tela: um leitor de tela anuncia cinco
-   * botões idênticos, e a pessoa não sabe qual é o do e-mail.
+   * ⚠️ MOVER, E NÃO TROCAR — e é aqui que a diferença aparece. Com uma TROCA,
+   * mandar o último campo para o topo jogaria o primeiro para o fim: dois itens
+   * mudam de lugar quando a pessoa pediu um. Com as setas isso nunca dava para
+   * ver, porque o passo era sempre de uma posição.
    */
-  it("todos os botões de mover têm rótulo que nomeia o campo", () => {
+  it("saltar várias posições empurra todo mundo um degrau, sem trocar as pontas", async () => {
+    const user = userEvent.setup();
+    const { onChange } = montar();
+
+    await user.selectOptions(screen.getByLabelText("Posição de WhatsApp"), "1");
+
+    expect(onChange).toHaveBeenCalledWith([
+      "WHATSAPP",
+      "GRANJA_EMPRESA",
+      "EMAIL",
+      "NOME_PARTICIPANTE",
+      "TELEFONE",
+    ]);
+  });
+
+  it("cada campo oferece todas as posições, e a atual vem selecionada", () => {
+    montar();
+
+    const email = screen.getByLabelText<HTMLSelectElement>("Posição de E-mail");
+    expect(email.value).toBe("2");
+    expect([...email.options].map((o) => o.textContent)).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  /**
+   * ⚠️ CADA CONTROLE DIZ DE QUE CAMPO ELE É. Cinco `<select>` chamados
+   * "Posição" não servem a quem não vê a tela: um leitor de tela anuncia cinco
+   * controles idênticos, e a pessoa não sabe qual é o do e-mail. Era o mesmo
+   * cuidado que as setas tinham, e ele não podia se perder na troca.
+   */
+  it("todos os seletores têm rótulo que nomeia o campo", () => {
     montar();
     for (const rotulo of [
       "Granja / Empresa",
@@ -119,19 +158,18 @@ describe("reordenar pelo teclado (§31)", () => {
       "Telefone",
       "WhatsApp",
     ]) {
-      expect(screen.getByRole("button", { name: `Mover ${rotulo} para cima` })).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: `Mover ${rotulo} para baixo` }),
-      ).toBeInTheDocument();
+      expect(screen.getByLabelText(`Posição de ${rotulo}`)).toBeInTheDocument();
     }
   });
 });
 
 describe("somente leitura", () => {
-  it("desabilitado, nenhuma seta funciona", () => {
+  it("desabilitado, nenhum seletor de posição funciona", () => {
     montar(PADRAO, true);
-    for (const botao of screen.getAllByRole("button")) {
-      expect(botao).toBeDisabled();
+    const seletores = screen.getAllByRole("combobox");
+    expect(seletores).toHaveLength(5);
+    for (const seletor of seletores) {
+      expect(seletor).toBeDisabled();
     }
   });
 

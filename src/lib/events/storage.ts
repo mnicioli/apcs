@@ -46,6 +46,26 @@ export function buildLandingImagePath(eventId: string, filename: string): string
 }
 
 /**
+ * O BANNER DE CONFIRMAÇÃO: `<event_id>/landing/success/<uuid>.<ext>`.
+ *
+ * ⚠️ SUBPASTA, E NÃO UM PREFIXO NO NOME DO ARQUIVO. O nome é um uuid aleatório
+ * justamente para não carregar informação; codificar o papel da imagem ali
+ * ("success-<uuid>") seria voltar a depender do nome do arquivo para saber o
+ * que ele é. A pasta responde isso olhando o bucket, sem abrir nada.
+ *
+ * ⚠️ E ELE NÃO É INTERCAMBIÁVEL COM A ARTE DA PÁGINA. São duas peças de
+ * comunicação diferentes — uma convida, a outra confirma —, e a separação em
+ * pastas é o que impede um "trocar a imagem" de sobrescrever a outra por
+ * engano. `discardReplacedImage` pergunta a QUAL COLUNA o caminho pertence
+ * antes de apagar; a pasta é a mesma distinção, visível para quem olhar o
+ * Storage sem consultar o banco.
+ */
+export function buildLandingSuccessImagePath(eventId: string, filename: string): string {
+  const extension = imageExtensionOf(filename) ?? ".jpg";
+  return `${eventId}/landing/success/${crypto.randomUUID()}${extension}`;
+}
+
+/**
  * Vida da URL assinada da imagem, em segundos.
  *
  * Uma hora, e não os 300 s das normativas. A diferença tem uma razão concreta:

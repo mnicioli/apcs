@@ -4,6 +4,9 @@ import {
   createRegistrationSchema,
   landingCommandSchema,
   landingFieldsSchema,
+  landingImageRemovalSchema,
+  landingImageSchema,
+  landingImageTicketSchema,
   onlyDigits,
   participantSchema,
   publicRegistrationSchema,
@@ -222,11 +225,7 @@ describe("landing page", () => {
     return {
       eventId: "11111111-1111-4111-8111-111111111111",
       slug: "",
-      description: "",
       formFields: CAMPOS,
-      successTitle: "",
-      successMessage: "",
-      successFooter: "",
       closesAt: "",
       maxParticipants: "",
       ...overrides,
@@ -297,12 +296,38 @@ describe("landing page", () => {
   });
 
   /**
-   * ⚠️ SEM MÍNIMO NOS TEXTOS DE CONFIRMAÇÃO, e é deliberado: vazio significa
-   * "usa o padrão da plataforma" (§18). Exigir dois caracteres impediria de
-   * LIMPAR o campo para voltar ao padrão.
+   * ==========================================================================
+   * ⚠️ OS QUATRO TEXTOS NÃO ENTRAM MAIS, E ESTE CASO É O QUE COBRA ISSO.
+   * ==========================================================================
+   * Havia aqui um caso dizendo que `successTitle: ""` era permitido, porque
+   * vazio significava "usa o padrão da plataforma". O cliente pediu a página
+   * sem texto solto: a descrição e os três pedaços da mensagem de confirmação
+   * saíram do schema, e a função Postgres perdeu os quatro parâmetros.
+   *
+   * O Zod IGNORA chave desconhecida por padrão — então uma tela que continuasse
+   * mandando `description` passaria neste schema sem uma palavra. Asserir sobre
+   * as CHAVES do resultado é o que transforma isso em falha visível.
    */
-  it("mensagem de sucesso vazia é permitida — é assim que se volta ao padrão", () => {
-    expect(createLandingPageSchema.safeParse(form({ successTitle: "" })).success).toBe(true);
+  it("descrição e mensagem de confirmação não sobrevivem à validação", () => {
+    const conferido = createLandingPageSchema.safeParse(
+      form({
+        description: "Texto que não deveria mais existir",
+        successTitle: "TUDO CERTO!",
+        successMessage: "x",
+        successFooter: "y",
+      }),
+    );
+
+    expect(conferido.success).toBe(true);
+    if (conferido.success) {
+      expect(Object.keys(conferido.data).sort()).toEqual([
+        "closesAt",
+        "eventId",
+        "formFields",
+        "maxParticipants",
+        "slug",
+      ]);
+    }
   });
 
   it("os comandos de situação são só os três", () => {
@@ -588,5 +613,59 @@ describe("§13 — o teto de participantes por inscrição", () => {
     expect(publicRegistrationSchema.safeParse({ ...base, participants: acima }).success).toBe(
       false,
     );
+  });
+});
+
+/**
+ * ============================================================================
+ * ⚠️ AS DUAS ARTES — E O `slot` QUE DIZ QUAL DELAS.
+ * ============================================================================
+ * A página tem duas imagens: a que abre a inscrição e o banner que aparece
+ * depois dela. As três actions de upload são as MESMAS para as duas, e o que
+ * decide a pasta no Storage, a função Postgres e a coluna é este campo.
+ *
+ * Ele chega do NAVEGADOR. Se o schema o aceitasse solto, um valor inventado
+ * viraria um `IMAGEM_DA_PAGINA[undefined]` na action — e a conferência de "o
+ * caminho está dentro da pasta deste evento", que é a defesa contra escrever na
+ * pasta de outro, perderia a pasta contra a qual comparar.
+ */
+describe("o slot das imagens da landing page", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+
+  it("aceita as duas artes, e só elas", () => {
+    for (const slot of ["page", "success"]) {
+      expect(landingImageRemovalSchema.safeParse({ landingPageId: id, slot }).success).toBe(true);
+    }
+
+    expect(landingImageRemovalSchema.safeParse({ landingPageId: id, slot: "banner" }).success).toBe(
+      false,
+    );
+    expect(landingImageRemovalSchema.safeParse({ landingPageId: id }).success).toBe(false);
+  });
+
+  it("é obrigatório também no pedido de upload e na gravação", () => {
+    expect(
+      landingImageTicketSchema.safeParse({ landingPageId: id, filename: "a.png", sizeBytes: 10 })
+        .success,
+    ).toBe(false);
+    expect(
+      landingImageTicketSchema.safeParse({
+        landingPageId: id,
+        filename: "a.png",
+        sizeBytes: 10,
+        slot: "success",
+      }).success,
+    ).toBe(true);
+
+    expect(
+      landingImageSchema.safeParse({ landingPageId: id, storagePath: "e/landing/a.png" }).success,
+    ).toBe(false);
+    expect(
+      landingImageSchema.safeParse({
+        landingPageId: id,
+        storagePath: "e/landing/a.png",
+        slot: "page",
+      }).success,
+    ).toBe(true);
   });
 });

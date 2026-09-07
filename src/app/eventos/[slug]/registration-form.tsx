@@ -6,7 +6,7 @@ import { CheckboxRow, TextField } from "@/components/public/fields";
 import { ACTION_ERROR_MESSAGES } from "@/lib/actions/errors";
 import { submitEventRegistrationAction } from "@/lib/actions/event-registration-public";
 import { formatPhoneInput } from "@/lib/format/phone";
-import { formatCalendarDate } from "@/lib/utils";
+import { cn, formatCalendarDate } from "@/lib/utils";
 import { LANDING_FIELD_LABELS, PUBLIC_LANDING_COPY } from "@/modules/event/event.landing.labels";
 import {
   publicRegistrationSchema,
@@ -535,11 +535,30 @@ function BlocoParticipante({
  * formulário na página. Recarregar também não cria nada — a inscrição foi uma
  * Server Action, e um F5 é um GET.
  *
- * ⚠️ O TEXTO É O CONFIGURADO NO BUILDER (§25), resolvido pela MESMA
- * `resolveSuccessMessage` que a prévia usa. Sem `dangerouslySetInnerHTML` em
- * lugar nenhum: o texto entra como TEXTO, então nem uma configuração
- * malformada nem um administrador mal-intencionado conseguem injetar HTML aqui
- * (§25, §34).
+ * ============================================================================
+ * ⚠️ AGORA ELA É UM BANNER — E O TEXTO CONTINUA ATRÁS DELE.
+ * ============================================================================
+ * O cliente pediu a confirmação como ARTE: uma imagem, sem os três blocos de
+ * texto que o Builder deixava configurar. Eles não existem mais em lugar
+ * nenhum — nem no formulário do Builder, nem no schema, nem na assinatura da
+ * função Postgres.
+ *
+ * O texto que sobrou é o PADRÃO DA PLATAFORMA, e ele tem dois papéis, os dois
+ * necessários:
+ *
+ *   * SEM banner, ele é a confirmação — uma página que não mostrasse nada
+ *     depois do envio deixaria a granja sem saber se deu certo;
+ *   * COM banner, ele vira `sr-only`. Um banner é uma imagem, e o `alt` de uma
+ *     imagem de confirmação não cabe a frase inteira. Quem usa leitor de tela
+ *     recebe o mesmo conteúdo que quem enxerga recebe pela arte.
+ *
+ * A data e o horário ficam VISÍVEIS nos dois casos: ver o aviso mais abaixo —
+ * eles entraram na homologação justamente por não poderem depender de alguém
+ * ter lembrado de escrevê-los, e uma arte não é lugar mais confiável que um
+ * campo de texto para isso.
+ *
+ * ⚠️ SEM `dangerouslySetInnerHTML` EM LUGAR NENHUM (§25, §34): o texto entra
+ * como TEXTO.
  */
 function TelaDeSucesso({
   page,
@@ -548,15 +567,20 @@ function TelaDeSucesso({
   page: PublicRegistrationFormData;
   tituloRef: React.RefObject<HTMLHeadingElement | null>;
 }) {
-  const mensagem = resolveSuccessMessage(
-    {
-      successTitle: page.successTitle,
-      successMessage: page.successMessage,
-      successFooter: page.successFooter,
-    },
-    page.successDefaults,
-    page.event,
-  );
+  const mensagem = resolveSuccessMessage(page.successDefaults, page.event);
+
+  /**
+   * ⚠️ O BANNER PODE NÃO CARREGAR, E AÍ O TEXTO PRECISA VOLTAR À TELA. A URL é
+   * assinada e expira em uma hora; a aba pode ficar aberta mais que isso antes
+   * de alguém apertar "confirmar". Sem este estado, o resultado seria uma
+   * moldura vazia com a frase escondida em `sr-only` — a granja se inscreveria
+   * e não veria confirmação nenhuma.
+   *
+   * É a mesma proteção de `SignedImage`, escrita aqui porque a decisão que ela
+   * governa não é só "mostrar um ícone no lugar": é se o texto aparece.
+   */
+  const [bannerFalhou, setBannerFalhou] = useState(false);
+  const comBanner = Boolean(page.successImageUrl) && !bannerFalhou;
 
   return (
     <div
@@ -564,24 +588,43 @@ function TelaDeSucesso({
       // trocou sozinha, sem a pessoa navegar para lugar nenhum.
       role="status"
       aria-live="polite"
-      className="border-hairline bg-card rounded-2xl border px-6 py-10 text-center"
+      className={cn(
+        "border-hairline bg-card overflow-hidden rounded-2xl border text-center",
+        comBanner ? "pb-8" : "px-6 py-10",
+      )}
     >
-      <span
-        aria-hidden="true"
-        className="bg-primary text-primary-foreground mx-auto flex size-14 items-center justify-center rounded-full text-2xl"
-      >
-        ✓
-      </span>
+      {page.successImageUrl && !bannerFalhou ? (
+        // `alt` curto de propósito: a frase inteira está no bloco `sr-only`
+        // logo abaixo, e repeti-la aqui faria o leitor de tela dizer tudo duas
+        // vezes.
+        //
+        // eslint-disable-next-line @next/next/no-img-element -- URL assinada de vida curta; ver `SignedImage`
+        <img
+          src={page.successImageUrl}
+          alt={`Confirmação de inscrição no ${page.event.name}`}
+          onError={() => setBannerFalhou(true)}
+          className="mb-8 h-auto w-full object-contain"
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="bg-primary text-primary-foreground mx-auto flex size-14 items-center justify-center rounded-full text-2xl"
+        >
+          ✓
+        </span>
+      )}
 
-      <h2
-        ref={tituloRef}
-        tabIndex={-1}
-        className="font-display text-primary-strong mt-5 text-2xl font-extrabold tracking-tight uppercase focus:outline-none"
-      >
-        {mensagem.title}
-      </h2>
+      <div className={cn(comBanner && "sr-only")}>
+        <h2
+          ref={tituloRef}
+          tabIndex={-1}
+          className="font-display text-primary-strong mt-5 text-2xl font-extrabold tracking-tight uppercase focus:outline-none"
+        >
+          {mensagem.title}
+        </h2>
 
-      <p className="mt-4 text-base leading-relaxed whitespace-pre-line">{mensagem.message}</p>
+        <p className="mt-4 text-base leading-relaxed whitespace-pre-line">{mensagem.message}</p>
+      </div>
 
       {/*
         ============================================================================
@@ -594,17 +637,27 @@ function TelaDeSucesso({
         `{{event_date}}` na mensagem.
 
         Quem acabou de se inscrever precisa saber QUANDO comparecer, e essa
-        informação não pode depender de alguém ter configurado um marcador. Ela
-        vem do EVENTO, que é a fonte da verdade — não de texto digitado.
+        informação não pode depender de alguém ter configurado um marcador.
+
+        ⚠️ E É POR ISSO QUE ELES NÃO ENTRARAM NO `sr-only` JUNTO COM O RESTO. O
+        banner é arte enviada por gente: ele pode trazer a data, pode não
+        trazer, e pode trazer a data errada depois de o evento ser remarcado.
+        Estas duas linhas vêm do EVENTO e ficam VISÍVEIS nos dois casos — é a
+        mesma correção de antes, agora contra um jeito novo de perdê-la.
       */}
-      <p className="text-foreground mt-5 text-base font-semibold">
+      <p className={cn("text-foreground text-base font-semibold", comBanner ? "px-6" : "mt-5")}>
         {formatCalendarDate(page.event.eventDate)}
       </p>
-      <p className="text-muted-foreground text-sm">
+      <p className={cn("text-muted-foreground text-sm", comBanner && "px-6")}>
         {formatTimeRange(page.event.startTime, page.event.endTime)}
       </p>
 
-      <p className="text-muted-foreground mt-6 text-sm leading-relaxed whitespace-pre-line">
+      <p
+        className={cn(
+          "text-muted-foreground mt-6 text-sm leading-relaxed whitespace-pre-line",
+          comBanner && "sr-only",
+        )}
+      >
         {mensagem.footer}
       </p>
     </div>

@@ -41,12 +41,9 @@ interface RespostaCrua {
   landingPageId?: unknown;
   slug?: unknown;
   status?: unknown;
-  description?: unknown;
   imagePath?: unknown;
+  successImagePath?: unknown;
   formFields?: unknown;
-  successTitle?: unknown;
-  successMessage?: unknown;
-  successFooter?: unknown;
   closesAt?: unknown;
   maxParticipants?: unknown;
   participantCount?: unknown;
@@ -82,28 +79,42 @@ function lerPadroes(valor: unknown): LandingSuccessMessage {
 }
 
 /**
- * Assina a imagem para o navegador.
+ * Assina as imagens da página para o navegador.
  *
- * O bucket é PRIVADO, inclusive para esta página: o que vai para fora é uma URL
- * de vida curta, emitida aqui. Falhar devolve `null` — uma página de evento sem
- * a arte ainda diz quando e onde é; uma página que não abre não diz nada.
+ * O bucket é PRIVADO, inclusive para esta página: o que vai para fora são URLs
+ * de vida curta, emitidas aqui. Falhar devolve `null` para o caminho afetado —
+ * uma página de evento sem a arte ainda mostra o formulário; uma página que não
+ * abre não mostra nada.
+ *
+ * ⚠️ AS DUAS DE UMA VEZ, E É POR ISSO QUE ELA RECEBE UMA LISTA. Eram uma imagem
+ * só; com o banner de confirmação passaram a ser duas, e duas chamadas
+ * sequenciais somariam duas idas ao Storage em CADA carregamento da página
+ * pública — que é `force-dynamic` e não tem cache para amortizar isso.
+ * `createSignedUrls` faz o mesmo trabalho numa ida. Mesma decisão de
+ * `signImages` no backoffice.
  */
-async function assinar(path: string | null): Promise<string | null> {
-  if (!path) return null;
+async function assinar(paths: (string | null)[]): Promise<Map<string, string>> {
+  const urls = new Map<string, string>();
+  const unicos = [...new Set(paths.filter((path): path is string => Boolean(path)))];
+  if (unicos.length === 0) return urls;
 
   const admin = createAdminClient();
   const { data, error } = await admin.storage
     .from(EVENTS_BUCKET)
-    .createSignedUrl(path, IMAGE_SIGNED_URL_TTL_SECONDS);
+    .createSignedUrls(unicos, IMAGE_SIGNED_URL_TTL_SECONDS);
 
   if (error) {
-    // Sem o caminho no log: ele identifica o evento, mas não é dado pessoal —
-    // o que se omite aqui é ruído, não sigilo.
-    console.error(`[event-landing-public] URL assinada falhou: ${error.message}`);
-    return null;
+    // Sem os caminhos no log: eles identificam o evento, mas não são dado
+    // pessoal — o que se omite aqui é ruído, não sigilo.
+    console.error(`[event-landing-public] URLs assinadas falharam: ${error.message}`);
+    return urls;
   }
 
-  return data?.signedUrl ?? null;
+  for (const item of data ?? []) {
+    if (item.signedUrl && item.path) urls.set(item.path, item.signedUrl);
+  }
+
+  return urls;
 }
 
 /**
@@ -152,20 +163,21 @@ export async function getPublicLandingPage(slug: string): Promise<PublicLandingP
   const consentVersao = texto(consentBruto?.["version"]);
   const consentTexto = texto(consentBruto?.["body"]);
 
+  const caminhoDaArte = texto(bruto.imagePath);
+  const caminhoDoBanner = texto(bruto.successImagePath);
+  const assinadas = await assinar([caminhoDaArte, caminhoDoBanner]);
+
   return {
     // ⚠️ SEM `landingPageId`. Ver o aviso em `PublicLandingPage`: este objeto
     // desce inteiro para um Client Component, e o id da página não tem por que
     // chegar ao navegador. Quem precisa dele usa `resolvePublicLandingPageId`.
     slug: texto(bruto.slug) ?? limpo,
     status: status as LandingPageStatus,
-    description: texto(bruto.description),
-    imageUrl: await assinar(texto(bruto.imagePath)),
+    imageUrl: caminhoDaArte ? (assinadas.get(caminhoDaArte) ?? null) : null,
+    successImageUrl: caminhoDoBanner ? (assinadas.get(caminhoDoBanner) ?? null) : null,
     // A MESMA leitura defensiva do backoffice: configuração irreconhecível cai
     // na ordem padrão do §7 em vez de derrubar a página.
     formFields: readLandingFields(bruto.formFields),
-    successTitle: texto(bruto.successTitle),
-    successMessage: texto(bruto.successMessage),
-    successFooter: texto(bruto.successFooter),
     closesAt: texto(bruto.closesAt),
     maxParticipants: numero(bruto.maxParticipants),
     participantCount: numero(bruto.participantCount) ?? 0,

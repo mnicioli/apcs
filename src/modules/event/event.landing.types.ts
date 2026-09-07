@@ -171,14 +171,25 @@ export interface LandingPageSummary {
   /** A decisão humana gravada. Para exibir, use `effectiveStatus`. */
   status: LandingPageStatus;
   slug: string;
-  description: string | null;
   /** URL assinada da imagem PRÓPRIA da página, ou `null` — aí vale a do evento. */
   imageUrl: string | null;
+  /**
+   * URL assinada do BANNER DE CONFIRMAÇÃO — a arte que substitui o texto depois
+   * da inscrição.
+   *
+   * ⚠️ NULO NÃO CAI NO CARTAZ DO EVENTO, ao contrário de `imageUrl`. São duas
+   * artes com finalidades diferentes: mostrar a peça de divulgação como se
+   * fosse o comprovante seria pior do que não mostrar imagem nenhuma. Sem
+   * banner, a confirmação usa o TEXTO padrão da plataforma.
+   *
+   * ⚠️ E OS TEXTOS POR PÁGINA NÃO EXISTEM MAIS. `description`, `successTitle`,
+   * `successMessage` e `successFooter` saíram daqui quando o cliente pediu a
+   * página sem texto solto. As COLUNAS continuam no banco, com o conteúdo que
+   * tinham, mas nada as escreve nem as lê — ver a decisão 1 de
+   * 20260928000000_event_landing_success_image.sql.
+   */
+  successImageUrl: string | null;
   formFields: LandingFieldKey[];
-  /** Os três campos crus, como estão gravados. Nulo = usa o padrão. */
-  successTitle: string | null;
-  successMessage: string | null;
-  successFooter: string | null;
   /** ISO 8601 com fuso. Nulo = sem prazo. */
   closesAt: string | null;
   /** Nulo = sem limite (§14). */
@@ -364,14 +375,11 @@ export interface PublicLandingPage {
    */
   slug: string;
   status: LandingPageStatus;
-  description: string | null;
   /** URL assinada. O caminho no bucket nunca sai do servidor. */
   imageUrl: string | null;
+  /** O banner de confirmação. Nulo = a confirmação usa `successDefaults`. */
+  successImageUrl: string | null;
   formFields: LandingFieldKey[];
-  /** Os três crus. Nulo = usa `successDefaults`. */
-  successTitle: string | null;
-  successMessage: string | null;
-  successFooter: string | null;
   closesAt: string | null;
   maxParticipants: number | null;
   participantCount: number;
@@ -433,7 +441,7 @@ export type PublicRegistrationState =
  */
 export type PublicRegistrationFormData = Pick<
   PublicLandingPage,
-  "slug" | "formFields" | "successTitle" | "successMessage" | "successFooter" | "successDefaults"
+  "slug" | "formFields" | "successImageUrl" | "successDefaults"
 > & {
   event: PublicLandingPage["event"];
   consent: PublicLandingPage["consent"];

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Monitor, Plus, Smartphone, Trash2 } from "lucide-react";
 import { ApcsMark } from "@/components/brand/apcs-logo";
 import { CspiMark } from "@/components/brand/cspi-logo";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SignedImage } from "@/components/ui/signed-image";
 import { cn, formatCalendarDate } from "@/lib/utils";
@@ -38,9 +37,18 @@ import { formatTimeRange } from "@/modules/event/event.rules";
  *
  * Não há o que enviar porque não há para onde enviar.
  *
+ * ============================================================================
+ * ⚠️ AS DUAS TELAS APARECEM AO MESMO TEMPO, LADO A LADO.
+ * ============================================================================
+ * Era um botão que alternava entre "Ver formulário" e "Ver confirmação" — uma
+ * tela de cada vez. Passaram a ser duas colunas, e a razão é o que a página se
+ * tornou: as duas telas agora são, principalmente, DUAS ARTES. Comparar duas
+ * imagens é a operação que se faz o tempo todo aqui, e um botão que troca uma
+ * pela outra transforma comparação em memória.
+ *
  * ⚠️ TEMPO REAL SEM SALVAR (§19): este componente recebe o estado do Builder por
  * props. Nenhuma leitura, nenhum efeito, nenhum `useEffect` esperando dado —
- * digitar no campo ao lado redesenha esta coluna no mesmo quadro.
+ * mexer no campo ao lado redesenha esta área no mesmo quadro.
  *
  * ⚠️ A IDENTIDADE INSTITUCIONAL NÃO VEM DE PROP (§21). Logo, assinatura e cor
  * saem de `LANDING_INSTITUTIONAL_CONTEXT` e dos tokens do design system. Não há
@@ -52,11 +60,7 @@ import { formatTimeRange } from "@/modules/event/event.rules";
 type Dispositivo = "desktop" | "mobile";
 
 export interface LandingPreviewState {
-  description: string;
   formFields: LandingFieldKey[];
-  successTitle: string;
-  successMessage: string;
-  successFooter: string;
   maxParticipants: string;
 }
 
@@ -64,71 +68,132 @@ export function LandingPreview({
   state,
   event,
   imageUrl,
+  successImageUrl,
   successDefaults,
 }: {
   state: LandingPreviewState;
   event: LandingTemplateEvent & { location: string };
   /** A arte própria da página, ou o cartaz do evento quando ela não tem uma. */
   imageUrl: string | null;
-  /** O texto padrão da plataforma, para os campos que a página não sobrescreve. */
+  /** O banner de confirmação. `null` = a confirmação usa o texto padrão. */
+  successImageUrl: string | null;
+  /** O texto padrão da plataforma — hoje, o ÚNICO texto da confirmação. */
   successDefaults: LandingSuccessMessage;
 }) {
   const [dispositivo, setDispositivo] = useState<Dispositivo>("desktop");
   /** Quantos participantes a simulação mostra. Contador local, e nada mais. */
   const [participantes, setParticipantes] = useState(1);
-  const [mostrandoSucesso, setMostrandoSucesso] = useState(false);
 
-  const sucesso = resolveSuccessMessage(
-    {
-      successTitle: state.successTitle.trim() || null,
-      successMessage: state.successMessage.trim() || null,
-      successFooter: state.successFooter.trim() || null,
-    },
-    successDefaults,
-    event,
-  );
+  const sucesso = resolveSuccessMessage(successDefaults, event);
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-medium">Prévia</h2>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-medium">Prévia</h2>
+          <p className="text-muted-foreground text-xs">
+            É ilustrativa e não registra nada. O formulário de verdade entra no ar quando a página
+            for publicada.
+          </p>
+        </div>
 
-        <div className="flex items-center gap-1">
-          {/* §20. Não é uma moldura de aparelho — é a LARGURA, que é o que
-              decide se a composição cabe. Um desenho de iPhone em volta não
-              responderia nada que esta troca de largura não responda. */}
-          <div
-            role="group"
-            aria-label="Largura da prévia"
-            className="border-border flex rounded-md border p-0.5"
-          >
-            <BotaoDispositivo
-              atual={dispositivo}
-              valor="desktop"
-              onSelect={setDispositivo}
-              icone={<Monitor className="h-4 w-4" aria-hidden="true" />}
-              rotulo="Computador"
-            />
-            <BotaoDispositivo
-              atual={dispositivo}
-              valor="mobile"
-              onSelect={setDispositivo}
-              icone={<Smartphone className="h-4 w-4" aria-hidden="true" />}
-              rotulo="Celular"
-            />
-          </div>
+        {/* §20. Não é uma moldura de aparelho — é a LARGURA, que é o que
+            decide se a composição cabe. Um desenho de iPhone em volta não
+            responderia nada que esta troca de largura não responda.
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            aria-pressed={mostrandoSucesso}
-            onClick={() => setMostrandoSucesso((atual) => !atual)}
-          >
-            {mostrandoSucesso ? "Ver formulário" : "Ver confirmação"}
-          </Button>
+            ⚠️ UM CONTROLE PARA AS DUAS COLUNAS. Larguras diferentes nas duas
+            telas fariam a comparação mentir sobre qual arte fica melhor. */}
+        <div
+          role="group"
+          aria-label="Largura da prévia"
+          className="border-border flex shrink-0 rounded-md border p-0.5"
+        >
+          <BotaoDispositivo
+            atual={dispositivo}
+            valor="desktop"
+            onSelect={setDispositivo}
+            icone={<Monitor className="h-4 w-4" aria-hidden="true" />}
+            rotulo="Computador"
+          />
+          <BotaoDispositivo
+            atual={dispositivo}
+            valor="mobile"
+            onSelect={setDispositivo}
+            icone={<Smartphone className="h-4 w-4" aria-hidden="true" />}
+            rotulo="Celular"
+          />
         </div>
       </div>
+
+      {/* Duas colunas a partir de `xl`, e não de `lg`: cada painel é uma página
+          inteira em miniatura, e espremer duas num tablet torna as duas
+          ilegíveis — que é o oposto do que uma prévia serve para fazer. */}
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Painel titulo="Ver formulário" dispositivo={dispositivo}>
+          <div className="space-y-5 p-5">
+            <SignedImage
+              url={imageUrl}
+              alt={`Imagem de ${event.name}`}
+              sizes="w-full"
+              className="h-auto max-h-72 rounded-md object-contain"
+            />
+
+            {/*
+              ⚠️ NOME, DATA, HORA E LOCAL SAÍRAM DAQUI PORQUE SAÍRAM DE LÁ.
+              Eles passaram a viver no banner, e a página pública deixou de
+              desenhá-los. Esta prévia existe para mostrar o que vai ao ar: se
+              ela continuasse exibindo o título vermelho e a linha de data e
+              local, o administrador aprovaria uma composição que ninguém
+              nunca veria.
+
+              A descrição saiu na mesma leva, e pelo mesmo motivo: a página
+              pública não a desenha mais.
+
+              É a mesma lição do consentimento, ali embaixo — uma prévia que
+              não acompanha a página real não é ilustrativa, é errada. E o
+              jeito de o banner ficar bom é justamente conferi-lo aqui SEM o
+              texto por baixo, porque é assim que ele chega a quem se inscreve.
+            */}
+            <FormularioSimulado
+              fields={state.formFields}
+              participantes={participantes}
+              onAdd={() => setParticipantes((n) => Math.min(n + 1, 5))}
+              onRemove={() => setParticipantes((n) => Math.max(n - 1, 1))}
+              capacidade={state.maxParticipants}
+            />
+          </div>
+        </Painel>
+
+        <Painel titulo="Ver confirmação" dispositivo={dispositivo}>
+          <TelaDeSucesso mensagem={sucesso} event={event} imageUrl={successImageUrl} />
+        </Painel>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Uma das duas telas, com o cabeçalho e o rodapé institucionais em volta.
+ *
+ * ⚠️ O TÍTULO É UM CABEÇALHO DE VERDADE, e não um rótulo desenhado. As duas
+ * colunas mostram páginas parecidas — mesma marca no topo, mesmo rodapé —, e sem
+ * um cabeçalho por painel quem usa leitor de tela recebe as duas em sequência
+ * sem saber onde uma termina e a outra começa.
+ */
+function Painel({
+  titulo,
+  dispositivo,
+  children,
+}: {
+  titulo: string;
+  dispositivo: Dispositivo;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-2">
+      <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+        {titulo}
+      </h3>
 
       {/* O fundo escuro em volta separa a prévia da tela do CRM: sem ele, a
           pessoa não distingue o que é a página pública do que é o backoffice. */}
@@ -140,57 +205,11 @@ export function LandingPreview({
           )}
         >
           <CabecalhoInstitucional />
-
-          {mostrandoSucesso ? (
-            <TelaDeSucesso mensagem={sucesso} event={event} />
-          ) : (
-            <div className="space-y-5 p-5">
-              <SignedImage
-                url={imageUrl}
-                alt={`Imagem de ${event.name}`}
-                sizes="w-full"
-                className="h-auto max-h-72 rounded-md object-contain"
-              />
-
-              {/*
-                ⚠️ NOME, DATA, HORA E LOCAL SAÍRAM DAQUI PORQUE SAÍRAM DE LÁ.
-                Eles passaram a viver no banner, e a página pública deixou de
-                desenhá-los. Esta prévia existe para mostrar o que vai ao ar: se
-                ela continuasse exibindo o título vermelho e a linha de data e
-                local, o administrador aprovaria uma composição que ninguém
-                nunca veria.
-
-                É a mesma lição do consentimento, ali embaixo — uma prévia que
-                não acompanha a página real não é ilustrativa, é errada. E o
-                jeito de o banner ficar bom é justamente conferi-lo aqui SEM o
-                texto por baixo, porque é assim que ele chega a quem se inscreve.
-              */}
-              {state.description.trim() && (
-                // `whitespace-pre-line` porque a descrição é texto simples com
-                // quebras de linha — o §10 pede o formato que a plataforma já
-                // usa, e ela não tem editor rich text em lugar nenhum.
-                <p className="text-sm leading-relaxed whitespace-pre-line">{state.description}</p>
-              )}
-
-              <FormularioSimulado
-                fields={state.formFields}
-                participantes={participantes}
-                onAdd={() => setParticipantes((n) => Math.min(n + 1, 5))}
-                onRemove={() => setParticipantes((n) => Math.max(n - 1, 1))}
-                capacidade={state.maxParticipants}
-              />
-            </div>
-          )}
-
+          {children}
           <RodapeInstitucional />
         </div>
       </div>
-
-      <p className="text-muted-foreground text-xs">
-        A prévia é ilustrativa e não registra nada. O formulário de verdade entra no ar quando a
-        página for publicada.
-      </p>
-    </div>
+    </section>
   );
 }
 
@@ -225,10 +244,10 @@ function BotaoDispositivo({
 }
 
 /**
- * §21 — APCS + CSPI, e o usuário não tira.
+ * §21 — APCS + CSP, e o usuário não tira.
  *
  * ⚠️ O QUE ESTÁ AQUI TEM DE SER O QUE A PÁGINA PÚBLICA MOSTRA — é o ponto de
- * existir uma prévia. Quando o CSPI deixou de ser a palavra "CSPI" e virou
+ * existir uma prévia. Quando o CSP deixou de ser a palavra "CSPI" e virou
  * desenho lá, virou desenho aqui na MESMA mudança. A altura é menor porque
  * este cabeçalho inteiro é menor (24 contra 32).
  */
@@ -370,27 +389,61 @@ function CampoSimulado({ campo }: { campo: LandingFieldKey }) {
   );
 }
 
-/** §17. A tela que a pessoa vê depois de se inscrever. */
+/**
+ * §17. A tela que a pessoa vê depois de se inscrever.
+ *
+ * ============================================================================
+ * ⚠️ COM BANNER, O TEXTO SOME DA TELA — E A PRÉVIA PRECISA SUMIR JUNTO.
+ * ============================================================================
+ * A página pública esconde o título e a mensagem em `sr-only` quando há banner:
+ * a arte diz o que eles diziam, e repetir por escrito seria dizer duas vezes.
+ * Se esta prévia mostrasse a arte E o texto, o administrador aprovaria uma
+ * composição que ninguém vê — que é exatamente o defeito que o §45.11 pegou no
+ * consentimento, por outra porta.
+ *
+ * O que continua VISÍVEL nos dois casos é a data e o horário, pelo mesmo motivo
+ * de lá: eles vêm do EVENTO, e não da arte. Um banner pode não trazer a data, ou
+ * trazer a data de antes de o evento ser remarcado.
+ */
 function TelaDeSucesso({
   mensagem,
   event,
+  imageUrl,
 }: {
   mensagem: LandingSuccessMessage;
   event: LandingTemplateEvent;
+  imageUrl: string | null;
 }) {
+  if (imageUrl) {
+    return (
+      <div className="pb-6 text-center">
+        <SignedImage
+          url={imageUrl}
+          alt={`Confirmação de ${event.name}`}
+          sizes="w-full"
+          className="mb-6 h-auto w-full rounded-none object-contain"
+        />
+        <p className="text-foreground px-5 text-sm font-semibold">
+          {formatCalendarDate(event.eventDate)}
+        </p>
+        <p className="text-muted-foreground px-5 text-xs">
+          {formatTimeRange(event.startTime, event.endTime)}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3 p-8 text-center">
-      <Badge variant="attention">Confirmação</Badge>
-      <h3 className="text-primary-strong text-lg font-bold tracking-tight">{mensagem.title}</h3>
+      <span
+        aria-hidden="true"
+        className="bg-primary text-primary-foreground mx-auto flex size-10 items-center justify-center rounded-full text-lg"
+      >
+        ✓
+      </span>
+      <h4 className="text-primary-strong text-lg font-bold tracking-tight">{mensagem.title}</h4>
       <p className="text-sm whitespace-pre-line">{mensagem.message}</p>
 
-      {/*
-        ⚠️ A DATA E O HORÁRIO ENTRARAM NA HOMOLOGAÇÃO, nas DUAS telas ao mesmo
-        tempo (§4 do Prompt 5: "validar que o preview corresponda ao resultado
-        público"). A página real passou a mostrá-los sempre — vindos do EVENTO, e
-        não de um marcador que o administrador precisaria lembrar de escrever.
-        Uma prévia sem eles voltaria a mentir sobre o que a granja vai ver.
-      */}
       <p className="text-foreground pt-1 text-sm font-semibold">
         {formatCalendarDate(event.eventDate)}
       </p>

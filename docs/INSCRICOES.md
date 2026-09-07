@@ -15,6 +15,12 @@ EVENTOS
 > inscrição, o backoffice com confirmação e a exportação. A seção 18 registra o
 > que quebrou depois do go live — inclusive um defeito que atravessou as cinco
 > etapas sem aparecer.
+>
+> ⚠️ **A seção 19 muda o que as seções 10 e 11 descrevem.** A página deixou de
+> ter texto solto: a descrição saiu e a mensagem de confirmação virou um
+> **banner**. As duas seções abaixo continuam valendo no que dizem sobre a
+> identidade institucional e sobre a origem do texto padrão — mas não sobre os
+> campos, que já não existem. Leia a 19 antes de mexer nessa parte.
 
 ---
 
@@ -262,11 +268,18 @@ garantir isso é **não existir onde guardar**: não há `logo_url`, não há
 
 A identidade é uma constante (`LANDING_INSTITUTIONAL_CONTEXT` em
 `event.landing.labels.ts`). O que a Landing Page configura é o **conteúdo**:
-imagem do evento, descrição, campos e mensagem de sucesso.
+~~imagem do evento, descrição, campos e mensagem de sucesso~~ — hoje, **duas
+artes** (a da página e a da confirmação), a ordem dos campos, o prazo e a
+capacidade. Ver a seção 19.
 
 ---
 
 ## 11. A mensagem de confirmação (§18)
+
+> ⚠️ **Esta seção descreve o desenho até a seção 19.** A fonte 2 não existe
+> mais: a confirmação virou um banner, e a Landing Page não sobrescreve texto
+> nenhum. Sobrou a fonte 1 — que continua sendo o que aparece quando não há
+> banner, e o que um leitor de tela recebe quando há.
 
 Não há texto embutido em service nem em controller. **Duas fontes, nunca duas
 verdades:**
@@ -274,12 +287,14 @@ verdades:**
 1. o padrão da plataforma, em `app_settings`
    (`events.registration_success_title` / `_message` / `_footer`), editável em
    `/settings/texts`;
-2. o texto da própria Landing Page, quando ela define — e ela pode sobrescrever
-   **pedaço a pedaço**, não é tudo ou nada.
+2. ~~o texto da própria Landing Page, quando ela define — e ela pode
+   sobrescrever **pedaço a pedaço**, não é tudo ou nada.~~ Removido na seção 19.
 
-O padrão só é consultado quando a específica não existe. `<EVENTO>` e `<DATA>`
-são substituídos na renderização, e não concatenados no SQL, porque quem edita o
-texto precisa poder mover o nome do evento de lugar na frase.
+`<EVENTO>` e `<DATA>` são substituídos na renderização, e não concatenados no
+SQL, porque quem edita o texto precisa poder mover o nome do evento de lugar na
+frase. `resolveSuccessMessage` continua existindo por isso — e porque são duas
+telas (a prévia do Builder e a página pública) que precisam resolver o texto
+igual.
 
 ---
 
@@ -947,3 +962,151 @@ pela marca.
 alguém ouve no lugar da imagem. O desenho escreve **CSP**, e é assim que a marca
 aparece no nome do evento e no rodapé. Um `alt` com sigla diferente da que está
 desenhada descreve outra coisa.
+
+---
+
+## 19. A página sem texto: o banner de confirmação e o Builder em blocos
+
+Pedido do cliente depois do go live, e ele fecha um movimento que tinha começado
+na seção 18: **a página de inscrição deixa de ter texto solto.** Nome, data,
+hora e local já tinham saído da tela e passado para o banner. Agora saíram os
+dois blocos que restavam.
+
+### O que saiu
+
+| O quê                       | Onde ficava                | O que ficou no lugar          |
+| --------------------------- | -------------------------- | ----------------------------- |
+| **Descrição**               | abaixo da arte, na página  | nada — a arte diz o que dizia |
+| **Mensagem após inscrição** | título + mensagem + rodapé | um **banner de confirmação**  |
+
+A confirmação virou uma **imagem**. Quem monta a página envia duas artes — a da
+inscrição e a da confirmação — e não escreve mais nada.
+
+### ⚠️ As colunas de texto NÃO foram derrubadas
+
+`description`, `success_title`, `success_message` e `success_footer` continuam
+em `event_landing_pages`, **com o conteúdo que tinham**. Um drop de coluna
+apagaria texto escrito por gente, em produção, para atender a um pedido de
+layout. Se amanhã a decisão for outra, o texto está lá.
+
+O que saiu foi a **escrita**, em duas camadas que não são redundantes:
+
+1. `create_event_landing_page` e `update_event_landing_page` foram **derrubadas
+   e recriadas** sem os quatro parâmetros (drop-e-recria, e não `create or
+replace`: tirar parâmetro muda a assinatura, e as duas versões conviveriam
+   sobrecarregadas — 42725 numa chamada por nome de argumento);
+2. o `grant update` das quatro colunas foi **revogado**. As funções são SECURITY
+   INVOKER, então o privilégio de coluna é a barreira que vale mesmo se alguém
+   escrever um UPDATE novo por distração — inclusive direto pelo PostgREST.
+
+O Zod ignora chave desconhecida por padrão: uma tela que continuasse mandando
+`description: ""` passaria pelo schema sem uma palavra e apagaria o texto. Por
+isso há dois testes assertando as **chaves** do payload, e não só o conteúdo.
+
+### O banner de confirmação, e o que ele NÃO faz
+
+`success_image_path` / `_mime` / `_size_bytes`, com o mesmo CHECK de "os três ou
+nenhum" que `image_path` já tinha. Mesmo bucket, mesmo teto de 5 MB, mesma
+inspeção de bytes no servidor, mesmo descarte do arquivo substituído. Pasta
+própria: `<event_id>/landing/success/`.
+
+⚠️ **Sem banner, a confirmação NÃO cai no cartaz do evento** — ao contrário da
+arte da página, que cai. São duas peças com finalidades diferentes: uma convida,
+a outra confirma. Mostrar a peça de divulgação como se fosse o comprovante seria
+pior do que não mostrar imagem nenhuma. Sem banner, a confirmação usa o **texto
+padrão da plataforma** (`app_settings`, editável em Configurações → Textos), que
+sempre existe.
+
+⚠️ **Com banner, o texto vira `sr-only` — não desaparece.** Um banner é uma
+imagem, e o `alt` de uma arte de confirmação não comporta a frase inteira. Quem
+usa leitor de tela recebe o mesmo conteúdo que quem enxerga recebe pela arte.
+
+⚠️ **A data e o horário ficam VISÍVEIS nos dois casos.** É a correção da
+homologação (§16 do Prompt 5) resistindo a um jeito **novo** de perdê-la: antes
+o risco era o administrador esquecer de escrever `{{event_date}}`; agora é ele
+mandar uma arte sem a data, ou com a data de antes de o evento ser remarcado. As
+duas linhas vêm do EVENTO, não da imagem.
+
+⚠️ **E o banner pode não carregar.** A URL é assinada e expira em uma hora; a
+aba pode ficar aberta mais que isso antes de alguém apertar "confirmar". Sem
+tratamento, o resultado seria uma moldura vazia com a frase escondida em
+`sr-only` — a granja se inscreveria e não veria confirmação nenhuma. O `onError`
+da imagem devolve o texto à tela.
+
+### Uma action para as duas artes, e um `slot` para dizer qual
+
+As três actions de upload são as mesmas para a arte da página e para o banner. O
+que difere cabe numa tabela (`IMAGEM_DA_PAGINA` em `event-landing.ts`): a pasta
+no Storage, a função Postgres e a coluna. Duplicar as três para trocar isso é
+como uma das cópias deixa de receber a próxima correção de segurança.
+
+⚠️ **A pasta do `success` é FILHA da pasta do `page`.**
+`<id>/landing/success/x.png` também começa com `<id>/landing/`, então um
+`startsWith` sozinho deixaria uma arte de confirmação ser gravada como arte da
+página. Por isso a conferência exige que o resto do caminho seja um **nome de
+arquivo** — sem mais nenhuma barra.
+
+### O Builder virou quatro blocos de duas colunas
+
+Era uma coluna de configuração à esquerda e a prévia `sticky` à direita. Dois
+fatos somados envelheceram esse desenho:
+
+- a coluna esquerda tinha seis cartões e **três eram texto**; com o texto fora, o
+  que sobrou são pares que se leem juntos;
+- a prévia deixou de ser uma tela e virou **duas** (formulário e confirmação), e
+  duas páginas em miniatura não cabem em meia tela.
+
+| Bloco | Esquerda             | Direita                    |
+| ----- | -------------------- | -------------------------- |
+| 1     | Evento               | Endereço público           |
+| 2     | Imagem da página     | Imagem da confirmação      |
+| 3     | Campos do formulário | Configurações de inscrição |
+| 4     | Ver formulário       | Ver confirmação            |
+
+A prévia deixou de ser `sticky` de propósito: com os blocos em duas colunas a
+página encurtou pela metade, e uma prévia grudada no topo passaria a **cobrir** o
+bloco que a pessoa está editando em vez de acompanhá-lo.
+
+As duas telas da prévia aparecem **ao mesmo tempo** porque as duas viraram,
+principalmente, duas artes. Comparar duas imagens é a operação que se faz o tempo
+todo agora, e um botão que troca uma pela outra transforma comparação em
+memória.
+
+⚠️ **Consequência para os testes:** com as duas telas no DOM,
+`getByText("18/09/2026")` acharia a data da confirmação numa asserção que fala do
+formulário — e passaria dizendo o contrário do que pretende. Por isso
+`landing-preview.test.tsx` ganhou um helper `painel()`, e toda asserção que fala
+de uma das telas é feita dentro dela.
+
+### As setas de reordenar saíram — e o §31 continua de pé
+
+O pedido foi remover as duas setas de cada linha da lista de campos. Elas eram a
+**única** forma de reordenar sem mouse: tirá-las e não pôr nada no lugar
+quebraria o §31 ("Não fazer o Drag & Drop depender exclusivamente do mouse") sem
+que nenhum teste percebesse — os casos daquele bloco simplesmente sumiriam.
+
+No lugar entrou um `<select>` de **posição**, nativo (teclado e leitor de tela de
+graça), com o nome do campo no `aria-label`. Numa lista de cinco itens, escolher
+"3" na hora é melhor do que apertar a seta duas vezes.
+
+⚠️ **O `value` é 1-based, igual ao rótulo.** A primeira versão usava
+`value={indice}` com texto `indice + 1` — a opção que MOSTRA "3" carregava o
+valor "2". O teste pegou: `selectOptions(select, "3")` acertava a posição errada
+por um. Qualquer código que procure a posição pelo que está escrito sofreria o
+mesmo, e a conversão para índice agora acontece num lugar só.
+
+### O que isso muda na leitura pública
+
+`get_public_event_landing_page` deixou de devolver `description`,
+`successTitle`, `successMessage` e `successFooter`, e passou a devolver
+`successImagePath`. É o princípio do cabeçalho de `20260924000000`: campo que a
+tela não usa mais e continua no jsonb é campo que desce para o navegador sem
+ninguém notar.
+
+`successDefaults` **continua** — ele é o fallback e o texto alternativo do
+banner, não um resquício.
+
+⚠️ E a descrição do Open Graph (o que aparece ao colar o link no WhatsApp) era o
+texto editável. Passou a ser sempre a frase montada a partir do evento. Não é
+perda: a anterior só existia quando alguém tinha lembrado de escrevê-la, e caía
+nessa mesma frase quando não.

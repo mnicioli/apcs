@@ -11,7 +11,11 @@ import {
   discardReplacedImage,
   inspectUploadedImage,
 } from "@/lib/events/image-upload";
-import { buildLandingImagePath, EVENTS_BUCKET } from "@/lib/events/storage";
+import {
+  buildLandingImagePath,
+  buildLandingSuccessImagePath,
+  EVENTS_BUCKET,
+} from "@/lib/events/storage";
 import { validateImageCandidate } from "@/lib/files/image";
 import {
   createLandingPageSchema,
@@ -19,7 +23,7 @@ import {
   landingCommandSchema,
   landingImageSchema,
   landingImageTicketSchema,
-  landingPageIdSchema,
+  landingImageRemovalSchema,
   participantConfirmationSchema,
   updateLandingPageSchema,
   updateCompanySchema,
@@ -30,7 +34,8 @@ import {
   type LandingCommandInput,
   type LandingImageInput,
   type LandingImageTicketInput,
-  type LandingPageIdInput,
+  type LandingImageRemovalInput,
+  type LandingImageSlot,
   type ParticipantConfirmationInput,
   type UpdateLandingPageInput,
   type UpdateCompanyInput,
@@ -120,11 +125,7 @@ export async function createLandingPageAction(
     // Vazio significa "gera a partir do nome do evento" (§6) — quem decide é o
     // banco, que é o único que consegue conferir a unicidade.
     p_slug: orNull(parsed.data.slug),
-    p_description: orNull(parsed.data.description),
     p_form_fields: parsed.data.formFields,
-    p_success_title: orNull(parsed.data.successTitle),
-    p_success_message: orNull(parsed.data.successMessage),
-    p_success_footer: orNull(parsed.data.successFooter),
     p_closes_at: orNull(parsed.data.closesAt),
     p_max_participants: orNullNumber(parsed.data.maxParticipants),
   } as never);
@@ -154,11 +155,7 @@ export async function updateLandingPageAction(
   const { data, error } = await supabase.rpc("update_event_landing_page", {
     p_landing_page_id: parsed.data.landingPageId,
     p_slug: orNull(parsed.data.slug),
-    p_description: orNull(parsed.data.description),
     p_form_fields: parsed.data.formFields,
-    p_success_title: orNull(parsed.data.successTitle),
-    p_success_message: orNull(parsed.data.successMessage),
-    p_success_footer: orNull(parsed.data.successFooter),
     p_closes_at: orNull(parsed.data.closesAt),
     p_max_participants: orNullNumber(parsed.data.maxParticipants),
   } as never);
@@ -399,8 +396,66 @@ export async function setParticipantConfirmationAction(
 }
 
 /* -------------------------------------------------------------------------- */
-/* 3. A imagem da página (§8 do Prompt 2) — exige `events.write`              */
+/* 3. As DUAS imagens da página — exige `events.write`                        */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * O QUE MUDA ENTRE A ARTE DA PÁGINA E O BANNER DE CONFIRMAÇÃO.
+ *
+ * ============================================================================
+ * ⚠️ TRÊS DIFERENÇAS, E TUDO O MAIS É IDÊNTICO — POR ISSO É UMA TABELA.
+ * ============================================================================
+ * As duas artes sobem pelo mesmo bucket, com o mesmo teto de 5 MB, a mesma
+ * inspeção de bytes, a mesma ordem (validar antes de gravar, descartar a antiga
+ * depois) e a mesma permissão. O que difere é a PASTA, a FUNÇÃO POSTGRES e a
+ * COLUNA que guarda o caminho.
+ *
+ * Duplicar as três actions para trocar isso é como uma das cópias deixa de
+ * receber a próxima correção — e a correção que importa aqui é de segurança: a
+ * conferência de que o caminho devolvido pelo cliente aponta para a pasta do
+ * próprio evento.
+ *
+ * ⚠️ E A PASTA DO `success` É FILHA DA DO `page`. `<id>/landing/success/x.png`
+ * também começa com `<id>/landing/`, então um `startsWith` sozinho deixaria uma
+ * arte de confirmação ser gravada como arte da página. É por isso que
+ * `dentroDaPasta` exige que o resto do caminho seja um NOME DE ARQUIVO — sem
+ * mais nenhuma barra.
+ */
+const IMAGEM_DA_PAGINA = {
+  page: {
+    pasta: (eventId: string) => `${eventId}/landing/`,
+    caminho: buildLandingImagePath,
+    rpc: "set_event_landing_page_image",
+    coluna: "image_path",
+    argumentos: (path: string | null, mime: string | null, bytes: number | null) => ({
+      p_image_path: path,
+      p_image_mime: mime,
+      p_image_size_bytes: bytes,
+    }),
+  },
+  success: {
+    pasta: (eventId: string) => `${eventId}/landing/success/`,
+    caminho: buildLandingSuccessImagePath,
+    rpc: "set_event_landing_page_success_image",
+    coluna: "success_image_path",
+    argumentos: (path: string | null, mime: string | null, bytes: number | null) => ({
+      p_success_image_path: path,
+      p_success_image_mime: mime,
+      p_success_image_size_bytes: bytes,
+    }),
+  },
+} as const satisfies Record<LandingImageSlot, unknown>;
+
+/**
+ * O caminho está DENTRO da pasta, e não numa subpasta dela.
+ *
+ * Ver o aviso acima: é esta segunda metade que separa as duas artes, já que a
+ * pasta de uma é filha da pasta da outra.
+ */
+function dentroDaPasta(storagePath: string, pasta: string): boolean {
+  if (!storagePath.startsWith(pasta)) return false;
+  return !storagePath.slice(pasta.length).includes("/");
+}
 
 /**
  * Passo 1: autoriza e devolve um endereço para o navegador enviar a arte DIRETO
@@ -454,7 +509,7 @@ export async function requestLandingImageUploadAction(
   }
   if (!pagina) return fail("notFound");
 
-  const path = buildLandingImagePath(pagina.event_id, parsed.data.filename);
+  const path = IMAGEM_DA_PAGINA[parsed.data.slot].caminho(pagina.event_id, parsed.data.filename);
 
   const { data, error } = await supabase.storage.from(EVENTS_BUCKET).createSignedUploadUrl(path);
 
@@ -485,15 +540,23 @@ export async function setLandingPageImageAction(
   const negado = await assertPermission<{ id: string }>("events.write");
   if (negado) return negado;
 
-  const { landingPageId, storagePath } = parsed.data;
+  const { landingPageId, storagePath, slot } = parsed.data;
+  const destino = IMAGEM_DA_PAGINA[slot];
 
   const supabase = await createClient();
 
   const { data: pagina, error: erroLeitura } = await supabase
     .from("event_landing_pages")
-    .select("id, event_id, image_path")
+    .select("id, event_id, image_path, success_image_path")
     .eq("id", landingPageId)
-    .returns<{ id: string; event_id: string; image_path: string | null }[]>()
+    .returns<
+      {
+        id: string;
+        event_id: string;
+        image_path: string | null;
+        success_image_path: string | null;
+      }[]
+    >()
     .maybeSingle();
 
   if (erroLeitura) {
@@ -503,8 +566,9 @@ export async function setLandingPageImageAction(
 
   // ⚠️ O CAMINHO VOLTA PELO CLIENTE, ENTÃO NÃO É CONFIÁVEL. Confiná-lo à pasta
   // do próprio evento impede uma página de apontar para a arte de outra — ou
-  // pior, para o cartaz de um evento alheio.
-  if (!storagePath.startsWith(`${pagina.event_id}/landing/`)) return fail("invalidInput");
+  // pior, para o cartaz de um evento alheio. E confiná-lo à pasta do SLOT
+  // impede o banner de confirmação de ser gravado como arte da página.
+  if (!dentroDaPasta(storagePath, destino.pasta(pagina.event_id))) return fail("invalidInput");
 
   const imagem = await inspectUploadedImage(storagePath);
   if ("issue" in imagem) {
@@ -512,11 +576,9 @@ export async function setLandingPageImageAction(
     return fail(imagem.issue);
   }
 
-  const { data, error } = await supabase.rpc("set_event_landing_page_image", {
+  const { data, error } = await supabase.rpc(destino.rpc, {
     p_landing_page_id: landingPageId,
-    p_image_path: storagePath,
-    p_image_mime: imagem.mime,
-    p_image_size_bytes: imagem.sizeBytes,
+    ...destino.argumentos(storagePath, imagem.mime, imagem.sizeBytes),
   } as never);
 
   if (error || !data) {
@@ -524,8 +586,9 @@ export async function setLandingPageImageAction(
     return error ? failFromPostgres("landing.image", error, { landingPageId }) : fail("unexpected");
   }
 
-  if (pagina.image_path && pagina.image_path !== storagePath) {
-    await discardReplacedImage(pagina.image_path, "event_landing_pages");
+  const anterior = pagina[destino.coluna];
+  if (anterior && anterior !== storagePath) {
+    await discardReplacedImage(anterior, "event_landing_pages", destino.coluna);
   }
 
   revalidateLanding();
@@ -533,55 +596,58 @@ export async function setLandingPageImageAction(
 }
 
 /**
- * Remove a arte própria da página.
+ * Remove uma das duas artes.
  *
- * ⚠️ ISSO NÃO DEIXA A PÁGINA SEM IMAGEM. Sem arte própria, ela usa o CARTAZ DO
- * EVENTO, que é obrigatório e sempre existe. É por isso que remover é uma
- * operação segura aqui e não seria em Eventos — lá a imagem é o único cartaz.
+ * ⚠️ AS DUAS REMOÇÕES SÃO SEGURAS, POR MOTIVOS DIFERENTES. Sem arte própria, a
+ * página de inscrição usa o CARTAZ DO EVENTO, que é obrigatório e sempre existe
+ * — é por isso que remover é seguro aqui e não seria em Eventos, onde a imagem é
+ * o único cartaz. Sem banner de confirmação, a tela de confirmação volta ao
+ * TEXTO padrão da plataforma, que também sempre existe.
+ *
+ * Em nenhum dos dois casos a página fica sem nada para mostrar, e é isso que
+ * torna o botão "Remover" uma operação sem susto.
  */
 export async function removeLandingPageImageAction(
-  input: LandingPageIdInput,
+  input: LandingImageRemovalInput,
 ): Promise<ActionResult<{ id: string }>> {
-  const parsed = landingPageIdSchema.safeParse(input);
+  const parsed = landingImageRemovalSchema.safeParse(input);
   if (!parsed.success) return fail("invalidInput");
 
   const negado = await assertPermission<{ id: string }>("events.write");
   if (negado) return negado;
 
+  const { landingPageId, slot } = parsed.data;
+  const destino = IMAGEM_DA_PAGINA[slot];
+
   const supabase = await createClient();
 
   const { data: pagina, error: erroLeitura } = await supabase
     .from("event_landing_pages")
-    .select("id, image_path")
-    .eq("id", parsed.data.landingPageId)
-    .returns<{ id: string; image_path: string | null }[]>()
+    .select("id, image_path, success_image_path")
+    .eq("id", landingPageId)
+    .returns<{ id: string; image_path: string | null; success_image_path: string | null }[]>()
     .maybeSingle();
 
   if (erroLeitura) {
-    return failFromPostgres("landing.image.remove", erroLeitura, {
-      landingPageId: parsed.data.landingPageId,
-    });
+    return failFromPostgres("landing.image.remove", erroLeitura, { landingPageId });
   }
   if (!pagina) return fail("notFound");
 
-  const { data, error } = await supabase.rpc("set_event_landing_page_image", {
-    p_landing_page_id: parsed.data.landingPageId,
-    p_image_path: null,
-    p_image_mime: null,
-    p_image_size_bytes: null,
+  const { data, error } = await supabase.rpc(destino.rpc, {
+    p_landing_page_id: landingPageId,
+    ...destino.argumentos(null, null, null),
   } as never);
 
   if (error || !data) {
     return error
-      ? failFromPostgres("landing.image.remove", error, {
-          landingPageId: parsed.data.landingPageId,
-        })
+      ? failFromPostgres("landing.image.remove", error, { landingPageId })
       : fail("unexpected");
   }
 
   // Só DEPOIS de a linha já não apontar mais para o arquivo.
-  if (pagina.image_path) {
-    await discardReplacedImage(pagina.image_path, "event_landing_pages");
+  const anterior = pagina[destino.coluna];
+  if (anterior) {
+    await discardReplacedImage(anterior, "event_landing_pages", destino.coluna);
   }
 
   revalidateLanding();

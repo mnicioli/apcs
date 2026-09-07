@@ -26,9 +26,7 @@ function pagina(overrides: Partial<PublicRegistrationFormData> = {}): PublicRegi
   return {
     slug: "encontro-tecnico",
     formFields: ["GRANJA_EMPRESA", "EMAIL", "NOME_PARTICIPANTE", "TELEFONE", "WHATSAPP"],
-    successTitle: null,
-    successMessage: null,
-    successFooter: null,
+    successImageUrl: null,
     event: {
       name: "Encontro Técnico",
       eventDate: "2026-09-18",
@@ -348,15 +346,45 @@ describe("§24, §25 e §26 — a confirmação", () => {
     expect(screen.queryByText(/\{\{event_name\}\}/)).toBeNull();
   });
 
-  /** O texto próprio da página vence o padrão da plataforma. */
-  it("usa o texto próprio da página quando existe", async () => {
+  /**
+   * ==========================================================================
+   * ⚠️ COM BANNER, O TEXTO SAI DA TELA — MAS NÃO DA PÁGINA.
+   * ==========================================================================
+   * Aqui havia um caso sobre o texto PRÓPRIO da página vencer o padrão. Os três
+   * campos que faziam isso não existem mais: a confirmação virou uma arte.
+   *
+   * O que entrou no lugar é a regra que substituiu aquela, e ela tem duas
+   * metades que precisam ser testadas juntas — a arte aparece, E o texto
+   * continua no HTML para quem não a vê. Testar só a primeira deixaria passar
+   * uma confirmação muda para quem usa leitor de tela.
+   */
+  it("com banner, mostra a arte e esconde o texto da tela", async () => {
     const user = userEvent.setup();
-    montar({ successTitle: "TUDO CERTO!", successMessage: "Vemos você em {{event_date}}." });
+    montar({ successImageUrl: "https://exemplo.invalid/confirmacao.png" });
     await preencher(user);
     await user.click(screen.getByRole("button", { name: /confirmar inscrição/i }));
 
-    expect(screen.getByText("TUDO CERTO!")).toBeTruthy();
-    expect(screen.getByText("Vemos você em 18/09/2026.")).toBeTruthy();
+    expect(screen.getByAltText(/confirmação de inscrição no encontro técnico/i)).toBeTruthy();
+
+    // O título continua no documento — e fora da vista, dentro de um `sr-only`.
+    const titulo = screen.getByRole("heading", { name: /inscrição confirmada/i });
+    expect(titulo.closest(".sr-only")).not.toBeNull();
+  });
+
+  /**
+   * ⚠️ A DATA E O HORÁRIO NÃO ENTRAM NO `sr-only`. Eles vêm do EVENTO, e não da
+   * arte: um banner pode não trazer a data, ou trazer a data de antes de o
+   * evento ser remarcado. É a correção da homologação (§16) resistindo a um
+   * jeito novo de perdê-la.
+   */
+  it("a data e o horário continuam visíveis mesmo com banner", async () => {
+    const user = userEvent.setup();
+    montar({ successImageUrl: "https://exemplo.invalid/confirmacao.png" });
+    await preencher(user);
+    await user.click(screen.getByRole("button", { name: /confirmar inscrição/i }));
+
+    expect(screen.getByText("18/09/2026").closest(".sr-only")).toBeNull();
+    expect(screen.getByText("08:00 às 13:00").closest(".sr-only")).toBeNull();
   });
 
   /**

@@ -134,29 +134,29 @@ const maxParticipantsSchema = z
     "Informe um número maior que zero, ou deixe em branco para não limitar.",
   );
 
-/** O formulário da Landing Page, como a tela do Builder o envia. */
+/**
+ * O formulário da Landing Page, como a tela do Builder o envia.
+ *
+ * ============================================================================
+ * ⚠️ NÃO HÁ MAIS TEXTO NENHUM AQUI, E ISSO FOI UMA DECISÃO DO CLIENTE.
+ * ============================================================================
+ * `description`, `successTitle`, `successMessage` e `successFooter` saíram
+ * juntas: a página pública deixou de ter texto solto — a arte diz o que precisa
+ * dizer, e a confirmação virou um BANNER (`success_image_path`), que sobe pelo
+ * caminho de imagem e não por este schema.
+ *
+ * O que sobrou é o que não é texto de página: o endereço, a ordem dos campos, o
+ * prazo e a capacidade.
+ *
+ * ⚠️ E A PORTA DO BANCO FECHOU JUNTO. Tirar os campos daqui sozinho seria uma
+ * decisão de tela: `update_event_landing_page` perdeu os quatro parâmetros e o
+ * `grant update` das quatro colunas foi revogado, então não há caminho por onde
+ * um texto novo entre — nem pelo PostgREST. Ver a decisão 1 de
+ * 20260928000000_event_landing_success_image.sql.
+ */
 export const landingPageFormSchema = z.object({
   slug: slugFieldSchema,
-  description: z
-    .string()
-    .trim()
-    .max(4000, "Descrição muito longa (máximo de 4000 caracteres).")
-    .optional()
-    .or(z.literal("")),
   formFields: landingFieldsSchema,
-  /**
-   * Os três pedaços da mensagem de confirmação. VAZIO SIGNIFICA "usa o texto
-   * padrão da plataforma" (§18) — e é por isso que não há mínimo aqui: exigir
-   * dois caracteres impediria de LIMPAR o campo para voltar ao padrão.
-   */
-  successTitle: z.string().trim().max(160, "Título muito longo.").optional().or(z.literal("")),
-  successMessage: z.string().trim().max(1000, "Mensagem muito longa.").optional().or(z.literal("")),
-  successFooter: z
-    .string()
-    .trim()
-    .max(300, "Texto final muito longo.")
-    .optional()
-    .or(z.literal("")),
   closesAt: closesAtSchema.optional().or(z.literal("")),
   maxParticipants: maxParticipantsSchema.optional().or(z.literal("")),
 });
@@ -339,12 +339,32 @@ export type ParticipantConfirmationInput = z.infer<typeof participantConfirmatio
 /* Imagem da página (§8 do Prompt 2)                                          */
 /* -------------------------------------------------------------------------- */
 
-/** O identificador sozinho, para as operações que não recebem mais nada. */
-export const landingPageIdSchema = z.object({
+/**
+ * QUAL DAS DUAS ARTES. A página de inscrição tem duas: o banner que abre a
+ * página e o banner que a substitui depois da inscrição.
+ *
+ * ⚠️ UM DISCRIMINADOR, E NÃO DUAS FAMÍLIAS DE ACTION. As duas artes passam pelo
+ * mesmo bucket, o mesmo teto de 5 MB, a mesma inspeção de bytes no servidor e o
+ * mesmo descarte do arquivo substituído. O que difere é a PASTA no Storage e a
+ * função Postgres que grava a linha — dois `switch` de uma linha cada. Duplicar
+ * as três actions para trocar isso é como uma das cópias deixa de receber a
+ * próxima correção de segurança.
+ *
+ * ⚠️ E ELE É VALIDADO, não interpretado. `slot` chega do navegador: um valor
+ * fora deste enum não escolhe pasta nenhuma — o schema recusa antes.
+ */
+export const LANDING_IMAGE_SLOTS = ["page", "success"] as const;
+export type LandingImageSlot = (typeof LANDING_IMAGE_SLOTS)[number];
+
+const landingImageSlotSchema = z.enum(LANDING_IMAGE_SLOTS);
+
+/** Remover uma das duas artes: a página e qual delas, e nada mais. */
+export const landingImageRemovalSchema = z.object({
   landingPageId: z.string().uuid(),
+  slot: landingImageSlotSchema,
 });
 
-export type LandingPageIdInput = z.infer<typeof landingPageIdSchema>;
+export type LandingImageRemovalInput = z.infer<typeof landingImageRemovalSchema>;
 
 /**
  * O pedido de endereço para enviar a arte.
@@ -358,6 +378,7 @@ export const landingImageTicketSchema = z.object({
   landingPageId: z.string().uuid(),
   filename: z.string().trim().min(1).max(255),
   sizeBytes: z.number().int().positive(),
+  slot: landingImageSlotSchema,
 });
 
 export type LandingImageTicketInput = z.infer<typeof landingImageTicketSchema>;
@@ -365,6 +386,7 @@ export type LandingImageTicketInput = z.infer<typeof landingImageTicketSchema>;
 export const landingImageSchema = z.object({
   landingPageId: z.string().uuid(),
   storagePath: z.string().trim().min(1).max(400),
+  slot: landingImageSlotSchema,
 });
 
 export type LandingImageInput = z.infer<typeof landingImageSchema>;

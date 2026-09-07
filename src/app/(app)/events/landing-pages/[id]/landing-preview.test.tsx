@@ -8,13 +8,26 @@ import type { LandingFieldKey } from "@/modules/event/event.landing.types";
  * A PRÉVIA (§15, §19, §20, §21, §34).
  *
  * ============================================================================
- * ⚠️ O TESTE MAIS IMPORTANTE DESTE ARQUIVO É O ÚLTIMO BLOCO: a prévia não cria
- * inscrição.
+ * ⚠️ O TESTE MAIS IMPORTANTE DESTE ARQUIVO É O PENÚLTIMO BLOCO: a prévia não
+ * cria inscrição.
  * ============================================================================
  * O §34 proíbe, e a garantia é ESTRUTURAL — este componente não importa Server
  * Action nenhuma. Repare que não há `vi.mock` aqui: nada precisa ser dublado,
  * porque não há nada que fale com o servidor. Um `vi.mock` de action nesta
  * bateria seria o sinal de que a garantia se perdeu.
+ *
+ * ============================================================================
+ * ⚠️ AS DUAS TELAS ESTÃO NO DOM AO MESMO TEMPO — E ISSO MUDA COMO SE ASSERTA.
+ * ============================================================================
+ * A prévia era uma tela de cada vez, com um botão que alternava entre elas.
+ * Virou duas colunas simultâneas, e a consequência para esta bateria é direta:
+ * `screen.getByText("18/09/2026")` agora acharia a data da CONFIRMAÇÃO mesmo
+ * numa asserção que fala do formulário — e passaria dizendo o contrário do que
+ * pretende.
+ *
+ * É por isso que existe `painel()`. Toda asserção que fala de UMA das telas é
+ * feita dentro dela; só o que é comum às duas (a largura, os logos) é procurado
+ * na tela inteira.
  */
 
 const EVENTO = {
@@ -41,14 +54,35 @@ const CAMPOS: LandingFieldKey[] = [
 
 function estado(overrides: Partial<LandingPreviewState> = {}): LandingPreviewState {
   return {
-    description: "",
     formFields: CAMPOS,
-    successTitle: "",
-    successMessage: "",
-    successFooter: "",
     maxParticipants: "",
     ...overrides,
   };
+}
+
+interface Artes {
+  imageUrl?: string | null;
+  successImageUrl?: string | null;
+}
+
+function montar(overrides: Partial<LandingPreviewState> = {}, artes: Artes = {}) {
+  return render(
+    <LandingPreview
+      state={estado(overrides)}
+      event={EVENTO}
+      imageUrl={artes.imageUrl ?? null}
+      successImageUrl={artes.successImageUrl ?? null}
+      successDefaults={PADROES}
+    />,
+  );
+}
+
+/** Uma das duas colunas, pelo cabeçalho dela. Ver o aviso do topo. */
+function painel(titulo: "Ver formulário" | "Ver confirmação"): HTMLElement {
+  const cabecalho = screen.getByRole("heading", { name: titulo });
+  const secao = cabecalho.closest("section");
+  if (!secao) throw new Error(`painel "${titulo}" não encontrado`);
+  return secao;
 }
 
 /** O texto do bloco de um participante — é onde a ordem dos campos aparece. */
@@ -57,17 +91,6 @@ function blocoDoParticipante(numero: number): string {
   // O título mora num cabeçalho dentro do bloco; dois níveis acima está o
   // `<div>` que agrupa os campos daquela pessoa.
   return titulo.parentElement?.parentElement?.textContent ?? "";
-}
-
-function montar(overrides: Partial<LandingPreviewState> = {}) {
-  return render(
-    <LandingPreview
-      state={estado(overrides)}
-      event={EVENTO}
-      imageUrl={null}
-      successDefaults={PADROES}
-    />,
-  );
 }
 
 /**
@@ -86,12 +109,15 @@ function montar(overrides: Partial<LandingPreviewState> = {}) {
  */
 describe("os dados do evento (§7, §11) vivem no banner, não no texto", () => {
   it("não repete nome, data, horário e local abaixo da imagem", () => {
-    const { container } = montar();
+    montar();
+    const formulario = painel("Ver formulário");
 
-    expect(screen.queryByRole("heading", { name: EVENTO.name })).not.toBeInTheDocument();
-    expect(container.textContent).not.toContain("18/09/2026");
-    expect(container.textContent).not.toContain("08:00 às 13:00");
-    expect(screen.queryByText(EVENTO.location)).not.toBeInTheDocument();
+    expect(
+      within(formulario).queryByRole("heading", { name: EVENTO.name }),
+    ).not.toBeInTheDocument();
+    expect(formulario.textContent).not.toContain("18/09/2026");
+    expect(formulario.textContent).not.toContain("08:00 às 13:00");
+    expect(within(formulario).queryByText(EVENTO.location)).not.toBeInTheDocument();
   });
 
   /**
@@ -101,17 +127,10 @@ describe("os dados do evento (§7, §11) vivem no banner, não no texto", () => 
    * asserção de cima passaria também numa prévia que perdeu o evento de vista.
    */
   it("o nome do evento continua no texto alternativo da imagem", () => {
-    // ⚠️ COM IMAGEM DE VERDADE, e não pelo `montar()` — que passa `imageUrl:
-    // null` e faz o `SignedImage` cair no espaço reservado. As duas situações
+    // ⚠️ COM IMAGEM DE VERDADE, e não pelo `montar()` sem artes — que passa
+    // `null` e faz o `SignedImage` cair no espaço reservado. As duas situações
     // interessam, e a asserção seguinte cobre a outra.
-    render(
-      <LandingPreview
-        state={estado()}
-        event={EVENTO}
-        imageUrl="https://exemplo.invalid/banner.png"
-        successDefaults={PADROES}
-      />,
-    );
+    montar({}, { imageUrl: "https://exemplo.invalid/banner.png" });
 
     expect(screen.getByAltText(`Imagem de ${EVENTO.name}`)).toBeInTheDocument();
   });
@@ -135,27 +154,41 @@ describe("os dados do evento (§7, §11) vivem no banner, não no texto", () => 
    * título em lugar nenhum do Builder. O que mudou foi onde o nome aparece.
    */
   it("não há campo para sobrescrever o nome do evento", () => {
-    const { container } = montar({ description: "Um texto qualquer" });
+    const { container } = montar();
     expect(within(container).queryByRole("textbox")).not.toBeInTheDocument();
   });
 });
 
-describe("a descrição (§10, §19)", () => {
-  it("aparece quando preenchida", () => {
-    montar({ description: "Dois dias de conteúdo técnico." });
-    expect(screen.getByText("Dois dias de conteúdo técnico.")).toBeInTheDocument();
-  });
+/**
+ * ============================================================================
+ * ⚠️ A DESCRIÇÃO SAIU, E O BLOCO QUE A TESTAVA VIROU O CONTRÁRIO.
+ * ============================================================================
+ * Havia aqui dois casos sobre o parágrafo de descrição abaixo da arte. O
+ * cliente pediu a página sem texto solto: o campo saiu do Builder, do schema e
+ * da leitura pública, e a prévia deixou de desenhá-lo.
+ *
+ * O que fica no lugar é uma asserção sobre a AUSÊNCIA. A prévia só presta se
+ * mostra o que vai ao ar, e um parágrafo que voltasse a aparecer aqui faria o
+ * administrador aprovar uma composição que a granja nunca vê.
+ */
+describe("a página pública não tem mais texto solto (§10)", () => {
+  /**
+   * ⚠️ A ASSERÇÃO É ESTRUTURAL, e não sobre texto. Procurar "não contém tal
+   * frase" só pegaria a descrição de exemplo que este teste escrevesse — e a
+   * pergunta é outra: existe ALGUMA coisa entre a arte e o formulário? O corpo
+   * da página é um `space-y-*` com exatamente dois filhos, e um parágrafo que
+   * voltasse a aparecer viraria um terceiro.
+   */
+  it("entre a arte e o formulário não há mais nada", () => {
+    montar({}, { imageUrl: "https://exemplo.invalid/banner.png" });
+    const formulario = painel("Ver formulário");
 
-  it("some quando vazia, em vez de deixar um espaço em branco", () => {
-    const { container } = render(
-      <LandingPreview
-        state={estado({ description: "   " })}
-        event={EVENTO}
-        imageUrl={null}
-        successDefaults={PADROES}
-      />,
-    );
-    expect(container.textContent).not.toContain("undefined");
+    const imagem = within(formulario).getByAltText(`Imagem de ${EVENTO.name}`);
+    const corpo = imagem.parentElement;
+
+    expect(corpo?.children).toHaveLength(2);
+    expect(corpo?.children[0]).toBe(imagem);
+    expect(corpo?.children[1]?.textContent).toContain("Granja / Empresa");
   });
 });
 
@@ -236,7 +269,13 @@ describe("desktop e celular (§20)", () => {
     );
   });
 
-  it("trocar para celular estreita a prévia", async () => {
+  /**
+   * ⚠️ UM CONTROLE, E ELE VALE PARA AS DUAS COLUNAS. Larguras diferentes nos
+   * dois painéis fariam a comparação entre as duas artes mentir sobre qual
+   * delas fica melhor — que é a única coisa que esta prévia serve para
+   * responder agora que a página é feita de imagens.
+   */
+  it("trocar para celular estreita AS DUAS prévias", async () => {
     const user = userEvent.setup();
     montar();
 
@@ -245,41 +284,88 @@ describe("desktop e celular (§20)", () => {
     expect(screen.getByRole("button", { name: "Celular" })).toHaveAttribute("aria-pressed", "true");
     // A largura fixa é o que faz a composição ser conferível; sem ela, o botão
     // seria decorativo.
-    expect(document.querySelector(".w-\\[22rem\\]")).not.toBeNull();
+    expect(document.querySelectorAll(".w-\\[22rem\\]")).toHaveLength(2);
   });
 });
 
-describe("a mensagem de confirmação (§17, §18)", () => {
-  it("usa o padrão da plataforma e substitui a variável", async () => {
-    const user = userEvent.setup();
+/**
+ * ============================================================================
+ * ⚠️ A CONFIRMAÇÃO: OU O BANNER, OU O TEXTO PADRÃO — NUNCA OS DOIS.
+ * ============================================================================
+ * Havia aqui quatro casos sobre os textos que a Landing Page sobrescrevia
+ * (título, mensagem, rodapé) e sobre as variáveis dentro deles. Três deles
+ * testavam campos que não existem mais.
+ *
+ * O que sobreviveu é a substituição de variável — que continua acontecendo,
+ * agora sobre o texto PADRÃO da plataforma — e o que entrou é a regra nova: com
+ * banner, o texto sai da tela. A página pública faz exatamente isso (esconde
+ * em `sr-only`), e uma prévia que mostrasse arte E texto faria o administrador
+ * aprovar uma composição duplicada que ninguém vê.
+ */
+describe("a confirmação (§17, §18)", () => {
+  it("sem banner, usa o padrão da plataforma e substitui a variável", () => {
     montar();
+    const confirmacao = painel("Ver confirmação");
 
-    await user.click(screen.getByRole("button", { name: /ver confirmação/i }));
-
-    expect(screen.getByRole("heading", { name: "INSCRIÇÃO CONFIRMADA!" })).toBeInTheDocument();
     expect(
-      screen.getByText(`Seu cadastro para o ${EVENTO.name} foi realizado com sucesso.`),
+      within(confirmacao).getByRole("heading", { name: "INSCRIÇÃO CONFIRMADA!" }),
     ).toBeInTheDocument();
+    expect(
+      within(confirmacao).getByText(
+        `Seu cadastro para o ${EVENTO.name} foi realizado com sucesso.`,
+      ),
+    ).toBeInTheDocument();
+    expect(within(confirmacao).getByText(PADROES.footer)).toBeInTheDocument();
   });
 
-  it("o texto da página sobrescreve o padrão, pedaço a pedaço", async () => {
-    const user = userEvent.setup();
-    montar({ successTitle: "TUDO CERTO!" });
+  it("com banner, o texto sai da tela e sobra a arte", () => {
+    montar({}, { successImageUrl: "https://exemplo.invalid/confirmacao.png" });
+    const confirmacao = painel("Ver confirmação");
 
-    await user.click(screen.getByRole("button", { name: /ver confirmação/i }));
-
-    expect(screen.getByRole("heading", { name: "TUDO CERTO!" })).toBeInTheDocument();
-    // O que não foi sobrescrito continua vindo do padrão.
-    expect(screen.getByText(PADROES.footer)).toBeInTheDocument();
+    expect(within(confirmacao).getByAltText(`Confirmação de ${EVENTO.name}`)).toBeInTheDocument();
+    expect(
+      within(confirmacao).queryByRole("heading", { name: "INSCRIÇÃO CONFIRMADA!" }),
+    ).not.toBeInTheDocument();
+    expect(within(confirmacao).queryByText(PADROES.footer)).not.toBeInTheDocument();
   });
 
-  it("substitui as quatro variáveis do §18", async () => {
-    const user = userEvent.setup();
-    montar({
-      successMessage: "{{event_name}} · {{event_date}} · {{event_start_time}}–{{event_end_time}}",
-    });
+  /**
+   * ⚠️ A DATA E O HORÁRIO FICAM NOS DOIS CASOS, e é a correção da homologação
+   * (§16) resistindo a um jeito NOVO de perdê-la. Antes o risco era o
+   * administrador esquecer de escrever `{{event_date}}`; agora é ele mandar uma
+   * arte sem a data, ou com a data de antes de o evento ser remarcado. As duas
+   * linhas vêm do EVENTO, não da imagem.
+   */
+  it("a data e o horário aparecem com banner e sem banner", () => {
+    const { unmount } = montar();
+    expect(within(painel("Ver confirmação")).getByText("18/09/2026")).toBeInTheDocument();
+    unmount();
 
-    await user.click(screen.getByRole("button", { name: /ver confirmação/i }));
+    montar({}, { successImageUrl: "https://exemplo.invalid/confirmacao.png" });
+    const comArte = painel("Ver confirmação");
+    expect(within(comArte).getByText("18/09/2026")).toBeInTheDocument();
+    expect(within(comArte).getByText("08:00 às 13:00")).toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ AS VARIÁVEIS DO §18 CONTINUAM VALENDO — sobre o texto da plataforma,
+   * editável em Configurações → Textos. A Landing Page não sobrescreve mais
+   * nada, mas a substituição não sumiu junto: quem escreve o texto padrão
+   * precisa poder mover o nome do evento de lugar na frase.
+   */
+  it("substitui as quatro variáveis do §18", () => {
+    render(
+      <LandingPreview
+        state={estado()}
+        event={EVENTO}
+        imageUrl={null}
+        successImageUrl={null}
+        successDefaults={{
+          ...PADROES,
+          message: "{{event_name}} · {{event_date}} · {{event_start_time}}–{{event_end_time}}",
+        }}
+      />,
+    );
 
     expect(screen.getByText(`${EVENTO.name} · 18/09/2026 · 08:00–13:00`)).toBeInTheDocument();
   });
@@ -290,11 +376,16 @@ describe("a mensagem de confirmação (§17, §18)", () => {
    * que sumisse deixaria a frase truncada e ninguém descobriria por quê; um
    * marcador que aparece cru é visível no segundo em que se digita.
    */
-  it("variável que não existe fica visível em vez de sumir", async () => {
-    const user = userEvent.setup();
-    montar({ successMessage: "Olá {{nome_do_participante}}" });
-
-    await user.click(screen.getByRole("button", { name: /ver confirmação/i }));
+  it("variável que não existe fica visível em vez de sumir", () => {
+    render(
+      <LandingPreview
+        state={estado()}
+        event={EVENTO}
+        imageUrl={null}
+        successImageUrl={null}
+        successDefaults={{ ...PADROES, message: "Olá {{nome_do_participante}}" }}
+      />,
+    );
 
     expect(screen.getByText("Olá {{nome_do_participante}}")).toBeInTheDocument();
   });
@@ -310,11 +401,13 @@ describe("identidade institucional (§21)", () => {
     // texto que a página não escreve mais. Procurar pelo `alt` cobre as duas
     // épocas e cobra o que realmente importa: que a marca esteja anunciada para
     // quem não enxerga a imagem.
-    expect(screen.getByAltText(/APCS/)).toBeInTheDocument();
-    expect(screen.getByAltText("CSP")).toBeInTheDocument();
-    expect(
-      screen.getByText("© APCS | CSP 2026 - Todos os direitos reservados"),
-    ).toBeInTheDocument();
+    //
+    // ⚠️ `getAllBy`, E NÃO `getBy`: são DOIS painéis, cada um com o cabeçalho e
+    // o rodapé institucionais completos — porque é isso que a página pública
+    // mostra nas duas telas.
+    expect(screen.getAllByAltText(/APCS/)).toHaveLength(2);
+    expect(screen.getAllByAltText("CSP")).toHaveLength(2);
+    expect(screen.getAllByText("© APCS | CSP 2026 - Todos os direitos reservados")).toHaveLength(2);
 
     // ⚠️ NENHUM CONTROLE PARA MEXER NISSO. A identidade não é um dado — não há
     // campo, não há coluna, não há botão. É o §19 do Prompt 1 sendo cobrado
