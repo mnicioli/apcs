@@ -393,17 +393,19 @@ function CampoSimulado({ campo }: { campo: LandingFieldKey }) {
  * §17. A tela que a pessoa vê depois de se inscrever.
  *
  * ============================================================================
- * ⚠️ COM BANNER, O TEXTO SOME DA TELA — E A PRÉVIA PRECISA SUMIR JUNTO.
+ * ⚠️ COM BANNER, A TELA É SÓ O BANNER — E A PRÉVIA TEM DE SER SÓ ELE TAMBÉM.
  * ============================================================================
- * A página pública esconde o título e a mensagem em `sr-only` quando há banner:
- * a arte diz o que eles diziam, e repetir por escrito seria dizer duas vezes.
- * Se esta prévia mostrasse a arte E o texto, o administrador aprovaria uma
- * composição que ninguém vê — que é exatamente o defeito que o §45.11 pegou no
- * consentimento, por outra porta.
+ * A página pública esconde tudo em `sr-only` quando há banner: título,
+ * mensagem, data, horário e rodapé. Foi um pedido explícito — "apresentar ao
+ * usuário final apenas o banner de confirmação" —, e o custo dele (a data passa
+ * a depender da arte) está registrado no cabeçalho de `TelaDeSucesso` em
+ * `registration-form.tsx`.
  *
- * O que continua VISÍVEL nos dois casos é a data e o horário, pelo mesmo motivo
- * de lá: eles vêm do EVENTO, e não da arte. Um banner pode não trazer a data, ou
- * trazer a data de antes de o evento ser remarcado.
+ * Se esta prévia mostrasse a arte E qualquer linha de texto, o administrador
+ * aprovaria uma composição que ninguém vê — que é exatamente o defeito que o
+ * §45.11 pegou no consentimento, por outra porta. E é aqui, sem nada por baixo,
+ * que dá para julgar se a arte está dizendo tudo o que precisa dizer: se falta
+ * a data no banner, é NESTA coluna que isso salta aos olhos.
  */
 function TelaDeSucesso({
   mensagem,
@@ -416,20 +418,12 @@ function TelaDeSucesso({
 }) {
   if (imageUrl) {
     return (
-      <div className="pb-6 text-center">
-        <SignedImage
-          url={imageUrl}
-          alt={`Confirmação de ${event.name}`}
-          sizes="w-full"
-          className="mb-6 h-auto w-full rounded-none object-contain"
-        />
-        <p className="text-foreground px-5 text-sm font-semibold">
-          {formatCalendarDate(event.eventDate)}
-        </p>
-        <p className="text-muted-foreground px-5 text-xs">
-          {formatTimeRange(event.startTime, event.endTime)}
-        </p>
-      </div>
+      <SignedImage
+        url={imageUrl}
+        alt={`Confirmação de ${event.name}`}
+        sizes="w-full"
+        className="h-auto w-full rounded-none object-contain"
+      />
     );
   }
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ParticipantActions } from "./participant-actions";
+import { MAX_PHONE_DIGITS, onlyDigits } from "@/lib/format/phone";
 import type { RegistrationBoardRow } from "@/modules/event/event.landing.types";
 
 /**
@@ -278,5 +279,85 @@ describe("§23 — duplo clique no salvar", () => {
 
     expect(updateParticipantAction).toHaveBeenCalledTimes(1);
     liberar({ ok: true, data: { id: "p1" } });
+  });
+});
+
+/**
+ * ============================================================================
+ * ⚠️ A MÁSCARA DESTE MODAL NÃO TINHA UM TESTE, E FOI COBRADA COMO SE NÃO
+ *    EXISTISSE.
+ * ============================================================================
+ * Ela existe desde o Prompt 4 — `formatPhoneInput` no `onChange` dos dois
+ * campos. O que faltava era o TETO: acima de onze dígitos a função saía da
+ * frente (para não estragar número estrangeiro) e devolvia o que recebesse, e
+ * o campo aceitava quarenta algarismos sem uma palavra.
+ *
+ * Visto de fora, os dois defeitos parecem o mesmo: você digita muito, a máscara
+ * some, e nada te impede. Daí a pergunta ter chegado como "o modal não está com
+ * máscara". Estes casos separam as duas coisas e passam a cobrar as duas.
+ */
+describe("a máscara e o teto dos telefones", () => {
+  it("mascara enquanto se digita, nos dois campos", async () => {
+    const user = userEvent.setup();
+    montar({ phone: null, whatsapp: null });
+    await abrirEdicao(user);
+
+    const telefone = screen.getByLabelText(/telefone/i) as HTMLInputElement;
+    const whatsapp = screen.getByLabelText(/whatsapp/i) as HTMLInputElement;
+
+    await user.type(telefone, "1133334444");
+    await user.type(whatsapp, "45999990000");
+
+    expect(telefone.value).toBe("(11) 3333-4444");
+    expect(whatsapp.value).toBe("(45) 99999-0000");
+  });
+
+  /**
+   * ⚠️ O CORTE É EM DÍGITOS, e não um `maxLength` no campo: a máscara brasileira
+   * completa tem exatamente 15 CARACTERES, e um `maxLength={15}` bloquearia o
+   * 12º dígito — que é onde um número estrangeiro começa. Ver o cabeçalho de
+   * `formatPhoneInput`.
+   */
+  it("nenhum dos dois passa de 15 dígitos", async () => {
+    const user = userEvent.setup();
+    montar({ phone: null, whatsapp: null });
+    await abrirEdicao(user);
+
+    const telefone = screen.getByLabelText(/telefone/i) as HTMLInputElement;
+    const whatsapp = screen.getByLabelText(/whatsapp/i) as HTMLInputElement;
+
+    await user.type(telefone, "1".repeat(40));
+    await user.type(whatsapp, "9".repeat(40));
+
+    expect(onlyDigits(telefone.value)).toHaveLength(MAX_PHONE_DIGITS);
+    expect(onlyDigits(whatsapp.value)).toHaveLength(MAX_PHONE_DIGITS);
+  });
+
+  /**
+   * ⚠️ E O ESTRANGEIRO CONTINUA CABENDO. Doze dígitos é um telefone português
+   * com o código do país — é a metade do §17 que o teto poderia ter matado.
+   */
+  it("um número internacional de 12 dígitos passa inteiro", async () => {
+    const user = userEvent.setup();
+    montar({ phone: null, whatsapp: null });
+    await abrirEdicao(user);
+
+    const telefone = screen.getByLabelText(/telefone/i) as HTMLInputElement;
+    await user.type(telefone, "351912345678");
+
+    expect(telefone.value).toBe("351912345678");
+  });
+
+  /** O que vai ao banco são DÍGITOS: a máscara é da tela, e o schema a desfaz. */
+  it("o que se envia não leva a máscara junto", async () => {
+    const user = userEvent.setup();
+    montar({ phone: null, whatsapp: null });
+    await abrirEdicao(user);
+
+    await user.type(screen.getByLabelText(/telefone/i), "1133334444");
+    await user.click(screen.getByRole("button", { name: /salvar/i }));
+
+    const enviado = updateParticipantAction.mock.calls[0]?.[0] as { phone: string };
+    expect(enviado.phone).toBe("1133334444");
   });
 });

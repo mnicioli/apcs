@@ -330,21 +330,34 @@ describe("a confirmação (§17, §18)", () => {
   });
 
   /**
-   * ⚠️ A DATA E O HORÁRIO FICAM NOS DOIS CASOS, e é a correção da homologação
-   * (§16) resistindo a um jeito NOVO de perdê-la. Antes o risco era o
-   * administrador esquecer de escrever `{{event_date}}`; agora é ele mandar uma
-   * arte sem a data, ou com a data de antes de o evento ser remarcado. As duas
-   * linhas vêm do EVENTO, não da imagem.
+   * ==========================================================================
+   * ⚠️ COM BANNER, A PRÉVIA NÃO DESENHA NEM A DATA — E É DE PROPÓSITO.
+   * ==========================================================================
+   * A data e o horário apareciam abaixo da arte, herdados da correção de
+   * homologação do §16. O cliente pediu "apenas o banner de confirmação" na
+   * página pública, e esta prévia acompanha porque o trabalho dela é mostrar o
+   * que vai ao ar.
+   *
+   * E é justamente aqui, com a arte sozinha, que dá para julgar se ela está
+   * dizendo tudo: se faltar a data no banner, é NESTA coluna que isso salta aos
+   * olhos — antes de a página ser publicada.
    */
-  it("a data e o horário aparecem com banner e sem banner", () => {
-    const { unmount } = montar();
-    expect(within(painel("Ver confirmação")).getByText("18/09/2026")).toBeInTheDocument();
-    unmount();
-
+  it("com banner, o painel de confirmação é só a arte", () => {
     montar({}, { successImageUrl: "https://exemplo.invalid/confirmacao.png" });
-    const comArte = painel("Ver confirmação");
-    expect(within(comArte).getByText("18/09/2026")).toBeInTheDocument();
-    expect(within(comArte).getByText("08:00 às 13:00")).toBeInTheDocument();
+    const confirmacao = painel("Ver confirmação");
+
+    expect(within(confirmacao).getByAltText(`Confirmação de ${EVENTO.name}`)).toBeInTheDocument();
+    expect(within(confirmacao).queryByText("18/09/2026")).not.toBeInTheDocument();
+    expect(within(confirmacao).queryByText("08:00 às 13:00")).not.toBeInTheDocument();
+  });
+
+  /** Sem banner, a data e o horário continuam desenhados: é o §16 intacto. */
+  it("sem banner, a data e o horário aparecem", () => {
+    montar();
+    const confirmacao = painel("Ver confirmação");
+
+    expect(within(confirmacao).getByText("18/09/2026")).toBeInTheDocument();
+    expect(within(confirmacao).getByText("08:00 às 13:00")).toBeInTheDocument();
   });
 
   /**

@@ -536,26 +536,35 @@ function BlocoParticipante({
  * Server Action, e um F5 é um GET.
  *
  * ============================================================================
- * ⚠️ AGORA ELA É UM BANNER — E O TEXTO CONTINUA ATRÁS DELE.
+ * ⚠️ COM BANNER, A TELA É SÓ O BANNER. NADA DE TEXTO POR CIMA NEM POR BAIXO.
  * ============================================================================
  * O cliente pediu a confirmação como ARTE: uma imagem, sem os três blocos de
  * texto que o Builder deixava configurar. Eles não existem mais em lugar
  * nenhum — nem no formulário do Builder, nem no schema, nem na assinatura da
  * função Postgres.
  *
- * O texto que sobrou é o PADRÃO DA PLATAFORMA, e ele tem dois papéis, os dois
- * necessários:
+ * A data e o horário ficavam visíveis abaixo da arte, e saíram no ajuste
+ * seguinte: o pedido foi "apresentar ao usuário final APENAS o banner de
+ * confirmação". A arte é a peça de comunicação, e ela é feita sabendo qual é o
+ * evento.
  *
- *   * SEM banner, ele é a confirmação — uma página que não mostrasse nada
- *     depois do envio deixaria a granja sem saber se deu certo;
- *   * COM banner, ele vira `sr-only`. Um banner é uma imagem, e o `alt` de uma
- *     imagem de confirmação não cabe a frase inteira. Quem usa leitor de tela
- *     recebe o mesmo conteúdo que quem enxerga recebe pela arte.
+ * ⚠️ ISSO REABRE, DE OLHOS ABERTOS, O QUE O §16 TINHA FECHADO. Aquela correção
+ * de homologação existia porque a data só aparecia se o administrador tivesse
+ * lembrado de escrever `{{event_date}}`. Agora ela só aparece se a arte a
+ * trouxer — e uma arte enviada antes de o evento ser remarcado vai continuar
+ * anunciando a data velha, sem que nada no sistema perceba. É uma decisão de
+ * quem responde pela comunicação, e está registrada aqui para não voltar como
+ * surpresa.
  *
- * A data e o horário ficam VISÍVEIS nos dois casos: ver o aviso mais abaixo —
- * eles entraram na homologação justamente por não poderem depender de alguém
- * ter lembrado de escrevê-los, e uma arte não é lugar mais confiável que um
- * campo de texto para isso.
+ * O que NÃO some é o texto para quem não vê a imagem:
+ *
+ *   * SEM banner, o texto padrão da plataforma É a confirmação — uma página que
+ *     não mostrasse nada depois do envio deixaria a granja sem saber se deu
+ *     certo;
+ *   * COM banner, ele vira `sr-only`, junto com a data e o horário. Um banner é
+ *     uma imagem, e o `alt` de uma arte não comporta a frase inteira. Quem usa
+ *     leitor de tela recebe por escrito o que a arte diz por desenho —
+ *     inclusive quando o evento.
  *
  * ⚠️ SEM `dangerouslySetInnerHTML` EM LUGAR NENHUM (§25, §34): o texto entra
  * como TEXTO.
@@ -590,20 +599,20 @@ function TelaDeSucesso({
       aria-live="polite"
       className={cn(
         "border-hairline bg-card overflow-hidden rounded-2xl border text-center",
-        comBanner ? "pb-8" : "px-6 py-10",
+        !comBanner && "px-6 py-10",
       )}
     >
       {page.successImageUrl && !bannerFalhou ? (
-        // `alt` curto de propósito: a frase inteira está no bloco `sr-only`
-        // logo abaixo, e repeti-la aqui faria o leitor de tela dizer tudo duas
-        // vezes.
+        // `alt` curto de propósito: o conteúdo por extenso está no bloco
+        // `sr-only` logo abaixo, e repeti-lo aqui faria o leitor de tela dizer
+        // tudo duas vezes.
         //
         // eslint-disable-next-line @next/next/no-img-element -- URL assinada de vida curta; ver `SignedImage`
         <img
           src={page.successImageUrl}
           alt={`Confirmação de inscrição no ${page.event.name}`}
           onError={() => setBannerFalhou(true)}
-          className="mb-8 h-auto w-full object-contain"
+          className="h-auto w-full object-contain"
         />
       ) : (
         <span
@@ -614,6 +623,15 @@ function TelaDeSucesso({
         </span>
       )}
 
+      {/*
+        ⚠️ O BLOCO INTEIRO VIRA `sr-only` QUANDO HÁ BANNER — inclusive a data e o
+        horário. Ver o aviso do topo: é o pedido de "apenas o banner", e o custo
+        dele (a data passa a depender da arte) está registrado lá.
+
+        O que não muda é que o conteúdo continua NO HTML. Sumir da tela é uma
+        decisão de composição; sumir da página seria deixar quem usa leitor de
+        tela sem confirmação nenhuma, porque de uma imagem ele só recebe o `alt`.
+      */}
       <div className={cn(comBanner && "sr-only")}>
         <h2
           ref={tituloRef}
@@ -624,42 +642,24 @@ function TelaDeSucesso({
         </h2>
 
         <p className="mt-4 text-base leading-relaxed whitespace-pre-line">{mensagem.message}</p>
+
+        {/*
+          A data e o horário vêm do EVENTO, e não de texto digitado — foi a
+          correção de homologação do §16, e ela continua valendo para quem lê
+          por aqui. O que mudou é que, com banner, quem enxerga recebe isso pela
+          arte.
+        */}
+        <p className="text-foreground mt-5 text-base font-semibold">
+          {formatCalendarDate(page.event.eventDate)}
+        </p>
+        <p className="text-muted-foreground text-sm">
+          {formatTimeRange(page.event.startTime, page.event.endTime)}
+        </p>
+
+        <p className="text-muted-foreground mt-6 text-sm leading-relaxed whitespace-pre-line">
+          {mensagem.footer}
+        </p>
       </div>
-
-      {/*
-        ============================================================================
-        ⚠️ A DATA E O HORÁRIO APARECEM SEMPRE — CORREÇÃO DA HOMOLOGAÇÃO (§16).
-        ============================================================================
-        O §24 do Prompt 3 já desenhava a confirmação com a data logo abaixo da
-        frase, e o §16 do Prompt 5 repete: "apresentar também: data do evento".
-        A tela mostrava só os três blocos de texto configurados — e quando é
-        o evento só aparecia se o administrador tivesse lembrado de escrever
-        `{{event_date}}` na mensagem.
-
-        Quem acabou de se inscrever precisa saber QUANDO comparecer, e essa
-        informação não pode depender de alguém ter configurado um marcador.
-
-        ⚠️ E É POR ISSO QUE ELES NÃO ENTRARAM NO `sr-only` JUNTO COM O RESTO. O
-        banner é arte enviada por gente: ele pode trazer a data, pode não
-        trazer, e pode trazer a data errada depois de o evento ser remarcado.
-        Estas duas linhas vêm do EVENTO e ficam VISÍVEIS nos dois casos — é a
-        mesma correção de antes, agora contra um jeito novo de perdê-la.
-      */}
-      <p className={cn("text-foreground text-base font-semibold", comBanner ? "px-6" : "mt-5")}>
-        {formatCalendarDate(page.event.eventDate)}
-      </p>
-      <p className={cn("text-muted-foreground text-sm", comBanner && "px-6")}>
-        {formatTimeRange(page.event.startTime, page.event.endTime)}
-      </p>
-
-      <p
-        className={cn(
-          "text-muted-foreground mt-6 text-sm leading-relaxed whitespace-pre-line",
-          comBanner && "sr-only",
-        )}
-      >
-        {mensagem.footer}
-      </p>
     </div>
   );
 }

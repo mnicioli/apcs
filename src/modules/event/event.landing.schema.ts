@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { onlyDigits } from "@/lib/format/phone";
+import { MAX_PHONE_DIGITS, MIN_PHONE_DIGITS, onlyDigits } from "@/lib/format/phone";
 import {
   LANDING_FIELD_KEYS,
   LANDING_PAGE_STATUSES,
@@ -39,12 +39,19 @@ import { isValidSlug, validateLandingFields } from "./event.landing.rules";
  */
 export { onlyDigits };
 
+/**
+ * ⚠️ OS DOIS LIMITES VÊM DE `@/lib/format/phone`, E NÃO ESTÃO ESCRITOS AQUI.
+ * São os MESMOS números que a máscara usa para decidir até onde deixa digitar.
+ * Enquanto eram literais nos dois lugares, o campo aceitava quarenta dígitos e
+ * esta regra reclamava só no envio.
+ */
 const phoneSchema = z
   .string()
   .trim()
   .transform(onlyDigits)
   .refine(
-    (digitos) => digitos === "" || (digitos.length >= 10 && digitos.length <= 15),
+    (digitos) =>
+      digitos === "" || (digitos.length >= MIN_PHONE_DIGITS && digitos.length <= MAX_PHONE_DIGITS),
     "Informe um número com DDD.",
   );
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RegistrationForm } from "./registration-form";
+import { MAX_PHONE_DIGITS, onlyDigits } from "@/lib/format/phone";
 import type { PublicRegistrationFormData } from "@/modules/event/event.landing.types";
 
 /**
@@ -251,6 +252,59 @@ describe("§16 e §17 — e-mail e telefone", () => {
 
     expect(campo.value).toBe("(11) 99999-8888");
   });
+
+  it("o WhatsApp é mascarado do mesmo jeito", async () => {
+    const user = userEvent.setup();
+    montar();
+
+    const campo = screen.getByLabelText(/whatsapp/i) as HTMLInputElement;
+    await user.type(campo, "45999990000");
+
+    expect(campo.value).toBe("(45) 99999-0000");
+  });
+
+  /**
+   * ==========================================================================
+   * ⚠️ O CAMPO PARA DE ACEITAR ANTES DE O SERVIDOR RECLAMAR.
+   * ==========================================================================
+   * A máscara já existia; o teto não. Digitar quarenta algarismos era possível,
+   * e o erro só chegava no ENVIO — depois de a granja ter preenchido a inscrição
+   * inteira. É a mesma escolha do campo de capacidade do Builder: deixar digitar
+   * para recusar depois é pior do que não deixar digitar.
+   *
+   * O corte é em DÍGITOS, e não um `maxLength` no `<input>`: a máscara
+   * brasileira completa tem exatamente 15 caracteres, e um `maxLength={15}`
+   * bloquearia o 12º dígito — que é onde um número estrangeiro começa. Ver o
+   * cabeçalho de `formatPhoneInput`.
+   */
+  it("nem telefone nem WhatsApp aceitam mais de 15 dígitos", async () => {
+    const user = userEvent.setup();
+    montar();
+
+    const telefone = screen.getByLabelText(/telefone/i) as HTMLInputElement;
+    const whatsapp = screen.getByLabelText(/whatsapp/i) as HTMLInputElement;
+
+    await user.type(telefone, "1".repeat(40));
+    await user.type(whatsapp, "9".repeat(40));
+
+    expect(onlyDigits(telefone.value)).toHaveLength(MAX_PHONE_DIGITS);
+    expect(onlyDigits(whatsapp.value)).toHaveLength(MAX_PHONE_DIGITS);
+  });
+
+  /**
+   * ⚠️ E O NÚMERO ESTRANGEIRO CONTINUA CABENDO. É a metade do §17 que o teto
+   * poderia ter matado: doze dígitos é um telefone português com o código do
+   * país, e ele precisa atravessar a fronteira dos onze onde a máscara some.
+   */
+  it("mas um número internacional de 12 dígitos passa inteiro", async () => {
+    const user = userEvent.setup();
+    montar();
+
+    const campo = screen.getByLabelText(/telefone/i) as HTMLInputElement;
+    await user.type(campo, "351912345678");
+
+    expect(campo.value).toBe("351912345678");
+  });
 });
 
 describe("§21 — o que sai da tela", () => {
@@ -372,14 +426,51 @@ describe("§24, §25 e §26 — a confirmação", () => {
   });
 
   /**
-   * ⚠️ A DATA E O HORÁRIO NÃO ENTRAM NO `sr-only`. Eles vêm do EVENTO, e não da
-   * arte: um banner pode não trazer a data, ou trazer a data de antes de o
-   * evento ser remarcado. É a correção da homologação (§16) resistindo a um
-   * jeito novo de perdê-la.
+   * ==========================================================================
+   * ⚠️ ESTE CASO AFIRMAVA O CONTRÁRIO, E A INVERSÃO É UMA DECISÃO DO CLIENTE.
+   * ==========================================================================
+   * A data e o horário ficavam VISÍVEIS abaixo da arte — era a correção de
+   * homologação do §16, que existia porque a data só aparecia quando alguém
+   * lembrava de escrever `{{event_date}}` na mensagem.
+   *
+   * O pedido seguinte foi "apresentar ao usuário final APENAS o banner de
+   * confirmação". A informação passa a depender da arte, e uma arte enviada
+   * antes de o evento ser remarcado vai continuar anunciando a data velha sem
+   * que nada perceba. O teste inverte em vez de sumir porque é isso que
+   * registra a escolha: se a data voltar a aparecer, foi alguém desfazendo o
+   * pedido sem saber.
    */
-  it("a data e o horário continuam visíveis mesmo com banner", async () => {
+  it("com banner, NADA além da arte é desenhado", async () => {
     const user = userEvent.setup();
     montar({ successImageUrl: "https://exemplo.invalid/confirmacao.png" });
+    await preencher(user);
+    await user.click(screen.getByRole("button", { name: /confirmar inscrição/i }));
+
+    for (const texto of ["18/09/2026", "08:00 às 13:00", "Esperamos você! Nos vemos no evento."]) {
+      expect(screen.getByText(texto).closest(".sr-only")).not.toBeNull();
+    }
+  });
+
+  /**
+   * ⚠️ MAS TUDO CONTINUA NO HTML. Sumir da TELA é composição; sumir da PÁGINA
+   * deixaria quem usa leitor de tela sem confirmação nenhuma — de uma imagem
+   * ele recebe só o `alt`, e o `alt` de um banner não comporta a frase inteira.
+   */
+  it("e tudo continua legível para quem não vê a imagem", async () => {
+    const user = userEvent.setup();
+    montar({ successImageUrl: "https://exemplo.invalid/confirmacao.png" });
+    await preencher(user);
+    await user.click(screen.getByRole("button", { name: /confirmar inscrição/i }));
+
+    expect(screen.getByText("18/09/2026")).toBeTruthy();
+    expect(screen.getByText("08:00 às 13:00")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /inscrição confirmada/i })).toBeTruthy();
+  });
+
+  /** Sem banner, o texto é a confirmação — e nada dele fica escondido. */
+  it("sem banner, a data e o horário aparecem na tela", async () => {
+    const user = userEvent.setup();
+    montar();
     await preencher(user);
     await user.click(screen.getByRole("button", { name: /confirmar inscrição/i }));
 
