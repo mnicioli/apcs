@@ -122,14 +122,32 @@ export const LANDING_FIELD_LABELS: Record<LandingFieldKey, string> = {
   WHATSAPP: "WhatsApp",
 };
 
-/** Uma frase por campo, para o Builder explicar o que cada um coleta. */
+/**
+ * Uma frase por campo, para o Builder explicar o que cada um coleta.
+ *
+ * ============================================================================
+ * ⚠️ ELAS VIRARAM TOOLTIP, E ENCOLHERAM POR CAUSA DISSO.
+ * ============================================================================
+ * Ficavam desenhadas embaixo do rótulo, em cada linha da lista de campos.
+ * Quando o Builder passou a ter duas colunas, aquela lista foi para metade da
+ * largura — e as frases começaram a espremer o selo e o seletor de posição para
+ * fora da linha.
+ *
+ * Elas não ficaram menos verdadeiras; só não precisavam ocupar espaço
+ * permanente para algo que se lê uma vez na vida. É a MESMA conclusão que a
+ * barra de filtros já tinha chegado, e é por isso que `InfoTip` existe.
+ *
+ * ⚠️ E "OBRIGATÓRIO" / "OPCIONAL" SAÍRAM DO TEXTO. Não é corte por espaço: o
+ * SELO ao lado já diz isso, e diz melhor — ele é a informação que se lê de
+ * relance, sem clicar em nada. Repetir por escrito dentro da dica era a mesma
+ * coisa dita duas vezes, e a segunda em letra menor.
+ */
 export const LANDING_FIELD_HINTS: Record<LandingFieldKey, string> = {
-  GRANJA_EMPRESA: "Informado uma vez por inscrição. Obrigatório.",
-  EMAIL:
-    "De cada participante. Obrigatório, e é o que impede a mesma pessoa de se inscrever duas vezes.",
-  NOME_PARTICIPANTE: "De cada participante. Obrigatório.",
-  TELEFONE: "Opcional — mas cada participante precisa informar telefone ou WhatsApp.",
-  WHATSAPP: "Opcional — mas cada participante precisa informar telefone ou WhatsApp.",
+  GRANJA_EMPRESA: "Informado uma vez por inscrição.",
+  EMAIL: "De cada participante. O que impede a mesma pessoa de se inscrever duas vezes.",
+  NOME_PARTICIPANTE: "De cada participante.",
+  TELEFONE: "Cada participante precisa informar telefone ou WhatsApp.",
+  WHATSAPP: "Cada participante precisa informar telefone ou WhatsApp.",
 };
 
 /**

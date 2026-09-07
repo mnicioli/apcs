@@ -1110,3 +1110,187 @@ banner, não um resquício.
 texto editável. Passou a ser sempre a frase montada a partir do evento. Não é
 perda: a anterior só existia quando alguém tinha lembrado de escrevê-la, e caía
 nessa mesma frase quando não.
+
+---
+
+## 20. O teto do telefone e a confirmação só com o banner
+
+Dois ajustes pedidos depois da seção 19, os dois na página pública.
+
+### O telefone parava de reclamar tarde demais
+
+A máscara já existia e funcionava — `formatPhoneInput`, aplicada no `onChange`
+dos campos de Telefone e WhatsApp desde o Prompt 3. O que **não** existia era
+teto: acima de 11 dígitos a função saía da frente (para não estragar número
+internacional) e devolvia o que recebesse. O campo aceitava quarenta
+algarismos, e o erro só chegava no **envio**, vindo do `phoneSchema`, depois de
+a granja ter preenchido a inscrição inteira.
+
+O corte passou a viver dentro de `formatPhoneInput`, em **15 dígitos** — o
+máximo do E.164, que é o mesmo teto que a validação sempre teve. Os dois números
+saíram dos literais e viraram `MIN_PHONE_DIGITS` / `MAX_PHONE_DIGITS` em
+`src/lib/format/phone.ts`, importados pelo `phoneSchema`: enquanto eram
+literais em dois arquivos, um dos lados podia afrouxar sozinho e o campo passaria
+a deixar digitar o que o servidor recusa.
+
+⚠️ **Por que não é um `maxLength` no `<input>`.** É a solução aparentemente
+óbvia e é a errada, por uma razão que só aparece na conta: `maxLength` conta
+**caracteres**, e a máscara brasileira completa — `(11) 99999-9999` — tem
+exatamente 15. Com `maxLength={15}` o navegador bloquearia a digitação do **12º
+dígito**, que é justamente onde um número estrangeiro começa a existir. A
+capacidade internacional que o §17 mandou preservar morreria por causa de dois
+parênteses e um hífen. O corte precisa ser em dígitos, e por isso mora na
+função.
+
+⚠️ **Vale também no backoffice.** `participant-actions.tsx` usa a mesma função
+para editar a ficha do participante, então o teto chegou lá junto — sem uma
+linha a mais, e sem duas regras para manter em dia.
+
+### A confirmação passou a ser só o banner
+
+O pedido foi literal: "ao confirmar a inscrição, o usuário final deve ser
+apresentado apenas ao banner de confirmação". A data e o horário, que ficavam
+desenhados abaixo da arte, entraram no bloco `sr-only` junto com o título, a
+mensagem e o rodapé. Visualmente, a tela é a imagem e mais nada.
+
+⚠️ **ISSO REABRE, DE OLHOS ABERTOS, O QUE O §16 TINHA FECHADO.** Aquela correção
+de homologação existia porque a data só aparecia se o administrador tivesse
+lembrado de escrever `{{event_date}}` na mensagem. Agora ela só aparece se a
+**arte** a trouxer — e uma arte enviada antes de o evento ser remarcado vai
+continuar anunciando a data velha, sem que nada no sistema perceba. É uma
+decisão de quem responde pela comunicação, e está registrada no cabeçalho de
+`TelaDeSucesso` para não voltar como surpresa.
+
+⚠️ **O que NÃO sumiu:**
+
+- **sem banner**, o texto padrão da plataforma continua sendo a confirmação
+  inteira, visível — uma página que não mostrasse nada depois do envio deixaria
+  a granja sem saber se deu certo;
+- **com banner que não carrega** (a URL assinada expira em uma hora, e a aba
+  pode ficar aberta mais que isso), o `onError` devolve o texto à tela;
+- **para quem usa leitor de tela**, tudo continua no HTML. Sumir da tela é
+  composição; sumir da página deixaria essa pessoa sem confirmação nenhuma,
+  porque de uma imagem ela recebe só o `alt` — e o `alt` de um banner não
+  comporta a frase inteira.
+
+⚠️ **A prévia do Builder acompanhou**, e aqui isso rende: com a arte sozinha na
+coluna "Ver confirmação", falta de data no banner **salta aos olhos** antes de a
+página ser publicada. É a única conferência que restou, e ela só funciona sem
+texto por baixo.
+
+---
+
+## 21. "Não confirmados" ficava em zero para sempre
+
+Defeito encontrado em produção, na tela de um evento: um participante estava
+como **não confirmado**, o contador de "Confirmados" desceu de 10 para 9 — e o
+de "Não confirmados" continuou em **0**, em vez de virar 1.
+
+### A causa
+
+`event_registrations_board` montava as métricas assim:
+
+```sql
+'metrics', (select to_jsonb(m) from metricas m)
+```
+
+`to_jsonb` de uma linha **nomeia as chaves pelas colunas**. A CTE `metricas` tem
+`participants`, `confirmed`, `not_confirmed`, `registrations` e `companies` — e
+o jsonb saía com esses cinco nomes, em snake_case. A aplicação lê
+`metricas.notConfirmed` (`getRegistrationBoard`), não achava, e caía no `?? 0`.
+
+⚠️ **Só uma das cinco quebrou, e é isso que torna o caso traiçoeiro.** Quatro
+são palavras **únicas** — `participants`, `confirmed`, `registrations`,
+`companies` são iguais nas duas convenções e casavam por coincidência.
+`not_confirmed` é a única composta, e foi a única a chegar com o nome errado.
+
+⚠️ **O modo de falhar é o pior que existe para um contador:** ele não some da
+tela, não dá erro, não aparece no log. Ele mostra **zero** — um número
+plausível, e "nenhum não confirmado" é exatamente o que se espera ver num evento
+que está indo bem. Só fica visível quando alguém marca alguém como não
+confirmado **e** confere a soma à mão.
+
+Nenhuma barreira do projeto pegava: o jsonb atravessa a fronteira como
+`unknown`, então o TypeScript está certo dos dois lados; a função compila; a RLS
+passa; e os testes do CSV montam `metrics` à mão, sem nunca perguntar ao SQL
+como ele escreve as chaves. É a mesma família de `sql-column-grants` e
+`sql-returns-table`: contrato que só existe como **combinação** entre banco e
+aplicação.
+
+### A correção, e a regra que ela deixa
+
+As métricas passam a ser montadas **chave a chave**, com `jsonb_build_object` —
+exatamente como `rows` sempre foi montado, dez linhas abaixo, e por este motivo.
+
+> `to_jsonb(<linha>)` é ótimo para depurar e é uma armadilha para contrato: ele
+> publica o nome interno das colunas como API.
+
+`sql-event-landing.test.ts` passou a cobrar duas coisas: que toda chave de
+`RegistrationBoardMetrics` apareça literalmente no corpo da função, e que a
+forma que causou o defeito (`'metrics', (select to_jsonb …`) não volte. Sem a
+segunda, alguém poderia reintroduzir `to_jsonb` e a primeira continuaria
+passando — as chaves ainda estariam escritas em algum comentário.
+
+### ⚠️ O filtro de arquivos do teste falhou pela terceira vez
+
+O `sql-event-landing.test.ts` lê as migrations do módulo por um filtro de nome, e
+ele era `/landing|event_registration/`. Dois arquivos ficavam de fora:
+
+```
+20260927000000_registration_writes_security_definer.sql
+20260929000000_event_registration_board_metrics.sql
+```
+
+O segundo é justamente o que redefine `event_registrations_board` — com ele de
+fora, a bateria leria a versão anterior e **passaria sobre código morto**. Foi
+exatamente o que aconteceu ao escrever a guarda acima: ela falhou de cara,
+lendo a definição antiga.
+
+O filtro virou `/landing|registration/`, e entrou um caso que **conta** os
+arquivos do módulo na pasta contra os que o filtro pegou. Uma lista de nomes
+esperados precisaria ser atualizada a cada migration; a conta responde a
+pergunta real — "ficou algum de fora?" — sozinha.
+
+### E a máscara do modal de edição
+
+Veio na mesma conversa: "o modal na parte de telefone não está com máscara e
+limite". A máscara **existe desde o Prompt 4** — `formatPhoneInput` no
+`onChange` dos dois campos. O que faltava era o **teto**, o mesmo da seção 20, e
+ele chegou junto porque o modal usa a mesma função.
+
+Visto de fora os dois defeitos parecem o mesmo: você digita muito, a máscara
+some (acima de onze dígitos, de propósito, para não estragar número
+estrangeiro), e nada te impede. `participant-actions.test.tsx` ganhou quatro
+casos que separam as duas coisas — a máscara, o teto de 15 dígitos, o
+internacional de 12 que precisa continuar cabendo, e o fato de que o que vai ao
+banco são dígitos, sem máscara.
+
+### E a lista de campos ficou apertada
+
+Consequência direta da seção 19: com o Builder em duas colunas, a lista de
+campos foi para **metade da largura**. Cada linha tinha o rótulo, uma frase de
+explicação embaixo dele, o selo de obrigatoriedade e o seletor de posição — e a
+frase começou a espremer os dois últimos para fora da linha, com o texto cortado
+no meio.
+
+As explicações viraram **tooltip** (`InfoTip`, ao lado do rótulo). Não ficaram
+menos verdadeiras; só não precisavam ocupar espaço permanente para algo que se
+lê uma vez na vida. É a mesma conclusão a que a barra de filtros chegou antes —
+e é literalmente o componente que nasceu daquele problema.
+
+⚠️ **"Obrigatório" e "Opcional" saíram do texto da dica.** Não foi corte por
+espaço: o **selo** ao lado já diz isso, e diz melhor — ele se lê de relance, sem
+clicar em nada. Repetir por escrito dentro da dica era a mesma coisa dita duas
+vezes, a segunda em letra menor.
+
+⚠️ **O rótulo do botão nomeia o campo** (`Sobre E-mail`, e não "Mais
+informações"). Cinco botões idênticos fazem um leitor de tela anunciar cinco
+controles iguais — o mesmo cuidado do seletor de posição, ali ao lado.
+
+| Campo                | Dica                                                                          |
+| -------------------- | ----------------------------------------------------------------------------- |
+| Granja / Empresa     | Informado uma vez por inscrição.                                              |
+| E-mail               | De cada participante. O que impede a mesma pessoa de se inscrever duas vezes. |
+| Nome do Participante | De cada participante.                                                         |
+| Telefone             | Cada participante precisa informar telefone ou WhatsApp.                      |
+| WhatsApp             | Cada participante precisa informar telefone ou WhatsApp.                      |

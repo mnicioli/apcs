@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LandingFieldList } from "./landing-field-list";
 import type { LandingFieldKey } from "@/modules/event/event.landing.types";
+import { LANDING_FIELD_HINTS } from "@/modules/event/event.landing.labels";
 
 /**
  * A REORDENAÇÃO DOS CAMPOS (§13, §14, §31).
@@ -185,5 +186,75 @@ describe("somente leitura", () => {
     for (const item of screen.getAllByRole("listitem")) {
       expect(item).toHaveAttribute("draggable", "true");
     }
+  });
+});
+
+/**
+ * ============================================================================
+ * ⚠️ AS EXPLICAÇÕES SAÍRAM DA LINHA — E ISSO NASCEU DE UM DEFEITO DE LAYOUT.
+ * ============================================================================
+ * Cada campo trazia a explicação como um parágrafo embaixo do rótulo. Quando o
+ * Builder passou a ter duas colunas, esta lista foi para metade da largura e as
+ * frases começaram a empurrar o selo e o seletor de posição para fora da linha.
+ *
+ * A dica virou `InfoTip`, que flutua sobre a linha quando alguém pergunta. É a
+ * mesma conclusão a que a barra de filtros chegou antes — e é literalmente o
+ * componente que nasceu daquele problema.
+ */
+describe("as explicações são dicas, não texto permanente", () => {
+  it("o texto não ocupa espaço na linha até alguém pedir", () => {
+    montar();
+
+    for (const dica of Object.values(LANDING_FIELD_HINTS)) {
+      expect(screen.queryByText(dica)).not.toBeInTheDocument();
+    }
+  });
+
+  it("cada campo tem um botão de dica que o NOMEIA", () => {
+    montar();
+
+    for (const rotulo of [
+      "Granja / Empresa",
+      "E-mail",
+      "Nome do Participante",
+      "Telefone",
+      "WhatsApp",
+    ]) {
+      expect(screen.getByRole("button", { name: `Sobre ${rotulo}` })).toBeInTheDocument();
+    }
+  });
+
+  it("clicar no ícone abre a explicação daquele campo", async () => {
+    const user = userEvent.setup();
+    montar();
+
+    await user.click(screen.getByRole("button", { name: "Sobre E-mail" }));
+
+    const dica = screen.getByRole("tooltip");
+    expect(dica.textContent).toBe(LANDING_FIELD_HINTS.EMAIL);
+    // E só a dele: uma lista com cinco dicas abertas de uma vez seria o mesmo
+    // problema de espaço que a mudança veio consertar.
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+  });
+
+  /**
+   * ⚠️ O SELO CONTINUA DIZENDO A OBRIGATORIEDADE, e é por isso que ela saiu do
+   * texto da dica. Ele se lê de relance, sem clicar em nada; repetir "Obrigatório"
+   * dentro da dica era a mesma coisa dita duas vezes, a segunda em letra menor.
+   */
+  it("a obrigatoriedade continua no selo, e não dentro da dica", () => {
+    montar();
+
+    expect(screen.getAllByText("Obrigatório")).toHaveLength(3);
+    for (const dica of Object.values(LANDING_FIELD_HINTS)) {
+      expect(dica).not.toContain("Obrigatório");
+      expect(dica).not.toContain("Opcional");
+    }
+  });
+
+  /** Quem só lê também precisa da explicação: entender não é escrever. */
+  it("a dica continua disponível em modo somente leitura", () => {
+    montar(PADRAO, true);
+    expect(screen.getByRole("button", { name: "Sobre Telefone" })).toBeEnabled();
   });
 });

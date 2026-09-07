@@ -9,6 +9,7 @@ import {
   type LandingFieldKey,
 } from "@/modules/event/event.landing.types";
 import { Badge } from "@/components/ui/badge";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -139,19 +140,32 @@ export function LandingFieldList({
                 aria-hidden="true"
               />
 
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
+              {/*
+                ⚠️ A EXPLICAÇÃO SAIU DA LINHA E VIROU DICA. Ela era um parágrafo
+                embaixo do rótulo; com o Builder em duas colunas, esta lista
+                passou a ocupar metade da largura, e a frase começou a empurrar
+                o selo e o seletor de posição para fora da linha.
+
+                `InfoTip` nasceu de um problema idêntico na barra de filtros, e
+                resolve o mesmo aqui: a dica flutua SOBRE a linha quando alguém
+                pergunta, em vez de ocupar espaço permanente para algo que se lê
+                uma vez na vida.
+
+                ⚠️ O RÓTULO DO BOTÃO NOMEIA O CAMPO. Cinco botões chamados "Mais
+                informações" fazem um leitor de tela anunciar cinco controles
+                idênticos — o mesmo cuidado do seletor de posição, ali ao lado.
+              */}
+              <p className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium">
+                <span className="truncate">
                   {rotulo}
                   {obrigatorio && (
                     <span className="text-destructive ml-0.5" aria-hidden="true">
                       *
                     </span>
                   )}
-                </p>
-                <p className="text-muted-foreground truncate text-xs">
-                  {LANDING_FIELD_HINTS[campo]}
-                </p>
-              </div>
+                </span>
+                <InfoTip text={LANDING_FIELD_HINTS[campo]} label={`Sobre ${rotulo}`} />
+              </p>
 
               {/* O selo é INFORMAÇÃO, não controle (§14). Não há caixa para
                   desmarcar: a obrigatoriedade é do sistema, e o Builder a
