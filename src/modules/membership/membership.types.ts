@@ -132,6 +132,51 @@ export const MEMBER_STATUSES = [
  */
 export const TERMINAL_APPLICATION_STATUSES: readonly MembershipApplicationStatus[] = ["approved"];
 
+/**
+ * Por que se ordena o registro de associados.
+ *
+ * ⚠️ SÃO DOIS CRITÉRIOS, e não um cabeçalho clicável em cada coluna. A lista se
+ * lê de duas maneiras: PROCURANDO uma pessoa pelo nome ("cadê o Valdomiro?") e
+ * VENDO QUEM ENTROU POR ÚLTIMO. Cidade, perfil e origem não se ordenam — se
+ * recortam, e para isso já existem as abas e a busca.
+ *
+ * ⚠️ LISTA FECHADA. O valor vem da URL e vira nome de COLUNA lá no service; sem
+ * a lista, um `?sort=` com qualquer texto chegaria ao Postgres.
+ */
+export const MEMBER_SORT_FIELDS = ["name", "joinedAt"] as const;
+
+export type MemberSortField = (typeof MEMBER_SORT_FIELDS)[number];
+
+export interface MemberSort {
+  field: MemberSortField;
+  ascending: boolean;
+}
+
+/**
+ * O sentido NATURAL de cada critério.
+ *
+ * Nome sobe (A→Z, que é como se procura numa lista de gente); data desce (o mais
+ * recente primeiro, que é como se olha para quem chegou). Trocar de critério
+ * começa pelo sentido dele — ninguém clica em "Associado desde" querendo ver
+ * 2019 no topo.
+ */
+export const MEMBER_SORT_DEFAULT_ASCENDING: Record<MemberSortField, boolean> = {
+  name: true,
+  joinedAt: false,
+};
+
+/**
+ * ⚠️ O PADRÃO É NOME DE A A Z, e não "cadastrado por último".
+ *
+ * A lista vinha por data de criação decrescente — herança da caixa de entrada de
+ * solicitações, onde o que chegou por último é mesmo o que importa. No REGISTRO
+ * a pergunta é outra: quem abre a tela quase sempre está atrás de uma pessoa
+ * específica, e a ordem alfabética diz para onde olhar. A cronológica não diz
+ * nada: para saber se "Belli" vem antes ou depois de "Biazoto" seria preciso ler
+ * a lista inteira.
+ */
+export const DEFAULT_MEMBER_SORT: MemberSort = { field: "name", ascending: true };
+
 /** Linha da solicitação como a grid e o detalhe a consomem. */
 export interface MembershipApplicationRow {
   id: string;

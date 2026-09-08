@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Search } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, Pencil, Search } from "lucide-react";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { hasPermission } from "@/lib/rbac/rbac.config";
 import { listMembers } from "@/lib/services/membership";
@@ -11,6 +11,7 @@ import {
   MEMBERSHIP_MODULE_TITLE,
   MEMBERSHIP_PROFILE_TYPE_LABELS,
   MEMBER_ORIGIN_LABELS,
+  MEMBER_SORT_LABELS,
   MEMBER_STATUS_LABELS,
 } from "@/modules/membership/membership.labels";
 import {
@@ -18,10 +19,13 @@ import {
   MEMBERS_BASE,
   listHref,
   memberHref,
+  memberSortHref,
+  memberSortParams,
   parseMemberParams,
+  type MemberListParams,
   type RawSearchParams,
 } from "@/modules/membership/membership.routes";
-import { MEMBER_STATUSES } from "@/modules/membership/membership.types";
+import { MEMBER_STATUSES, type MemberSortField } from "@/modules/membership/membership.types";
 import { formatWhatsapp } from "@/modules/membership/membership.schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,9 +40,14 @@ export const metadata: Metadata = { title: MEMBERSHIP_MODULE_TITLE };
  * O REGISTRO de associados — a fonte única da verdade de quem a APCS reconhece.
  *
  * A LISTA é só de leitura; o CADASTRO se edita na ficha (`/members/[id]`), que
- * o nome de cada linha abre. Edição em grade seria mais rápida para trocar uma
- * situação e péssima para todo o resto: são vinte campos por associado, e a
- * maioria não cabe numa célula.
+ * tanto o nome quanto o botão "Editar" da última coluna abrem. Edição em grade
+ * seria mais rápida para trocar uma situação e péssima para todo o resto: são
+ * vinte campos por associado, e a maioria não cabe numa célula.
+ *
+ * A ORDEM PADRÃO é alfabética (ver `DEFAULT_MEMBER_SORT`). Ordenar é NAVEGAR:
+ * os cabeçalhos são links, a ordem mora na URL e o `order by` acontece no SQL —
+ * ordenar em memória só acertaria a página que está na tela e mentiria sobre as
+ * outras dezenove.
  *
  * ⚠️ A CARGA DOS ASSOCIADOS QUE JÁ EXISTEM AINDA NÃO FOI FEITA. A tabela está
  * pronta para recebê-la (`origin = 'import'`, `external_id`, `joined_at`); a
@@ -56,11 +65,14 @@ export default async function MembersPage({
   const role = await getCurrentUserRole();
   if (!hasPermission(role, "members.read")) redirect("/dashboard");
 
+  const podeEditar = hasPermission(role, "members.write");
+
   const params = parseMemberParams(await searchParams);
   const pagina = await listMembers({
     status: params.status,
     search: params.search,
     page: params.page,
+    sort: params.sort,
   });
 
   const totalPaginas = Math.max(1, Math.ceil(pagina.total / pagina.pageSize));
@@ -109,6 +121,10 @@ export default async function MembersPage({
 
         <form method="get" action={MEMBERS_BASE} className="flex items-end gap-2">
           {params.status !== "all" && <input type="hidden" name="status" value={params.status} />}
+          {/* Buscar não pode desfazer a ordem escolhida — ver `memberSortParams`. */}
+          {memberSortParams(params.sort).map((p) => (
+            <input key={p.name} type="hidden" name={p.name} value={p.value} />
+          ))}
           <div className="space-y-1.5">
             <Label htmlFor="q">Buscar</Label>
             <Input
@@ -143,16 +159,32 @@ export default async function MembersPage({
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
+                <caption className="sr-only">
+                  Associados da APCS, {pagina.total} no total, ordenados por{" "}
+                  {MEMBER_SORT_LABELS[params.sort.field]}
+                  {params.sort.ascending ? ", de forma crescente" : ", de forma decrescente"}
+                </caption>
                 <thead className="border-border text-muted-foreground border-b text-left">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Nome</th>
+                    <SortableTh field="name" params={params}>
+                      Nome
+                    </SortableTh>
                     <th className="px-4 py-3 font-medium">Perfil</th>
                     <th className="px-4 py-3 font-medium">Contato</th>
                     <th className="px-4 py-3 font-medium">Cidade</th>
-                    <th className="px-4 py-3 font-medium">Associado desde</th>
+                    <SortableTh field="joinedAt" params={params}>
+                      Associado desde
+                    </SortableTh>
                     <th className="px-4 py-3 font-medium">Origem</th>
                     <th className="px-4 py-3 font-medium">Notificações</th>
                     <th className="px-4 py-3 font-medium">Situação</th>
+                    {/*
+                      A coluna de ação fica ENCOSTADA À DIREITA (`w-0` + o
+                      `whitespace-nowrap` da célula): sem isso a tabela dividiria
+                      a sobra de largura com ela, e um botão de dez caracteres
+                      ganharia o mesmo espaço que "Contato".
+                    */}
+                    <th className="w-0 px-4 py-3 font-medium whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -162,11 +194,12 @@ export default async function MembersPage({
                       className="border-border hover:bg-muted/50 border-b last:border-0"
                     >
                       {/*
-                        O NOME É O LINK, e não uma coluna "Ações" com um botão
-                        "Abrir" no fim da linha: abrir o cadastro é a única
-                        coisa que se faz com uma linha desta tabela, e uma
-                        coluna inteira para uma ação só empurraria a informação
-                        útil para fora da tela em telas estreitas.
+                        O NOME CONTINUA SENDO LINK mesmo com a coluna de ação no
+                        fim da linha, e não é redundância: quem já leu o nome
+                        clica ali mesmo, sem atravessar a tabela com o olho até a
+                        última coluna. Os dois vão para a MESMA ficha — o botão
+                        da direita é o atalho de quem varre a lista pela
+                        situação, não um destino diferente.
                       */}
                       <td className="px-4 py-3">
                         <Link
@@ -222,6 +255,30 @@ export default async function MembersPage({
                           {MEMBER_STATUS_LABELS[membro.status]}
                         </Badge>
                       </td>
+                      {/*
+                        ⚠️ "EDITAR" SÓ PARA QUEM EDITA. `comercial` tem
+                        `members.read` e não tem `members.write`: para essa
+                        pessoa a ficha abre como lista de leitura, então o botão
+                        diz "Abrir". Prometer "Editar" e entregar texto seria
+                        mentir na altura do clique.
+                      */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Link
+                          href={memberHref(membro.id)}
+                          className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                        >
+                          {podeEditar ? (
+                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                          )}
+                          {podeEditar ? "Editar" : "Abrir"}
+                          {/* A tabela tem uma linha por associado e um botão por
+                              linha: fora do contexto visual, "Editar" repetido
+                              vinte vezes não diz editar QUEM. */}
+                          <span className="sr-only">{membro.fullName}</span>
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -255,5 +312,54 @@ export default async function MembersPage({
         </nav>
       )}
     </div>
+  );
+}
+
+/**
+ * Cabeçalho que ordena.
+ *
+ * É um LINK, e não um botão com JavaScript: a ordenação acontece no SQL, então
+ * mudar a ordem é NAVEGAR — e um recorte ordenado pode ser mandado por link e
+ * sobrevive ao F5. Mesmo desenho do `SortableTh` de Palestras.
+ *
+ * ⚠️ `aria-sort` não é enfeite: sem ele, a seta diz a ordem só para quem
+ * enxerga. E a coluna ativa mostra a seta do sentido ATUAL, não do que o clique
+ * fará — a tabela relata o que está na tela; o que o clique faz o cursor já
+ * sugere.
+ */
+function SortableTh({
+  field,
+  params,
+  children,
+}: {
+  field: MemberSortField;
+  params: MemberListParams;
+  children: React.ReactNode;
+}) {
+  const ativo = params.sort.field === field;
+
+  return (
+    <th
+      scope="col"
+      aria-sort={ativo ? (params.sort.ascending ? "ascending" : "descending") : "none"}
+      className="px-4 py-3 font-medium whitespace-nowrap"
+    >
+      <Link
+        href={memberSortHref(params, field)}
+        className={
+          ativo
+            ? "text-foreground focus-visible:ring-ring inline-flex items-center gap-1 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+            : "hover:text-foreground focus-visible:ring-ring inline-flex items-center gap-1 rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        }
+      >
+        {children}
+        {ativo &&
+          (params.sort.ascending ? (
+            <ArrowUp className="h-3 w-3" aria-hidden="true" />
+          ) : (
+            <ArrowDown className="h-3 w-3" aria-hidden="true" />
+          ))}
+      </Link>
+    </th>
   );
 }

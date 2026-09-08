@@ -1,6 +1,11 @@
 import {
+  DEFAULT_MEMBER_SORT,
   MEMBERSHIP_APPLICATION_STATUSES,
+  MEMBER_SORT_DEFAULT_ASCENDING,
+  MEMBER_SORT_FIELDS,
   MEMBER_STATUSES,
+  type MemberSort,
+  type MemberSortField,
   type MemberStatus,
   type MembershipApplicationStatus,
 } from "./membership.types";
@@ -87,11 +92,19 @@ export interface MemberListParams {
   status: MemberStatus | "all";
   search: string;
   page: number;
+  sort: MemberSort;
 }
 
 export function parseMemberParams(params: RawSearchParams): MemberListParams {
   const status = first(params, "status");
   const page = Number(first(params, "page") ?? "1");
+  const campo = first(params, "sort");
+  const field = (
+    campo && (MEMBER_SORT_FIELDS as readonly string[]).includes(campo)
+      ? campo
+      : DEFAULT_MEMBER_SORT.field
+  ) as MemberSortField;
+  const dir = first(params, "dir");
 
   return {
     status:
@@ -100,7 +113,43 @@ export function parseMemberParams(params: RawSearchParams): MemberListParams {
         : "all",
     search: (first(params, "q") ?? "").trim(),
     page: Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1,
+    // Mesmo silêncio do `status`: um `?sort=xyz` colado errado cai no padrão em
+    // vez de virar erro. É estado de tela, não comando.
+    sort: {
+      field,
+      ascending:
+        dir === "asc" ? true : dir === "desc" ? false : MEMBER_SORT_DEFAULT_ASCENDING[field],
+    },
   };
+}
+
+/**
+ * A ordem em parâmetros de URL — o ÚNICO lugar que sabe como ela se escreve.
+ *
+ * Devolve LISTA VAZIA para a ordem padrão: a lista alfabética, que é o caso
+ * comum, continua morando em `/members` limpo. Um endereço cheio de parâmetros
+ * que só repetem o padrão é ilegível e não se distingue de um recorte de
+ * verdade.
+ *
+ * Existe como função (e não inline no `listHref`) porque o formulário de busca
+ * precisa dos MESMOS parâmetros como `<input type="hidden">` — um `<form
+ * method="get">` reescreve a query inteira, e sem eles buscar dentro de uma
+ * lista ordenada por data jogaria a pessoa de volta para a alfabética.
+ */
+export function memberSortParams(sort: MemberSort): { name: string; value: string }[] {
+  const saida: { name: string; value: string }[] = [];
+  if (sort.field !== DEFAULT_MEMBER_SORT.field) saida.push({ name: "sort", value: sort.field });
+  if (sort.ascending !== MEMBER_SORT_DEFAULT_ASCENDING[sort.field]) {
+    saida.push({ name: "dir", value: sort.ascending ? "asc" : "desc" });
+  }
+  return saida;
+}
+
+/** O endereço que troca a ordem — clicar no critério já ativo INVERTE o sentido. */
+export function memberSortHref(atual: MemberListParams, field: MemberSortField): string {
+  const ascending =
+    atual.sort.field === field ? !atual.sort.ascending : MEMBER_SORT_DEFAULT_ASCENDING[field];
+  return listHref(MEMBERS_BASE, atual, { sort: { field, ascending } });
 }
 
 /**
@@ -112,15 +161,23 @@ export function parseMemberParams(params: RawSearchParams): MemberListParams {
  */
 export function listHref(
   base: string,
-  atual: { status: string; search: string; page: number },
-  mudanca: Partial<{ status: string; search: string; page: number }>,
+  atual: { status: string; search: string; page: number; sort?: MemberSort },
+  mudanca: Partial<{ status: string; search: string; page: number; sort: MemberSort }>,
 ): string {
   const proximo = { ...atual, ...mudanca };
-  if (mudanca.status !== undefined || mudanca.search !== undefined) proximo.page = 1;
+  // Trocar a ORDEM também volta para a página 1, pelo mesmo motivo de trocar de
+  // aba: a página 4 de uma ordem que acabou de deixar de existir é um pedaço
+  // arbitrário do meio da lista.
+  if (mudanca.status !== undefined || mudanca.search !== undefined || mudanca.sort !== undefined) {
+    proximo.page = 1;
+  }
 
   const query = new URLSearchParams();
   if (proximo.status && proximo.status !== "all") query.set("status", proximo.status);
   if (proximo.search) query.set("q", proximo.search);
+  if (proximo.sort) {
+    for (const { name, value } of memberSortParams(proximo.sort)) query.set(name, value);
+  }
   if (proximo.page > 1) query.set("page", String(proximo.page));
 
   const texto = query.toString();

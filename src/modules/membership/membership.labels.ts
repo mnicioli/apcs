@@ -1,5 +1,6 @@
 import type {
   MemberOrigin,
+  MemberSortField,
   MemberStatus,
   MembershipApplicationStatus,
   MembershipAuditAction,
@@ -48,6 +49,16 @@ export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {
   active: "Ativo",
   inactive: "Inativo",
   suspended: "Suspenso",
+};
+
+/**
+ * Como a ordem se chama na tela. Vai no `<caption>` da grid — a frase que o
+ * leitor de tela ouve antes da tabela ("ordenados por nome, de forma
+ * crescente"), porque a setinha no cabeçalho é informação só para quem enxerga.
+ */
+export const MEMBER_SORT_LABELS: Record<MemberSortField, string> = {
+  name: "nome",
+  joinedAt: "data de associação",
 };
 
 export const MEMBER_ORIGIN_LABELS: Record<MemberOrigin, string> = {

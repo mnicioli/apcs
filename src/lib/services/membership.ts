@@ -1,9 +1,12 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import {
+  DEFAULT_MEMBER_SORT,
   MEMBERSHIP_APPLICATION_STATUSES,
   type MemberDetail,
   type MemberRow,
+  type MemberSort,
+  type MemberSortField,
   type MembershipApplicationCounts,
   type MembershipApplicationDetail,
   type MembershipApplicationRow,
@@ -390,7 +393,20 @@ export interface MemberFilters {
   search?: string;
   status?: MemberRow["status"] | "all";
   page?: number;
+  sort?: MemberSort;
 }
+
+/**
+ * O critério da tela vira COLUNA DO BANCO aqui, e em lugar nenhum mais.
+ *
+ * ⚠️ É um mapa fechado, não `order(filters.sortField)`. O que vem da URL não
+ * pode virar nome de coluna: `?sort=` com qualquer texto iria direto ao
+ * PostgREST, e o melhor caso disso é um erro 400 na cara do usuário.
+ */
+const MEMBER_SORT_COLUMN: Record<MemberSortField, string> = {
+  name: "full_name",
+  joinedAt: "joined_at",
+};
 
 export interface MemberPage {
   rows: MemberRow[];
@@ -404,9 +420,23 @@ export async function listMembers(filters: MemberFilters = {}): Promise<MemberPa
   const page = Math.max(1, filters.page ?? 1);
   const de = (page - 1) * APPLICATIONS_PAGE_SIZE;
 
+  const sort = filters.sort ?? DEFAULT_MEMBER_SORT;
+
   let query = supabase
     .from("members")
     .select(MEMBER_COLUMNS, { count: "exact" })
+    .order(MEMBER_SORT_COLUMN[sort.field], {
+      ascending: sort.ascending,
+      // ⚠️ QUEM NÃO TEM DATA VAI PARA O FIM NOS DOIS SENTIDOS. O padrão do
+      // Postgres é NULLS FIRST no decrescente, e "Associado desde ↓" abriria
+      // com uma pilha de "—" antes do associado mais recente — exatamente o
+      // contrário do que a pessoa pediu ao clicar. A carga do cadastro antigo
+      // vem cheia de `joined_at` nulo, então isso não é hipótese.
+      nullsFirst: false,
+    })
+    // ⚠️ DESEMPATE OBRIGATÓRIO, não capricho. Dois homônimos (ou duas linhas sem
+    // data) numa ordem instável podem trocar de lugar entre uma página e outra:
+    // o mesmo associado apareceria duas vezes e outro sumiria da lista.
     .order("created_at", { ascending: false })
     .range(de, de + APPLICATIONS_PAGE_SIZE - 1);
 
