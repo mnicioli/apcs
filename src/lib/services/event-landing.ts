@@ -765,6 +765,12 @@ export async function getRegistrationBoard(
     p_event_id: eventId,
     p_query: filters.query.trim() || undefined,
     p_confirmation: filters.confirmation === "all" ? undefined : filters.confirmation,
+    // ⚠️ O MESMO QUADRO SERVE ÀS DUAS TELAS. A Lista de Presença é esta consulta
+    // com `p_presence` preenchido; a grid de Inscrições é esta consulta com ele
+    // vazio. Uma função só para presença duplicaria a busca em duas tabelas, a
+    // cadeia conferida contra IDOR e as métricas que respeitam o filtro — e a
+    // cópia que envelhecesse faria uma tela achar quem a outra não acha.
+    p_presence: filters.presence === "all" ? undefined : filters.presence,
     // ⚠️ AS DATAS VÃO CRUAS, EM AAAA-MM-DD, E O FUSO É APLICADO NO BANCO.
     //
     // A primeira versão montava o instante aqui (`${filters.from}T00:00:00`), e
@@ -800,6 +806,8 @@ export async function getRegistrationBoard(
       participants: metricas.participants ?? 0,
       confirmed: metricas.confirmed ?? 0,
       notConfirmed: metricas.notConfirmed ?? 0,
+      present: metricas.present ?? 0,
+      absent: metricas.absent ?? 0,
       companies: metricas.companies ?? 0,
     },
     total: typeof bruto.total === "number" ? bruto.total : 0,

@@ -82,6 +82,10 @@ export type Permission =
   // matriz.
   | "registrations.read"
   | "registrations.write"
+  // Lista de Presença — quem APARECEU no evento. Chave separada de
+  // `registrations.*` porque o recorte de papéis é outro: ver a matriz.
+  | "presence.read"
+  | "presence.write"
   // Bolsa — os boletins de preço (submenu de Documentos)
   | "market.read"
   | "market.write"

@@ -113,3 +113,54 @@ describe("seções recolhíveis", () => {
     expect(new Set(titulos).size).toBe(titulos.length);
   });
 });
+
+describe("subgrupos dentro de uma seção", () => {
+  /**
+   * ⚠️ O SUBTÍTULO É DESENHADO ANTES DO PRIMEIRO ITEM CUJO GRUPO DIFERE DO
+   * ANTERIOR — a Sidebar compara vizinhos em vez de guardar estado. Isso é o
+   * que mantém o recurso sendo só desenho, e o preço é este: itens do mesmo
+   * grupo precisam estar ADJACENTES na declaração.
+   *
+   * Separá-los desenharia o mesmo título duas vezes, e ninguém repara nisso
+   * lendo o array — só olhando o menu.
+   */
+  it("itens de um mesmo grupo estão adjacentes", () => {
+    for (const secao of NAV_SECTIONS) {
+      const vistos = new Set<string>();
+      let anterior: string | undefined;
+
+      for (const item of secao.items) {
+        if (item.group !== undefined && item.group !== anterior) {
+          expect(
+            vistos.has(item.group),
+            `o grupo "${item.group}" reaparece depois de outro em "${secao.title}"`,
+          ).toBe(false);
+          vistos.add(item.group);
+        }
+        anterior = item.group;
+      }
+    }
+  });
+
+  it("a Lista de Presença está sob Gestão do Evento, na seção Eventos", () => {
+    const eventos = NAV_SECTIONS.find((s) => s.title === "Eventos");
+    const presenca = eventos?.items.find((i) => i.href === "/events/presence");
+
+    expect(presenca).toBeDefined();
+    expect(presenca?.group).toBe("Gestão do Evento");
+    expect(presenca?.permission).toBe("presence.read");
+    expect(presenca?.available).toBe(true);
+  });
+
+  it("a rota de presença NÃO colide com a Central de Atendimento", () => {
+    /**
+     * ⚠️ ESTE CASO EXISTE POR CAUSA DE UMA COLISÃO DE VOCABULÁRIO REAL. Neste
+     * projeto "attendance" já significa ATENDIMENTO: existe `/attendances`, com
+     * `attendances.read`. A lista de presença usa "presence" justamente para as
+     * duas nunca virarem a mesma palavra em rota, permissão e tabela.
+     */
+    const rotas = NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    expect(rotas).toContain("/events/presence");
+    expect(rotas.filter((r) => r.includes("attendance"))).not.toContain("/events/attendance");
+  });
+});

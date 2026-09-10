@@ -43,6 +43,8 @@ function participante(over: Partial<RegistrationBoardRow> = {}): RegistrationBoa
     phone: "11999999999",
     whatsapp: null,
     confirmation: "confirmed",
+    present: false,
+    checkedInAt: null,
     registeredAt: "2026-09-06T13:30:00Z",
     registrationStatus: "active",
     origin: "landing_page",

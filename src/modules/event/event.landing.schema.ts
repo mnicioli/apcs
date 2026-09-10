@@ -342,6 +342,34 @@ export const participantConfirmationSchema = z.object({
 
 export type ParticipantConfirmationInput = z.infer<typeof participantConfirmationSchema>;
 
+/**
+ * A presença de um participante — o §12 e o §13 da Lista de Presença.
+ *
+ * ⚠️ IRMÃO DE `participantConfirmationSchema`, E DELIBERADAMENTE SEPARADO DELE.
+ * Os dois recebem o mesmo par de ids e trocam um campo do mesmo participante —
+ * a tentação era um schema só com um discriminador. Não: confirmação e presença
+ * são INDEPENDENTES (§3), e um payload que carregasse os dois convidaria, no
+ * primeiro refactor, a uma action que escreve os dois "de uma vez" — que é
+ * exatamente a regra automática que o escopo proíbe.
+ *
+ * ⚠️ NÃO HÁ TIMESTAMP AQUI, e a ausência é a regra do §21. Quem carimba a hora
+ * é o banco, dentro de `set_participant_presence`. Um campo de data neste
+ * schema seria o relógio do navegador entrando por uma porta que não deveria
+ * existir — e uma máquina com a hora errada faria a lista mentir sobre quando
+ * as pessoas chegaram.
+ *
+ * ⚠️ E `eventId` É OBRIGATÓRIO PELO MESMO MOTIVO DO IRMÃO: é o §18 (IDOR). Sem
+ * ele, um `participantId` trocado na requisição alcançaria participante de
+ * outro evento. O banco reconfere a cadeia; isto recusa antes.
+ */
+export const participantPresenceSchema = z.object({
+  eventId: z.string().uuid(),
+  participantId: z.string().uuid(),
+  present: z.boolean(),
+});
+
+export type ParticipantPresenceInput = z.infer<typeof participantPresenceSchema>;
+
 /* -------------------------------------------------------------------------- */
 /* Imagem da página (§8 do Prompt 2)                                          */
 /* -------------------------------------------------------------------------- */

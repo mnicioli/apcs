@@ -1340,3 +1340,156 @@ inscrever já sabe.
 Cinco casos novos em `registration-form.test.tsx` amarram as duas metades: a
 arte aparece com formulário, some na confirmação (com banner e sem), e fica nos
 dois estados de página fechada.
+
+---
+
+## 23. A Lista de Presença (Gestão do Evento — Prompt 1)
+
+A jornada que este bloco abre, e que continua nos próximos prompts:
+
+```
+EVENTO → INSCRIÇÃO → PARTICIPANTE → LISTA DE PRESENÇA → PRESENTE ON/OFF
+```
+
+### 23.1 A presença é do PARTICIPANTE
+
+A inscrição é da **granja**; quem entra pela porta são as **pessoas** dela. A
+Granja XPTO inscreve João, Maria e Carlos e aparecem dois — se a presença
+morasse na inscrição, não haveria como dizer qual dos três faltou.
+
+Por isso as três colunas nasceram em `event_participants`, que já é "uma pessoa
+neste evento" e já carrega `event_id` guardado por FK composta. **Não há tabela
+nova.**
+
+| Coluna          | O quê                                 | Quando é nula                   |
+| --------------- | ------------------------------------- | ------------------------------- |
+| `present`       | compareceu (`not null default false`) | nunca                           |
+| `checked_in_at` | quando, pelo relógio do **banco**     | sempre que `present = false`    |
+| `checked_in_by` | quem registrou, de `auth.uid()`       | `present = false`, ou origem QR |
+
+Um CHECK impede o estado impossível: **ausente com carimbo**. A assimetria
+(presente pode não ter operador) é o espaço reservado ao QR Code — ver 23.6.
+
+### 23.2 Confirmado e Presente não se tocam
+
+São dois fatos diferentes sobre a mesma pessoa. `set_participant_presence`
+escreve presença e nada mais; `set_participant_confirmation` escreve confirmação
+e nada mais. **Nenhuma lê a coluna da outra**, não há trigger e não há regra
+derivada.
+
+As quatro combinações são estados legítimos: quem confirmou e não veio, e quem
+apareceu sem ter confirmado, são exatamente as duas perguntas que a lista existe
+para responder.
+
+### 23.3 O quadro é o MESMO de Inscrições
+
+`event_registrations_board` ganhou `p_presence`, dois campos na linha
+(`present`, `checkedInAt`) e duas métricas (`present`, `absent`). As duas telas
+leem a mesma consulta.
+
+⚠️ **Uma `event_presence_board` separada teria duplicado** a busca que atravessa
+duas tabelas, a cadeia conferida contra IDOR, a paginação e as métricas que
+respeitam o filtro. O modo de falhar dessa duplicação é silencioso: no dia em
+que a busca ganhasse um campo numa das cópias, uma tela passaria a não achar
+quem a outra acha, sem erro nenhum.
+
+A tela de seleção de evento reusa `event_registration_summaries` **sem uma linha
+nova** — e a fonte está certa por construção: `event_registrations.landing_page_id`
+é `not null`, então "eventos com página de inscrição" e "eventos que podem ter
+participantes" são o mesmo conjunto.
+
+### 23.4 Como a alteração acontece
+
+`set_participant_presence(p_event_id, p_participant_id, p_present, p_source)`:
+
+1. **`presence_is_writer()`** — a função é `SECURITY DEFINER` (precisa ser: ela
+   grava na trilha, onde `authenticated` não tem insert), e DEFINER desliga a
+   RLS. Sem essa checagem dentro dela, qualquer sessão marcaria qualquer um.
+2. **A cadeia** — `where p.id = ... and p.event_id = ...`. A mensagem não
+   distingue "não existe" de "é de outro evento": a diferença seria um oráculo
+   sobre ids alheios.
+3. **Compare-and-set** — `and present is distinct from p_present` **dentro** do
+   UPDATE. Dois cliques no mesmo instante, ou dois operadores na mesma linha,
+   não geram duas linhas de trilha.
+4. **Os carimbos** — `now()` e `auth.uid()`, calculados ali. A função **não
+   aceita timestamp como parâmetro**: o relógio do navegador nunca decide a que
+   horas alguém chegou.
+5. **A trilha** — `participant_presence_changed`, com `from`/`to`, o id do
+   participante e a origem. Nunca nome, e-mail ou telefone.
+
+Repetir o mesmo valor é **sucesso, não erro**: a operação é idempotente, e
+devolver erro faria o toggle da tela reverter um estado que está certo.
+
+### 23.5 Reverter não apaga o histórico
+
+`ON → OFF` limpa `checked_in_at` e `checked_in_by` — as colunas guardam o
+**estado atual**, e quem não está presente não tem hora de chegada. O registro
+de que a presença existiu fica na trilha, que só aceita INSERT.
+
+Desligar **audita tanto quanto ligar**. Não há condição em volta da escrita da
+trilha, e há teste que cobra a ausência dela.
+
+### 23.6 O QR Code futuro já tem onde entrar
+
+A regra é **uma função de domínio**, e o backoffice apenas a consome. `p_source`
+diz quem acionou; hoje só existe `'backoffice'`, e o dia em que o QR Code chegar
+ele passa `'qr_code'` e herda inteiras a validação da cadeia, a idempotência e a
+trilha. A lista de origens é **fechada** — um texto livre transformaria o
+registro de origem num campo que qualquer chamador preenche.
+
+### 23.7 Permissões — a exceção do módulo
+
+| Chave                                 | Papéis           |
+| ------------------------------------- | ---------------- |
+| `presence.read`                       | admin, comercial |
+| `presence.write`                      | admin, comercial |
+| `registrations.write` (para comparar) | admin            |
+
+⚠️ **É a primeira chave do módulo em que escrever não é mais estreito que ler**,
+e a razão é a mesma do WhatsApp: marcar quem entrou pela porta **não é uma
+decisão editorial**, é o trabalho de quem está na porta. Uma lista de presença
+que só o Administrador consegue marcar não é uma lista de presença — é uma tela
+que alguém olha enquanto anota num papel.
+
+A consequência aparece na própria tela: o Atendente marca **presença** e vê
+**Confirmado** sem poder mexer, porque a confirmação continua sendo
+`registrations.write`. Não há uma segunda lógica de confirmação.
+
+Um "Conferente de Portaria" é um **cargo** criado em `/permissions` com base
+`admin` e só as chaves `presence.*`.
+
+### 23.8 ⚠️ "Attendance" neste projeto significa ATENDIMENTO
+
+A rota é `/events/presence`, a permissão é `presence.*` e o helper é
+`presence_is_writer()` — **nunca `attendance`**. Esse nome já está tomado: existe
+o módulo Central de Atendimento em `/attendances`, com `attendances.read` e
+tabelas próprias. Usar a mesma palavra para presença criaria duas coisas sem
+relação nenhuma com o mesmo nome em rota, permissão e tabela.
+
+### 23.9 Onde está cada coisa
+
+```
+supabase/migrations/
+  20261001000000_event_registration_presence_enums.sql  o valor novo da trilha
+  20261001000100_event_registration_presence.sql        colunas, CHECK, função, board, permissões
+
+src/lib/actions/event-presence.ts   a única porta de escrita da presença
+
+src/app/(app)/events/presence/
+  page.tsx                    seleção de evento (reusa event_registration_summaries)
+  presence-event-search.tsx   busca de evento
+  loading.tsx / error.tsx     estados do segmento (servem às duas telas)
+  [eventId]/page.tsx          a lista, indicadores e tabela
+  [eventId]/presence-filters.tsx  busca, presença, confirmação, ordenação (na URL)
+  [eventId]/presence-toggle.tsx   o toggle otimista, com rollback
+
+src/test/sql-event-presence.test.ts  as invariantes lidas do SQL
+src/test/event-presence.test.ts      action, RBAC, filtros e paginação
+```
+
+### 23.10 O que NÃO foi feito neste prompt
+
+QR Code, avaliação do evento, envio automático de avaliação, formulário,
+dashboard, gráficos e exportação de avaliação. Também **não há tela de
+histórico** de presença — o requisito era garantir que a trilha fosse registrada
+corretamente, e ela é.

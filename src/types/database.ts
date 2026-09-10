@@ -1142,6 +1142,8 @@ export type Database = {
       };
       event_participants: {
         Row: {
+          checked_in_at: string | null;
+          checked_in_by: string | null;
           confirmation: Database["public"]["Enums"]["event_participant_confirmation"];
           created_at: string;
           email: string;
@@ -1149,6 +1151,7 @@ export type Database = {
           full_name: string;
           id: string;
           phone: string | null;
+          present: boolean;
           registration_id: string;
           search_text: string | null;
           updated_at: string;
@@ -1156,6 +1159,8 @@ export type Database = {
           whatsapp: string | null;
         };
         Insert: {
+          checked_in_at?: string | null;
+          checked_in_by?: string | null;
           confirmation?: Database["public"]["Enums"]["event_participant_confirmation"];
           created_at?: string;
           email: string;
@@ -1163,6 +1168,7 @@ export type Database = {
           full_name: string;
           id?: string;
           phone?: string | null;
+          present?: boolean;
           registration_id: string;
           search_text?: string | null;
           updated_at?: string;
@@ -1170,6 +1176,8 @@ export type Database = {
           whatsapp?: string | null;
         };
         Update: {
+          checked_in_at?: string | null;
+          checked_in_by?: string | null;
           confirmation?: Database["public"]["Enums"]["event_participant_confirmation"];
           created_at?: string;
           email?: string;
@@ -1177,6 +1185,7 @@ export type Database = {
           full_name?: string;
           id?: string;
           phone?: string | null;
+          present?: boolean;
           registration_id?: string;
           search_text?: string | null;
           updated_at?: string;
@@ -1184,6 +1193,13 @@ export type Database = {
           whatsapp?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "event_participants_checked_in_by_fkey";
+            columns: ["checked_in_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "event_participants_registration_id_fkey";
             columns: ["registration_id"];
@@ -4967,6 +4983,7 @@ export type Database = {
           p_from?: string;
           p_limit?: number;
           p_offset?: number;
+          p_presence?: string;
           p_query?: string;
           p_sort?: string;
           p_to?: string;
@@ -5427,6 +5444,8 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      presence_is_reader: { Args: never; Returns: boolean };
+      presence_is_writer: { Args: never; Returns: boolean };
       process_scheduled_surveys: {
         Args: never;
         Returns: {
@@ -6101,6 +6120,8 @@ export type Database = {
           p_participant_id: string;
         };
         Returns: {
+          checked_in_at: string | null;
+          checked_in_by: string | null;
           confirmation: Database["public"]["Enums"]["event_participant_confirmation"];
           created_at: string;
           email: string;
@@ -6108,6 +6129,38 @@ export type Database = {
           full_name: string;
           id: string;
           phone: string | null;
+          present: boolean;
+          registration_id: string;
+          search_text: string | null;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "event_participants";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_participant_presence: {
+        Args: {
+          p_event_id: string;
+          p_participant_id: string;
+          p_present: boolean;
+          p_source?: string;
+        };
+        Returns: {
+          checked_in_at: string | null;
+          checked_in_by: string | null;
+          confirmation: Database["public"]["Enums"]["event_participant_confirmation"];
+          created_at: string;
+          email: string;
+          event_id: string;
+          full_name: string;
+          id: string;
+          phone: string | null;
+          present: boolean;
           registration_id: string;
           search_text: string | null;
           updated_at: string;
@@ -6553,6 +6606,8 @@ export type Database = {
           p_whatsapp?: string;
         };
         Returns: {
+          checked_in_at: string | null;
+          checked_in_by: string | null;
           confirmation: Database["public"]["Enums"]["event_participant_confirmation"];
           created_at: string;
           email: string;
@@ -6560,6 +6615,7 @@ export type Database = {
           full_name: string;
           id: string;
           phone: string | null;
+          present: boolean;
           registration_id: string;
           search_text: string | null;
           updated_at: string;
@@ -7066,7 +7122,8 @@ export type Database = {
         | "registration_cancelled"
         | "registration_reactivated"
         | "participant_confirmation_changed"
-        | "participant_updated";
+        | "participant_updated"
+        | "participant_presence_changed";
       event_registration_origin: "landing_page" | "backoffice";
       event_registration_status: "active" | "cancelled";
       event_status: "active" | "inactive";
@@ -7459,6 +7516,7 @@ export const Constants = {
         "registration_reactivated",
         "participant_confirmation_changed",
         "participant_updated",
+        "participant_presence_changed",
       ],
       event_registration_origin: ["landing_page", "backoffice"],
       event_registration_status: ["active", "cancelled"],

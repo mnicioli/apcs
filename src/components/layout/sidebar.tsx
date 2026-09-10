@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
@@ -208,8 +208,16 @@ export function Sidebar({
 
               {aberta && (
                 <ul id={idLista} className="space-y-1">
-                  {section.items.map((item) => {
+                  {section.items.map((item, indice) => {
                     const Icon = item.icon;
+                    // O subtítulo aparece uma vez, antes do PRIMEIRO item do
+                    // grupo. Comparar com o item anterior (e não guardar estado)
+                    // é o que mantém isto sendo só desenho: a lista já filtrada
+                    // por permissão decide onde o rótulo cai, então um grupo
+                    // cujo único item a pessoa não pode ver não deixa um título
+                    // órfão na tela.
+                    const abreGrupo =
+                      item.group !== undefined && section.items[indice - 1]?.group !== item.group;
                     // ⚠️ `startsWith` sozinho marcaria "Palestras" (/lectures)
                     // como ativo enquanto se navega no calendário
                     // (/lectures/calendar) — dois itens acesos ao mesmo tempo. A
@@ -226,54 +234,72 @@ export function Sidebar({
                         ));
                     const count = item.badge ? (badges[item.badge] ?? 0) : 0;
 
+                    // O rótulo do grupo. `aria-hidden` porque ele é decoração:
+                    // um `<li>` de texto solto dentro da lista de navegação
+                    // seria anunciado como se fosse mais um destino.
+                    const tituloDoGrupo = abreGrupo ? (
+                      <li
+                        aria-hidden="true"
+                        className="text-muted-foreground/70 px-2 pt-3 pb-1 text-[10px] font-semibold tracking-wider uppercase"
+                      >
+                        {item.group}
+                      </li>
+                    ) : null;
+
                     if (!item.available) {
                       return (
-                        <li key={item.href}>
-                          <span className="text-muted-foreground/60 flex cursor-default items-center gap-3 rounded-md px-2 py-2 text-sm">
-                            <Icon className="h-4 w-4" />
-                            <span className="flex-1">{item.title}</span>
-                            <span className="bg-muted rounded px-1.5 py-0.5 text-[10px] font-medium uppercase">
-                              Em breve
+                        <Fragment key={item.href}>
+                          {tituloDoGrupo}
+                          <li>
+                            <span className="text-muted-foreground/60 flex cursor-default items-center gap-3 rounded-md px-2 py-2 text-sm">
+                              <Icon className="h-4 w-4" />
+                              <span className="flex-1">{item.title}</span>
+                              <span className="bg-muted rounded px-1.5 py-0.5 text-[10px] font-medium uppercase">
+                                Em breve
+                              </span>
                             </span>
-                          </span>
-                        </li>
+                          </li>
+                        </Fragment>
                       );
                     }
 
                     return (
-                      <li key={item.href}>
-                        <Link
-                          href={item.href}
-                          className={cn(
-                            "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
-                            isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "text-foreground hover:bg-muted",
-                          )}
-                        >
-                          <Icon className="h-4 w-4" />
-                          <span className="flex-1">{item.title}</span>
-                          {count > 0 && (
-                            <span
-                              className={cn(
-                                "min-w-5 rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold",
-                                isActive
-                                  ? "bg-primary-foreground text-primary"
-                                  : "bg-accent text-primary-strong",
-                              )}
-                            >
-                              {/* O número é lido por leitor de tela com o que ele
-                                  significa: "3" sozinho não diz nada. */}
-                              <span aria-hidden="true">{count}</span>
-                              <span className="sr-only">
-                                {count === 1
-                                  ? "1 solicitação aguardando análise"
-                                  : `${count} solicitações aguardando análise`}
+                      <Fragment key={item.href}>
+                        {tituloDoGrupo}
+                        <li>
+                          <Link
+                            href={item.href}
+                            className={cn(
+                              "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
+                              isActive
+                                ? "bg-primary text-primary-foreground"
+                                : "text-foreground hover:bg-muted",
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                            <span className="flex-1">{item.title}</span>
+                            {count > 0 && (
+                              <span
+                                className={cn(
+                                  "min-w-5 rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold",
+                                  isActive
+                                    ? "bg-primary-foreground text-primary"
+                                    : "bg-accent text-primary-strong",
+                                )}
+                              >
+                                {/* O número é lido por leitor de tela com o que
+                                    ele significa: "3" sozinho não diz nada. */}
+                                <span aria-hidden="true">{count}</span>
+                                <span className="sr-only">
+                                  {count === 1
+                                    ? "1 solicitação aguardando análise"
+                                    : `${count} solicitações aguardando análise`}
+                                </span>
                               </span>
-                            </span>
-                          )}
-                        </Link>
-                      </li>
+                            )}
+                          </Link>
+                        </li>
+                      </Fragment>
                     );
                   })}
                 </ul>

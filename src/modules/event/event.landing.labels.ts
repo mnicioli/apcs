@@ -4,6 +4,7 @@ import type {
   LandingPageStatus,
   LandingPageStatusReason,
   ParticipantConfirmation,
+  PresenceFilter,
   RegistrationAuditAction,
   RegistrationOrigin,
   RegistrationStatus,
@@ -104,7 +105,44 @@ export const REGISTRATION_AUDIT_ACTION_LABELS: Record<RegistrationAuditAction, s
   // telefone para uma tabela append-only criaria uma segunda cópia do dado
   // pessoal que ninguém lembraria de apagar num pedido de exclusão (§25).
   participant_updated: "Dados do participante alterados",
+  // O de/para (`from` / `to` na metadata) diz o SENTIDO da mudança. O rótulo não
+  // tenta dizê-lo: "Presença registrada" mentiria metade das vezes, porque a
+  // mesma ação também é a reversão manual do §13.
+  participant_presence_changed: "Presença do participante alterada",
 };
+
+/* -------------------------------------------------------------------------- */
+/* A Lista de Presença                                                        */
+/* -------------------------------------------------------------------------- */
+
+export const PRESENCE_MODULE_TITLE = "Lista de Presença";
+
+export const PRESENCE_MODULE_SUBTITLE =
+  "Quem compareceu a cada evento. A presença é registrada por participante, e não por inscrição.";
+
+/**
+ * Os dois estados, como a APCS os chama.
+ *
+ * ⚠️ "Presente" e "Ausente", e não "Sim"/"Não" nem "Confirmado". A coluna
+ * vizinha na mesma tabela é a CONFIRMAÇÃO, e os dois indicadores são
+ * independentes (§3) — usar o mesmo vocabulário nas duas faria a tela sugerir
+ * uma relação que não existe.
+ */
+export const PRESENCE_LABELS: Record<"present" | "absent", string> = {
+  present: "Presente",
+  absent: "Ausente",
+};
+
+export const PRESENCE_FILTER_LABELS: Record<PresenceFilter, string> = {
+  all: "Todos",
+  present: PRESENCE_LABELS.present,
+  absent: PRESENCE_LABELS.absent,
+};
+
+/** O texto do estado de um participante. */
+export function presenceLabel(present: boolean): string {
+  return present ? PRESENCE_LABELS.present : PRESENCE_LABELS.absent;
+}
 
 /**
  * Os campos do formulário, como a APCS os chama.

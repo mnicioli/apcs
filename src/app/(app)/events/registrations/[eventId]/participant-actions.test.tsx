@@ -33,6 +33,8 @@ function linha(over: Partial<RegistrationBoardRow> = {}): RegistrationBoardRow {
     phone: "11999998888",
     whatsapp: null,
     confirmation: "confirmed",
+    present: false,
+    checkedInAt: null,
     registeredAt: "2026-09-06T13:30:00Z",
     registrationStatus: "active",
     origin: "landing_page",

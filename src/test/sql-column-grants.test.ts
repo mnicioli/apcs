@@ -171,6 +171,36 @@ const SEM_GRANT_DE_PROPOSITO: Record<string, string> = {
   "event_registrations.consent_policy_version":
     "Escrita só por `create_event_registration`, com a versão que a pessoa leu. " +
     "Com grant, seria possível reescrever depois qual consentimento foi dado.",
+
+  /* ------------------------------------------------------------------------ */
+  /* A Lista de Presença — 20261001000100                                     */
+  /* ------------------------------------------------------------------------ */
+  //
+  // ⚠️ É O MESMO MOTIVO DE `flow_versions.reviewed_by`: as três registram QUEM
+  // AFIRMOU O QUÊ, E QUANDO. Um `grant update (checked_in_by)` abriria o caminho
+  // do PostgREST, onde o corpo do PATCH é escolhido por quem chama — e daria
+  // para gravar que OUTRA PESSOA registrou a presença, às 18h02 de um dia
+  // escolhido. A lista de presença de um evento é justamente o documento que
+  // alguém consulta depois para dizer quem esteve lá.
+  //
+  // As três são escritas por `set_participant_presence` (SECURITY DEFINER), que
+  // roda como o dono da tabela e não passa por grant de coluna. O autor vem de
+  // `auth.uid()` e a hora vem de `now()` — nenhum dos dois é escolhido por quem
+  // chama.
+  //
+  // ⚠️ `present` ANDA JUNTO mesmo sendo um booleano inocente: um CHECK exige que
+  // ela e o carimbo concordem (ligado tem hora, desligado não tem). Com grant só
+  // nela, um PATCH direto esbarraria nesse CHECK e a pessoa receberia um erro de
+  // constraint incompreensível, vindo de um caminho que não deveria existir.
+  "event_participants.present":
+    "Escrita só por `set_participant_presence` (SECURITY DEFINER). Um CHECK exige que ela " +
+    "concorde com checked_in_at, e as três são escritas juntas ou por ninguém.",
+  "event_participants.checked_in_at":
+    "Escrita só por `set_participant_presence`, com o relógio do BANCO. " +
+    "Um carimbo de tempo vindo do cliente não vale como registro de quem chegou quando.",
+  "event_participants.checked_in_by":
+    "Escrita só por `set_participant_presence`, a partir de auth.uid(). " +
+    "Com grant, qualquer um poderia gravar que outra pessoa registrou a presença.",
 };
 
 const grants = colunasComGrant();

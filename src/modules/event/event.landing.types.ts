@@ -472,6 +472,24 @@ export interface RegistrationBoardRow {
   phone: string | null;
   whatsapp: string | null;
   confirmation: ParticipantConfirmation;
+  /**
+   * Compareceu ao evento.
+   *
+   * ⚠️ NÃO TEM RELAÇÃO NENHUMA COM `confirmation`, e o escopo da Lista de
+   * Presença é explícito nisso (§3): mudar um não mexe no outro, em nenhuma
+   * direção. Confirmado é o que a granja AFIRMOU; presente é quem APARECEU.
+   * As quatro combinações são estados legítimos.
+   */
+  present: boolean;
+  /**
+   * Quando o check-in foi registrado, pelo relógio do BANCO. ISO 8601 com fuso.
+   * Nulo enquanto `present` for `false` — inclusive depois de uma reversão.
+   *
+   * ⚠️ O HISTÓRICO NÃO MORA AQUI. Reverter a presença limpa este carimbo, e o
+   * registro de que ela existiu fica na trilha (`event_registration_audit_logs`),
+   * que é imutável. Esta coluna é o ESTADO ATUAL, não o histórico.
+   */
+  checkedInAt: string | null;
   /** ISO 8601 com fuso. */
   registeredAt: string;
   registrationStatus: RegistrationStatus;
@@ -491,6 +509,16 @@ export interface RegistrationBoardMetrics {
   participants: number;
   confirmed: number;
   notConfirmed: number;
+  /**
+   * Os indicadores da Lista de Presença (§9 do escopo de Presença).
+   *
+   * ⚠️ `absent` É CONTADO, E NÃO `participants - present`. A subtração daria o
+   * mesmo número hoje e passaria a mentir no dia em que houvesse um terceiro
+   * estado. E, como todos os outros, os dois respeitam o filtro ativo — vêm da
+   * mesma CTE das linhas.
+   */
+  present: number;
+  absent: number;
   /** Granjas/empresas distintas, comparadas sem acento e sem caixa. */
   companies: number;
 }
@@ -557,6 +585,19 @@ export interface RegistrationBoardFilters {
   /** Granja, nome, e-mail, telefone ou WhatsApp. Vazio = sem busca. */
   query: string;
   confirmation: ConfirmationFilter;
+  /**
+   * O filtro PRINCIPAL da Lista de Presença (§15).
+   *
+   * ⚠️ MORA NOS MESMOS FILTROS DA GRID DE INSCRIÇÕES, e não numa estrutura
+   * própria, porque as duas telas leem a MESMA consulta
+   * (`event_registrations_board`). Um segundo tipo de filtro exigiria uma
+   * segunda serialização de URL e uma segunda tradução para os parâmetros do
+   * banco — duas cópias da mesma coisa, das quais uma envelheceria.
+   *
+   * A tela de Inscrições simplesmente não oferece o controle: ela deixa em
+   * `all`, e o parâmetro nem sai na URL.
+   */
+  presence: PresenceFilter;
   /** Recorte pela DATA DA INSCRIÇÃO (não a do evento). Vazio = sem limite. */
   from: string;
   to: string;
@@ -567,10 +608,45 @@ export interface RegistrationBoardFilters {
 export const EMPTY_REGISTRATION_BOARD_FILTERS: RegistrationBoardFilters = {
   query: "",
   confirmation: "all",
+  presence: "all",
   from: "",
   to: "",
   sort: DEFAULT_REGISTRATION_SORT,
   page: 1,
+};
+
+/* -------------------------------------------------------------------------- */
+/* A Lista de Presença                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Os três filtros do §15.
+ *
+ * ⚠️ LISTA FECHADA, e a função Postgres tem a mesma. `p_presence` vem da URL:
+ * um valor desconhecido cai em "todos" no banco em vez de derrubar a consulta,
+ * e aqui o tipo impede o valor errado de compilar.
+ */
+export const PRESENCE_FILTERS = ["all", "present", "absent"] as const;
+export type PresenceFilter = (typeof PRESENCE_FILTERS)[number];
+
+export function isPresenceFilter(value: string): value is PresenceFilter {
+  return (PRESENCE_FILTERS as readonly string[]).includes(value);
+}
+
+/**
+ * A ordenação padrão da Lista de Presença — e ela é DIFERENTE da de Inscrições.
+ *
+ * ⚠️ A DIFERENÇA É O TRABALHO QUE CADA TELA SERVE. Inscrições abre em "mais
+ * recentes" porque a pergunta ali é "quem se inscreveu ultimamente". Na porta
+ * do evento a pergunta é outra e é sempre a mesma: "achar o fulano que está na
+ * minha frente". Ordem alfabética por pessoa é o que faz isso em um segundo;
+ * ordem por data da inscrição obriga a procurar linha por linha.
+ */
+export const DEFAULT_PRESENCE_SORT: RegistrationSort = "participant";
+
+export const EMPTY_PRESENCE_BOARD_FILTERS: RegistrationBoardFilters = {
+  ...EMPTY_REGISTRATION_BOARD_FILTERS,
+  sort: DEFAULT_PRESENCE_SORT,
 };
 
 /** Quantas linhas por página. O mesmo de Palestras e Associados. */

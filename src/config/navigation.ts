@@ -23,6 +23,7 @@ import {
   Ticket,
   Timer,
   TrendingUp,
+  UserCheck,
   UserPlus,
   Users,
   Workflow,
@@ -73,6 +74,22 @@ export interface NavItem {
    * volta vira arqueologia no histórico do Git.
    */
   hidden?: boolean;
+  /**
+   * Subtítulo que aparece ACIMA deste item, agrupando-o com os seguintes.
+   *
+   * ⚠️ UM RÓTULO, E NÃO UM TERCEIRO NÍVEL DE MENU. A alternativa era aninhar
+   * `NavSection` dentro de `NavSection`, e ela custaria caro para o que
+   * entrega: um segundo mecanismo de abrir/fechar (com um segundo lugar onde
+   * guardar o estado no navegador), uma segunda passagem de permissão, e a
+   * regra de item ativo — que hoje resolve prefixo aninhado comparando os itens
+   * da MESMA lista — teria de atravessar dois níveis.
+   *
+   * O grupo é puramente visual: os itens continuam na mesma lista, com o mesmo
+   * destaque de rota ativa e a mesma checagem de permissão. Itens do mesmo
+   * grupo precisam estar ADJACENTES — o subtítulo é desenhado antes do primeiro
+   * item cujo `group` difere do anterior.
+   */
+  group?: string;
 }
 
 export interface NavSection {
@@ -252,6 +269,25 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/events/registrations",
         icon: ClipboardCheck,
         permission: "registrations.read",
+        available: true,
+      },
+      {
+        // ⚠️ O SUBGRUPO NASCE COM UM ITEM SÓ, e é assim de propósito. A jornada
+        // do escopo é Evento → Inscrições → Participantes → Lista de Presença,
+        // e as próximas etapas (avaliação do evento, e um dia o check-in por QR
+        // Code) entram AQUI ao lado, sem remexer na navegação.
+        //
+        // ⚠️ A ROTA É `/events/presence`, E NÃO `/events/attendance`. Neste
+        // projeto "attendance" já significa ATENDIMENTO — existe o módulo
+        // Central de Atendimento em `/attendances`, com `attendances.read`.
+        // Usar a mesma palavra para presença criaria uma colisão de vocabulário
+        // permanente: duas coisas sem relação nenhuma com o mesmo nome, em
+        // rota, permissão e tabela.
+        title: "Lista de Presença",
+        href: "/events/presence",
+        icon: UserCheck,
+        permission: "presence.read",
+        group: "Gestão do Evento",
         available: true,
       },
     ],

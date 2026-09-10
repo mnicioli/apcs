@@ -102,6 +102,31 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "registrations.read": ["admin", "comercial"],
   "registrations.write": ["admin"],
 
+  // Lista de Presença — quem APARECEU no evento.
+  //
+  // ⚠️ ESTA É A PRIMEIRA CHAVE DO MÓDULO EM QUE A ESCRITA NÃO É MAIS ESTREITA
+  // QUE A LEITURA, e a exceção tem o mesmo motivo da do WhatsApp logo acima.
+  //
+  // Em Documentos, Eventos, Bolsa, Palestras e Associados o Atendente
+  // (`comercial`) só LÊ, porque PUBLICAR é decisão de quem responde por aquilo.
+  // Marcar quem entrou pela porta do evento NÃO É UMA DECISÃO: é o trabalho de
+  // quem está na porta com a lista na mão. Uma lista de presença que só o
+  // Administrador consegue marcar não é uma lista de presença — é uma tela que
+  // alguém olha enquanto anota num papel.
+  //
+  // ⚠️ E A SEPARAÇÃO DE `registrations.*` TEM CONSEQUÊNCIA VISÍVEL: na mesma
+  // tela, o Atendente marca PRESENÇA e vê CONFIRMADO sem poder mexer, porque a
+  // confirmação continua sendo `registrations.write`. É o §11 do escopo —
+  // controlar presença sem criar uma segunda lógica de confirmação.
+  //
+  // Um "Conferente de Portaria" que só marque presença é um CARGO criado em
+  // /permissions com base `admin` e só estas duas chaves.
+  //
+  // Devem bater com `presence_is_reader()` / `presence_is_writer()` em
+  // supabase/migrations/20261001000100_event_registration_presence.sql.
+  "presence.read": ["admin", "comercial"],
+  "presence.write": ["admin", "comercial"],
+
   // Bolsa — os boletins de preço da APCS.
   // Mesmo recorte da gestão documental, e pelo mesmo motivo: quem atende
   // (`comercial`, o "Atendente") precisa CONSULTAR e BAIXAR o boletim vigente

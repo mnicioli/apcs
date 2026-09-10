@@ -66,6 +66,13 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "registrations.read": "Ver quem se inscreveu nos eventos",
   "registrations.write": "Inscrever, cancelar e confirmar participantes",
 
+  "presence.read": "Abrir a lista de presença dos eventos",
+  // ⚠️ "PRESENÇA", E NUNCA "CONFIRMAÇÃO". Esta chave não confirma nada: a
+  // confirmação da inscrição continua sendo `registrations.write`, e os dois
+  // indicadores são independentes. Um rótulo que os confundisse faria alguém
+  // marcar a caixa errada em /permissions.
+  "presence.write": "Marcar e desmarcar presença no evento",
+
   "lectures.read": "Ver as palestras e o calendário",
   "lectures.write": "Agendar, atribuir e decidir status",
 
@@ -127,6 +134,21 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
     title: "Inscrições em eventos",
     status: "live",
     permissions: ["registrations.read", "registrations.write"],
+  },
+  /**
+   * ⚠️ TAMBÉM UM GRUPO PRÓPRIO, pelo mesmo motivo do de cima E POR UM SEGUNDO:
+   * este é o único bloco do sistema em que a caixa de ESCREVER está marcada
+   * para o Atendente enquanto a do bloco vizinho não está.
+   *
+   * Quem abre /permissions vê, lado a lado, "Inscrições em eventos" com a
+   * escrita só do Administrador e "Lista de Presença" com a escrita também do
+   * Atendente — e a diferença fica visível, que é onde ela precisa estar. Uma
+   * linha extra dentro de "Inscrições" esconderia justamente a exceção.
+   */
+  {
+    title: "Lista de Presença",
+    status: "live",
+    permissions: ["presence.read", "presence.write"],
   },
   { title: "Palestras", status: "live", permissions: ["lectures.read", "lectures.write"] },
   { title: "Enquetes", status: "live", permissions: ["surveys.read", "surveys.write"] },
