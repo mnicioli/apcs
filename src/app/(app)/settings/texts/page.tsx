@@ -35,12 +35,28 @@ export default async function SettingsTextsPage() {
         <CardHeader>
           <CardTitle>Mensagens automáticas</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <SettingEditor
             settingKey={SETTING_KEYS.optOutConfirmed}
             label={SETTING_LABELS[SETTING_KEYS.optOutConfirmed].title}
             help={SETTING_LABELS[SETTING_KEYS.optOutConfirmed].help}
             value={readSetting(settings, SETTING_KEYS.optOutConfirmed)}
+          />
+          {/*
+            ⚠️ AQUI, E NÃO NUMA ABA NOVA. O comentário de `SETTINGS_TABS` explica
+            por que as cinco frases do robô ganharam aba própria: elas eram cinco
+            e apagariam a explicação sobre consentimento que abre esta tela.
+
+            Esta é UMA, e é exatamente o que este bloco se propõe a guardar — uma
+            mensagem automática que o sistema manda no WhatsApp, com um valor só
+            e sem histórico. Uma aba "Avaliações" com um campo dentro seria um
+            lugar a mais para procurar.
+          */}
+          <SettingEditor
+            settingKey={SETTING_KEYS.eventEvaluationInvite}
+            label={SETTING_LABELS[SETTING_KEYS.eventEvaluationInvite].title}
+            help={SETTING_LABELS[SETTING_KEYS.eventEvaluationInvite].help}
+            value={readSetting(settings, SETTING_KEYS.eventEvaluationInvite)}
           />
         </CardContent>
       </Card>

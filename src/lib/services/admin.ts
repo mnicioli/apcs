@@ -5,6 +5,7 @@ import type { Database } from "@/types/database";
 import { messagingProvider } from "@/lib/messaging/registry";
 import { isRole } from "@/lib/rbac/rbac.types";
 import { SETTING_KEYS, type SettingKey } from "@/modules/admin/admin.labels";
+import { EVALUATION_INVITE_FALLBACK } from "@/modules/event/event.evaluation.labels";
 import { formatCalendarDate } from "@/lib/utils";
 import type {
   AdminAuditAction,
@@ -392,6 +393,13 @@ export const SETTING_FALLBACKS: Record<SettingKey, string> = {
    * visível. Ver `isWithinBusinessHours`.
    */
   [SETTING_KEYS.flowBusinessHours]: "",
+
+  // ⚠️ O CONVITE DA AVALIAÇÃO (§13 do Prompt 2). A rede de segurança aqui vale
+  // mais que nas outras chaves: sem texto, o worker mandaria uma mensagem vazia
+  // — que no WhatsApp nem chega a ser enviada — e o participante nunca saberia
+  // que havia uma avaliação esperando por ele. O texto vive em
+  // `event.evaluation.labels.ts`, junto das variáveis que ele usa.
+  [SETTING_KEYS.eventEvaluationInvite]: EVALUATION_INVITE_FALLBACK,
 };
 
 export function readSetting(settings: Map<string, string>, key: SettingKey): string {

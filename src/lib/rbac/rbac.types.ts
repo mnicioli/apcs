@@ -86,6 +86,18 @@ export type Permission =
   // `registrations.*` porque o recorte de papéis é outro: ver a matriz.
   | "presence.read"
   | "presence.write"
+  // Avaliação de Evento — o formulário que vai para quem esteve presente.
+  // TRÊS chaves, e não duas: `send` é separada de `write` porque é a única que
+  // SAI DO SISTEMA (uma mensagem de WhatsApp que custa por conversa iniciada).
+  // Ver a matriz.
+  | "evaluations.read"
+  | "evaluations.write"
+  | "evaluations.send"
+  // Resultados — a tabulação das respostas. Chave separada de `evaluations.*`
+  // porque o que se vê aqui é OPINIÃO AMARRADA A NOME, e porque baixar o
+  // arquivo é outra decisão que ver a tela. Ver a matriz.
+  | "results.read"
+  | "results.export"
   // Bolsa — os boletins de preço (submenu de Documentos)
   | "market.read"
   | "market.write"

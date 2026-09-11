@@ -73,6 +73,19 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   // marcar a caixa errada em /permissions.
   "presence.write": "Marcar e desmarcar presença no evento",
 
+  "evaluations.read": "Ver as avaliações e o andamento do envio",
+  // ⚠️ "PERGUNTAS", E NÃO "AVALIAÇÕES". Esta chave não manda nada: ela decide
+  // quem escreve o que a APCS vai perguntar. Um rótulo genérico faria alguém
+  // marcá-la achando que está liberando o reenvio, que é a caixa de baixo.
+  "evaluations.write": "Editar as perguntas e o envio da avaliação",
+  "evaluations.send": "Reenviar e cancelar convite de avaliação",
+
+  "results.read": "Ver os resultados e comentários das avaliações",
+  // ⚠️ "BAIXAR", E NÃO "EXPORTAR". A palavra importa em /permissions: "exportar"
+  // soa como uma operação interna; "baixar" diz que um arquivo com nome,
+  // telefone e comentário sai do sistema e vai para o computador de alguém.
+  "results.export": "Baixar a planilha de resultados",
+
   "lectures.read": "Ver as palestras e o calendário",
   "lectures.write": "Agendar, atribuir e decidir status",
 
@@ -149,6 +162,32 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
     title: "Lista de Presença",
     status: "live",
     permissions: ["presence.read", "presence.write"],
+  },
+  /**
+   * ⚠️ TRÊS CAIXAS, E É O ÚNICO GRUPO DA MATRIZ COM ESSE FORMATO. Ele existe
+   * separado por um motivo específico: aqui a caixa do MEIO é a mais restrita.
+   *
+   * Ler e reenviar alcançam o Atendente; editar as perguntas, não. Enfiadas
+   * dentro de "Lista de Presença", as três viriam com o padrão de duas colunas
+   * e a exceção do meio pareceria um erro de marcação — quando é a decisão.
+   */
+  {
+    title: "Avaliação de eventos",
+    status: "live",
+    permissions: ["evaluations.read", "evaluations.write", "evaluations.send"],
+  },
+  /**
+   * ⚠️ GRUPO PRÓPRIO, E NÃO UMA QUARTA LINHA NO DE CIMA. O bloco acima é sobre
+   * OPERAR a pesquisa — configurar, perguntar, reenviar. Este é sobre LER o que
+   * as pessoas responderam, com nome.
+   *
+   * Separá-los é o que faz a caixa de baixo — a que tira dado pessoal do sistema
+   * — não passar despercebida no meio de outras três.
+   */
+  {
+    title: "Resultados das avaliações",
+    status: "live",
+    permissions: ["results.read", "results.export"],
   },
   { title: "Palestras", status: "live", permissions: ["lectures.read", "lectures.write"] },
   { title: "Enquetes", status: "live", permissions: ["surveys.read", "surveys.write"] },

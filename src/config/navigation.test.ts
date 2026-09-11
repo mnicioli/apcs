@@ -152,6 +152,72 @@ describe("subgrupos dentro de uma seção", () => {
     expect(presenca?.available).toBe(true);
   });
 
+  it("as Avaliações estão sob Gestão do Evento, ao lado da Lista de Presença", () => {
+    const eventos = NAV_SECTIONS.find((s) => s.title === "Eventos");
+    const avaliacoes = eventos?.items.find((i) => i.href === "/events/evaluations");
+
+    expect(avaliacoes).toBeDefined();
+    expect(avaliacoes?.group).toBe("Gestão do Evento");
+    expect(avaliacoes?.permission).toBe("evaluations.read");
+    expect(avaliacoes?.available).toBe(true);
+  });
+
+  /**
+   * ⚠️ A ORDEM DENTRO DO SUBGRUPO É A DA JORNADA, e não a alfabética. Primeiro
+   * quem apareceu, depois o que eles acharam — é a mesma sequência do escopo:
+   * PRESENÇA → AVALIAÇÃO. Invertê-las faria o menu contar a história ao
+   * contrário.
+   */
+  it("a Lista de Presença vem antes das Avaliações", () => {
+    const itens = NAV_SECTIONS.find((s) => s.title === "Eventos")?.items ?? [];
+    const presenca = itens.findIndex((i) => i.href === "/events/presence");
+    const avaliacoes = itens.findIndex((i) => i.href === "/events/evaluations");
+
+    expect(presenca).toBeGreaterThan(-1);
+    expect(avaliacoes).toBe(presenca + 1);
+  });
+
+  /**
+   * ⚠️ A ROTA INTERNA É `/events/evaluations` E A PÚBLICA É `/avaliacoes`. É o
+   * mesmo par de `/events` e `/eventos`: a tela do CRM em inglês, a página que
+   * a granja abre em português. O menu nunca aponta para a pública — ela precisa
+   * de um token, e sem ele não existe página nenhuma para mostrar.
+   */
+  it("o menu não aponta para a página pública da avaliação", () => {
+    const rotas = NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    expect(rotas).toContain("/events/evaluations");
+    expect(rotas.some((r) => r.startsWith("/avaliacoes"))).toBe(false);
+  });
+
+  it("Resultados fecha o subgrupo, com permissão própria", () => {
+    const eventos = NAV_SECTIONS.find((s) => s.title === "Eventos");
+    const resultados = eventos?.items.find((i) => i.href === "/events/results");
+
+    expect(resultados).toBeDefined();
+    expect(resultados?.group).toBe("Gestão do Evento");
+    // ⚠️ `results.read`, E NÃO `evaluations.read`. Esta tela mostra o que cada
+    // pessoa respondeu, com nome — inclusive o comentário, que a APCS decidiu
+    // não anonimizar.
+    expect(resultados?.permission).toBe("results.read");
+    expect(resultados?.available).toBe(true);
+  });
+
+  /**
+   * ⚠️ A ORDEM É A DA JORNADA, e não a alfabética: quem apareceu → o que foi
+   * perguntado → o que responderam. Invertê-las faria o menu contar a história
+   * ao contrário.
+   */
+  it("a ordem do subgrupo é Presença → Avaliações → Resultados", () => {
+    const itens = NAV_SECTIONS.find((s) => s.title === "Eventos")?.items ?? [];
+    const presenca = itens.findIndex((i) => i.href === "/events/presence");
+    const avaliacoes = itens.findIndex((i) => i.href === "/events/evaluations");
+    const resultados = itens.findIndex((i) => i.href === "/events/results");
+
+    expect(presenca).toBeGreaterThan(-1);
+    expect(avaliacoes).toBe(presenca + 1);
+    expect(resultados).toBe(avaliacoes + 1);
+  });
+
   it("a rota de presença NÃO colide com a Central de Atendimento", () => {
     /**
      * ⚠️ ESTE CASO EXISTE POR CAUSA DE UMA COLISÃO DE VOCABULÁRIO REAL. Neste

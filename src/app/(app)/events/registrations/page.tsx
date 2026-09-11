@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { LANDING_STATUS_BADGE_VARIANT } from "../landing-pages/landing-badges";
-import { EventSearch } from "./event-search";
+import { EventSearchBox } from "../event-search-box";
 
 export const metadata: Metadata = { title: "Inscrições" };
 
@@ -67,7 +67,12 @@ export default async function RegistrationsPage({
         <p className="text-muted-foreground text-sm">{REGISTRATIONS_MODULE_SUBTITLE}</p>
       </div>
 
-      <EventSearch query={busca} />
+      <EventSearchBox
+        query={busca}
+        href={(termo) => registrationsHref(1, termo)}
+        label="Evento ou endereço"
+        placeholder="Buscar por nome do evento ou endereço"
+      />
 
       {rows.length === 0 ? (
         <Card>

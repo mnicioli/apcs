@@ -127,6 +127,61 @@ export const PERMISSION_MATRIX: Record<Permission, readonly Role[]> = {
   "presence.read": ["admin", "comercial"],
   "presence.write": ["admin", "comercial"],
 
+  // Avaliação de Evento — a pesquisa que vai para quem esteve presente.
+  //
+  // ⚠️ TRÊS CHAVES, E A DO MEIO É A MAIS ESTREITA. É o único lugar do sistema
+  // em que ler, escrever e disparar têm três recortes diferentes, e cada um
+  // responde a uma pergunta diferente:
+  //
+  //   read   quem pode ver o andamento e as perguntas
+  //   write  quem pode MUDAR A PERGUNTA — ou seja, o que a APCS está perguntando
+  //   send   quem pode fazer uma mensagem SAIR para o celular de alguém
+  //
+  // `write` é só do Administrador porque reescrever a pergunta muda o
+  // significado do que vai ser respondido — e, com respostas já coletadas, muda
+  // o significado do histórico (é por isso que o banco versiona sozinho, §23).
+  //
+  // `send` alcança o Atendente pelo mesmo motivo de `presence.write`: quem opera
+  // o evento é quem descobre que fulano não recebeu, e um reenvio que só o
+  // Administrador consegue fazer é um reenvio que não acontece na sexta à noite.
+  // Ela é separada de `read` porque um envio CUSTA — cada conversa iniciada no
+  // WhatsApp é cobrada — e porque é irreversível: mensagem entregue não volta.
+  //
+  // Devem bater com `evaluations_is_reader()` / `evaluations_is_writer()` /
+  // `evaluations_is_sender()` em
+  // supabase/migrations/20261002000100_event_evaluation.sql.
+  "evaluations.read": ["admin", "comercial"],
+  "evaluations.write": ["admin"],
+  "evaluations.send": ["admin", "comercial"],
+
+  // Resultados — a tabulação das respostas (Prompt 3).
+  //
+  // ⚠️ CHAVE PRÓPRIA, E NÃO O REÚSO DE `evaluations.read`. As duas telas leem as
+  // mesmas tabelas, mas mostram coisas diferentes: a de Avaliações mostra o
+  // ANDAMENTO (quem recebeu, quem respondeu); a de Resultados mostra O QUE
+  // CADA UM RESPONDEU — inclusive o comentário, que a APCS decidiu não
+  // anonimizar. São dois graus de exposição, e merecem duas caixas em
+  // /permissions.
+  //
+  // ⚠️ E `results.export` É SÓ DO ADMINISTRADOR — a decisão mais restritiva
+  // deste módulo.
+  //
+  // A exportação de INSCRIÇÕES alcança o Atendente, e está certo: uma lista de
+  // contatos é o material de trabalho de quem opera o evento. Esta é outra
+  // coisa. O arquivo leva "fulano da granja tal achou a palestra da
+  // patrocinadora ruim" — e, uma vez baixado, não há mais RLS, não há permissão
+  // e não há como saber onde ele foi parar. Por isso a porta é estreita e a
+  // passagem é auditada (`results_exported` na trilha).
+  //
+  // Se a APCS decidir que o Atendente precisa, a saída é um CARGO em
+  // /permissions com esta chave — uma decisão consciente de quem administra, e
+  // não um padrão herdado sem ninguém reparar.
+  //
+  // Devem bater com `results_is_reader()` / `results_is_exporter()` em
+  // supabase/migrations/20261003000100_event_evaluation_results.sql.
+  "results.read": ["admin", "comercial"],
+  "results.export": ["admin"],
+
   // Bolsa — os boletins de preço da APCS.
   // Mesmo recorte da gestão documental, e pelo mesmo motivo: quem atende
   // (`comercial`, o "Atendente") precisa CONSULTAR e BAIXAR o boletim vigente

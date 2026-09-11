@@ -1033,6 +1033,367 @@ export type Database = {
           },
         ];
       };
+      event_evaluation_answers: {
+        Row: {
+          created_at: string;
+          id: number;
+          numeric_value: number | null;
+          option_id: string | null;
+          participant_evaluation_id: string;
+          question_id: string;
+          round: number;
+          text_value: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          id?: never;
+          numeric_value?: number | null;
+          option_id?: string | null;
+          participant_evaluation_id: string;
+          question_id: string;
+          round?: number;
+          text_value?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          id?: never;
+          numeric_value?: number | null;
+          option_id?: string | null;
+          participant_evaluation_id?: string;
+          question_id?: string;
+          round?: number;
+          text_value?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_evaluation_answers_option_id_fkey";
+            columns: ["option_id"];
+            isOneToOne: false;
+            referencedRelation: "event_evaluation_options";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_evaluation_answers_participant_evaluation_id_fkey";
+            columns: ["participant_evaluation_id"];
+            isOneToOne: false;
+            referencedRelation: "event_participant_evaluations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_evaluation_answers_question_id_fkey";
+            columns: ["question_id"];
+            isOneToOne: false;
+            referencedRelation: "event_evaluation_questions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_evaluation_audit_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["event_evaluation_audit_action"];
+          actor_id: string | null;
+          created_at: string;
+          evaluation_id: string | null;
+          event_id: string | null;
+          id: number;
+          metadata: Json;
+        };
+        Insert: {
+          action: Database["public"]["Enums"]["event_evaluation_audit_action"];
+          actor_id?: string | null;
+          created_at?: string;
+          evaluation_id?: string | null;
+          event_id?: string | null;
+          id?: never;
+          metadata?: Json;
+        };
+        Update: {
+          action?: Database["public"]["Enums"]["event_evaluation_audit_action"];
+          actor_id?: string | null;
+          created_at?: string;
+          evaluation_id?: string | null;
+          event_id?: string | null;
+          id?: never;
+          metadata?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_evaluation_audit_logs_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_evaluation_audit_logs_evaluation_id_fkey";
+            columns: ["evaluation_id"];
+            isOneToOne: false;
+            referencedRelation: "event_evaluations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_evaluation_audit_logs_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_evaluation_options: {
+        Row: {
+          id: string;
+          label: string;
+          numeric_value: number | null;
+          position: number;
+          question_id: string;
+        };
+        Insert: {
+          id?: string;
+          label: string;
+          numeric_value?: number | null;
+          position: number;
+          question_id: string;
+        };
+        Update: {
+          id?: string;
+          label?: string;
+          numeric_value?: number | null;
+          position?: number;
+          question_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_evaluation_options_question_id_fkey";
+            columns: ["question_id"];
+            isOneToOne: false;
+            referencedRelation: "event_evaluation_questions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_evaluation_questions: {
+        Row: {
+          id: string;
+          is_overall: boolean;
+          position: number;
+          prompt: string;
+          question_type: Database["public"]["Enums"]["event_evaluation_question_type"];
+          required: boolean;
+          section_id: string;
+        };
+        Insert: {
+          id?: string;
+          is_overall?: boolean;
+          position: number;
+          prompt: string;
+          question_type: Database["public"]["Enums"]["event_evaluation_question_type"];
+          required?: boolean;
+          section_id: string;
+        };
+        Update: {
+          id?: string;
+          is_overall?: boolean;
+          position?: number;
+          prompt?: string;
+          question_type?: Database["public"]["Enums"]["event_evaluation_question_type"];
+          required?: boolean;
+          section_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_evaluation_questions_section_id_fkey";
+            columns: ["section_id"];
+            isOneToOne: false;
+            referencedRelation: "event_evaluation_sections";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_evaluation_sections: {
+        Row: {
+          description: string | null;
+          id: string;
+          position: number;
+          title: string;
+          version_id: string;
+        };
+        Insert: {
+          description?: string | null;
+          id?: string;
+          position: number;
+          title: string;
+          version_id: string;
+        };
+        Update: {
+          description?: string | null;
+          id?: string;
+          position?: number;
+          title?: string;
+          version_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_evaluation_sections_version_id_fkey";
+            columns: ["version_id"];
+            isOneToOne: false;
+            referencedRelation: "event_evaluation_versions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_evaluation_settings: {
+        Row: {
+          created_at: string;
+          delay_minutes: number;
+          enabled: boolean;
+          evaluation_id: string | null;
+          event_id: string;
+          response_window_days: number | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          delay_minutes?: number;
+          enabled?: boolean;
+          evaluation_id?: string | null;
+          event_id: string;
+          response_window_days?: number | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          delay_minutes?: number;
+          enabled?: boolean;
+          evaluation_id?: string | null;
+          event_id?: string;
+          response_window_days?: number | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_evaluation_settings_evaluation_id_fkey";
+            columns: ["evaluation_id"];
+            isOneToOne: false;
+            referencedRelation: "event_evaluations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_evaluation_settings_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: true;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_evaluation_settings_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_evaluation_versions: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          evaluation_id: string;
+          id: string;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          evaluation_id: string;
+          id?: string;
+          version: number;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          evaluation_id?: string;
+          id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_evaluation_versions_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_evaluation_versions_evaluation_id_fkey";
+            columns: ["evaluation_id"];
+            isOneToOne: false;
+            referencedRelation: "event_evaluations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_evaluations: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          event_id: string | null;
+          id: string;
+          is_default: boolean;
+          name: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          event_id?: string | null;
+          id?: string;
+          is_default?: boolean;
+          name: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          event_id?: string | null;
+          id?: string;
+          is_default?: boolean;
+          name?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_evaluations_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_evaluations_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: true;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_evaluations_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       event_landing_pages: {
         Row: {
           closes_at: string | null;
@@ -1136,6 +1497,98 @@ export type Database = {
             columns: ["updated_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_participant_evaluations: {
+        Row: {
+          answer_round: number;
+          answered_at: string | null;
+          attempts: number;
+          created_at: string;
+          evaluation_id: string;
+          event_id: string;
+          expires_at: string | null;
+          id: string;
+          last_attempt_at: string | null;
+          last_error: string | null;
+          participant_id: string;
+          provider_message_id: string | null;
+          scheduled_for: string | null;
+          sent_at: string | null;
+          status: Database["public"]["Enums"]["event_evaluation_status"];
+          token: string;
+          updated_at: string;
+          version_id: string;
+        };
+        Insert: {
+          answer_round?: number;
+          answered_at?: string | null;
+          attempts?: number;
+          created_at?: string;
+          evaluation_id: string;
+          event_id: string;
+          expires_at?: string | null;
+          id?: string;
+          last_attempt_at?: string | null;
+          last_error?: string | null;
+          participant_id: string;
+          provider_message_id?: string | null;
+          scheduled_for?: string | null;
+          sent_at?: string | null;
+          status?: Database["public"]["Enums"]["event_evaluation_status"];
+          token: string;
+          updated_at?: string;
+          version_id: string;
+        };
+        Update: {
+          answer_round?: number;
+          answered_at?: string | null;
+          attempts?: number;
+          created_at?: string;
+          evaluation_id?: string;
+          event_id?: string;
+          expires_at?: string | null;
+          id?: string;
+          last_attempt_at?: string | null;
+          last_error?: string | null;
+          participant_id?: string;
+          provider_message_id?: string | null;
+          scheduled_for?: string | null;
+          sent_at?: string | null;
+          status?: Database["public"]["Enums"]["event_evaluation_status"];
+          token?: string;
+          updated_at?: string;
+          version_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_participant_evaluations_evaluation_id_fkey";
+            columns: ["evaluation_id"];
+            isOneToOne: false;
+            referencedRelation: "event_evaluations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_participant_evaluations_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_participant_evaluations_participant_matches_event";
+            columns: ["participant_id", "event_id"];
+            isOneToOne: false;
+            referencedRelation: "event_participants";
+            referencedColumns: ["id", "event_id"];
+          },
+          {
+            foreignKeyName: "event_participant_evaluations_version_id_fkey";
+            columns: ["version_id"];
+            isOneToOne: false;
+            referencedRelation: "event_evaluation_versions";
             referencedColumns: ["id"];
           },
         ];
@@ -4105,6 +4558,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      apply_evaluation_template: {
+        Args: { p_event_id: string; p_template_id: string };
+        Returns: Json;
+      };
       approve_membership_application: {
         Args: { p_application_id: string; p_note?: string };
         Returns: {
@@ -4278,6 +4735,10 @@ export type Database = {
         }[];
       };
       broadcast_is_writer: { Args: never; Returns: boolean };
+      cancel_event_evaluation: {
+        Args: { p_event_id: string; p_participant_evaluation_id: string };
+        Returns: Json;
+      };
       cancel_survey: {
         Args: { p_reason?: string; p_survey_id: string };
         Returns: {
@@ -4317,6 +4778,7 @@ export type Database = {
           member_phone: string;
         }[];
       };
+      claim_event_evaluations: { Args: { p_limit?: number }; Returns: Json };
       claim_event_recipients: {
         Args: { p_dispatch_id: string; p_event_id: string; p_limit?: number };
         Returns: {
@@ -4363,6 +4825,10 @@ export type Database = {
           isOneToOne: false;
           isSetofReturn: true;
         };
+      };
+      clone_evaluation_version: {
+        Args: { p_source_version_id: string; p_target_version_id: string };
+        Returns: undefined;
       };
       close_survey: {
         Args: { p_survey_id: string };
@@ -4890,6 +5356,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      current_evaluation_version_id: {
+        Args: { p_evaluation_id: string };
+        Returns: string;
+      };
       deactivate_document_version: {
         Args: { p_version_id: string };
         Returns: {
@@ -4952,9 +5422,39 @@ export type Database = {
       delete_app_role: { Args: { p_key: string }; Returns: undefined };
       delete_flow: { Args: { p_flow_id: string }; Returns: undefined };
       delete_survey: { Args: { p_survey_id: string }; Returns: undefined };
+      ensure_event_evaluation: {
+        Args: { p_event_id: string; p_template_id?: string };
+        Returns: string;
+      };
       estimate_audience_criteria: {
         Args: { p_criteria: Json };
         Returns: number;
+      };
+      evaluation_version_structure: {
+        Args: { p_version_id: string };
+        Returns: Json;
+      };
+      evaluations_is_reader: { Args: never; Returns: boolean };
+      evaluations_is_sender: { Args: never; Returns: boolean };
+      evaluations_is_writer: { Args: never; Returns: boolean };
+      event_evaluation_detail: { Args: { p_event_id: string }; Returns: Json };
+      event_evaluation_participants: {
+        Args: {
+          p_event_id: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_query?: string;
+          p_status?: string;
+        };
+        Returns: Json;
+      };
+      event_evaluation_send_at: {
+        Args: { p_delay_minutes: number; p_event_id: string };
+        Returns: string;
+      };
+      event_evaluation_summaries: {
+        Args: { p_limit?: number; p_offset?: number; p_query?: string };
+        Returns: Json;
       };
       event_landing_field_keys: { Args: never; Returns: string[] };
       event_landing_free_slug: {
@@ -4990,6 +5490,40 @@ export type Database = {
         };
         Returns: Json;
       };
+      event_results_export: {
+        Args: {
+          p_event_id: string;
+          p_filter?: string;
+          p_limit?: number;
+          p_query?: string;
+        };
+        Returns: Json;
+      };
+      event_results_pending: {
+        Args: {
+          p_event_id: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_query?: string;
+        };
+        Returns: Json;
+      };
+      event_results_questions: { Args: { p_event_id: string }; Returns: Json };
+      event_results_response_detail: {
+        Args: { p_event_id: string; p_participant_evaluation_id: string };
+        Returns: Json;
+      };
+      event_results_responses: {
+        Args: {
+          p_event_id: string;
+          p_filter?: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_query?: string;
+        };
+        Returns: Json;
+      };
+      event_results_summary: { Args: { p_event_id: string }; Returns: Json };
       event_segments_for_member: {
         Args: { p_member_id: string };
         Returns: string[];
@@ -4999,6 +5533,7 @@ export type Database = {
         Args: { p_segment_ids: string[] };
         Returns: string[];
       };
+      expire_event_evaluations: { Args: never; Returns: number };
       expire_survey_contexts: { Args: never; Returns: number };
       find_contact_by_whatsapp: {
         Args: { p_number: string };
@@ -5249,6 +5784,7 @@ export type Database = {
           whatsapp_chat_id: string;
         }[];
       };
+      get_public_event_evaluation: { Args: { p_token: string }; Returns: Json };
       get_public_event_landing_page: { Args: { p_slug: string }; Returns: Json };
       get_survey_for_chatbot: {
         Args: { p_survey_id: string };
@@ -5323,6 +5859,15 @@ export type Database = {
         };
         Returns: undefined;
       };
+      log_evaluation_export: {
+        Args: {
+          p_event_id: string;
+          p_filter?: string;
+          p_rows: number;
+          p_searched?: boolean;
+        };
+        Returns: undefined;
+      };
       log_password_reset: { Args: { p_email: string }; Returns: undefined };
       log_user_invite: {
         Args: {
@@ -5333,6 +5878,14 @@ export type Database = {
       };
       log_user_invite_cargo: {
         Args: { p_email: string; p_role_key: string };
+        Returns: undefined;
+      };
+      mark_event_evaluation_failed: {
+        Args: { p_error: string; p_id: string };
+        Returns: undefined;
+      };
+      mark_event_evaluation_sent: {
+        Args: { p_id: string; p_provider_message_id: string };
         Returns: undefined;
       };
       mark_survey_recipient: {
@@ -5656,6 +6209,10 @@ export type Database = {
         Returns: number;
       };
       release_survey_recipients: { Args: { p_ids: string[] }; Returns: number };
+      reopen_event_evaluation: {
+        Args: { p_event_id: string; p_participant_evaluation_id: string };
+        Returns: Json;
+      };
       reopen_membership_application: {
         Args: { p_application_id: string; p_reason?: string };
         Returns: {
@@ -5757,6 +6314,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      resend_event_evaluation: {
+        Args: { p_event_id: string; p_participant_evaluation_id: string };
+        Returns: Json;
+      };
       resolve_audience_criteria: {
         Args: { p_criteria: Json };
         Returns: {
@@ -5791,6 +6352,8 @@ export type Database = {
           survey_title: string;
         }[];
       };
+      results_is_exporter: { Args: never; Returns: boolean };
+      results_is_reader: { Args: never; Returns: boolean };
       resume_member_notifications: {
         Args: { p_member_id: string; p_note: string };
         Returns: number;
@@ -5807,6 +6370,21 @@ export type Database = {
         Args: { p_max_attempts?: number; p_survey_id: string };
         Returns: number;
       };
+      save_event_evaluation_settings: {
+        Args: {
+          p_delay_minutes: number;
+          p_enabled: boolean;
+          p_event_id: string;
+          p_response_window_days?: number;
+          p_template_id?: string;
+        };
+        Returns: Json;
+      };
+      save_event_evaluation_structure: {
+        Args: { p_event_id: string; p_sections: Json };
+        Returns: Json;
+      };
+      schedule_event_evaluations: { Args: { p_limit?: number }; Returns: Json };
       schedule_survey: {
         Args: {
           p_ends_at?: string;
@@ -6354,6 +6932,10 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      submit_event_evaluation: {
+        Args: { p_answers: Json; p_token: string };
+        Returns: Json;
       };
       submit_membership_application: {
         Args: {
@@ -7106,6 +7688,31 @@ export type Database = {
         | "landing_page_closed"
         | "landing_page_deactivated";
       event_dispatch_status: "running" | "completed" | "failed";
+      event_evaluation_audit_action:
+        | "evaluation_created"
+        | "settings_changed"
+        | "structure_changed"
+        | "version_published"
+        | "invitation_sent"
+        | "invitation_failed"
+        | "invitation_resent"
+        | "invitation_cancelled"
+        | "evaluation_answered"
+        | "evaluation_reopened"
+        | "results_exported";
+      event_evaluation_question_type:
+        | "rating"
+        | "single_choice"
+        | "multiple_choice"
+        | "yes_no"
+        | "free_text";
+      event_evaluation_status:
+        | "pending"
+        | "scheduled"
+        | "sent"
+        | "answered"
+        | "expired"
+        | "cancelled";
       event_landing_page_status: "draft" | "published" | "closed" | "inactive";
       event_participant_confirmation: "confirmed" | "not_confirmed";
       event_recipient_status:
@@ -7498,6 +8105,27 @@ export const Constants = {
         "landing_page_deactivated",
       ],
       event_dispatch_status: ["running", "completed", "failed"],
+      event_evaluation_audit_action: [
+        "evaluation_created",
+        "settings_changed",
+        "structure_changed",
+        "version_published",
+        "invitation_sent",
+        "invitation_failed",
+        "invitation_resent",
+        "invitation_cancelled",
+        "evaluation_answered",
+        "evaluation_reopened",
+        "results_exported",
+      ],
+      event_evaluation_question_type: [
+        "rating",
+        "single_choice",
+        "multiple_choice",
+        "yes_no",
+        "free_text",
+      ],
+      event_evaluation_status: ["pending", "scheduled", "sent", "answered", "expired", "cancelled"],
       event_landing_page_status: ["draft", "published", "closed", "inactive"],
       event_participant_confirmation: ["confirmed", "not_confirmed"],
       event_recipient_status: [

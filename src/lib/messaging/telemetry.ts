@@ -160,6 +160,70 @@ export function logEventDispatch(
 }
 
 /**
+ * A AVALIAÇÃO DE EVENTO (Prompt 2).
+ *
+ * ⚠️ ESCOPO PRÓPRIO (`event.evaluation`), E NÃO REÚSO DE `event.dispatch`. As
+ * duas rotinas mandam WhatsApp sobre o MESMO evento, e é exatamente por isso
+ * que precisam de escopos diferentes: no dia seguinte a um encontro, a
+ * divulgação do próximo e o convite de avaliação do anterior escrevem no mesmo
+ * minuto. Quem investiga "por que fulano não recebeu a avaliação?" filtraria
+ * `eventId` e receberia as duas coisas misturadas.
+ *
+ * ⚠️ O TOKEN NUNCA ENTRA AQUI, e não há campo para ele de propósito. Ele é a
+ * credencial de acesso àquela avaliação (§34) — escrito no log, ficaria em
+ * texto puro num lugar que ninguém audita e que costuma ser encaminhado para
+ * fora. `recipientId` responde a mesma pergunta sem ser uma chave.
+ *
+ * As mesmas proibições dos outros: nunca o telefone inteiro (use `maskPhone`),
+ * nunca o nome, nunca o conteúdo.
+ */
+export type EvaluationDispatchEvent =
+  | "tick.started"
+  | "tick.finished"
+  | "tick.skipped"
+  | "schedule.done"
+  | "send.ok"
+  | "send.error"
+  | "send.ineligible"
+  | "send.unsettled"
+  // §22 do Prompt 4. O texto do convite ficou sem o link — é erro de
+  // CONFIGURAÇÃO, e não de envio. Separado porque a providência é outra: mexer
+  // em Textos e LGPD, e não no telefone de ninguém.
+  | "send.misconfigured";
+
+export interface EvaluationDispatchLogFields {
+  correlationId?: string;
+  eventId?: string;
+  /** O id da linha de `event_participant_evaluations`. Nunca o token. */
+  recipientId?: string;
+  providerMessageId?: string;
+  provider?: string;
+  outcome?: string;
+  reason?: string;
+  attempt?: number;
+  count?: number;
+  durationMs?: number;
+  /** Telefone JÁ MASCARADO. Ver `maskPhone`. */
+  phone?: string;
+}
+
+export function logEvaluationDispatch(
+  level: "info" | "error",
+  event: EvaluationDispatchEvent,
+  fields: EvaluationDispatchLogFields = {},
+): void {
+  const linha = JSON.stringify({
+    ts: new Date().toISOString(),
+    scope: "event.evaluation",
+    event,
+    ...fields,
+  });
+
+  if (level === "error") console.error(linha);
+  else console.info(linha);
+}
+
+/**
  * A DIVULGAÇÃO GENÉRICA — Normativas, Comunicação, Bolsa e Palestras.
  *
  * Escopo próprio pelo mesmo motivo de `event.dispatch`: quem investiga "por que

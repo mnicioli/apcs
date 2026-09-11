@@ -17,6 +17,10 @@ gerais) e pelo [SETUP.md](../SETUP.md) (como rodar).
 | Mexer nos eventos / segmentação                 | [EVENTS.md](./EVENTS.md)                                 |
 | Mexer nas inscrições / landing page do evento   | [INSCRICOES.md](./INSCRICOES.md)                         |
 | Mexer na lista de presença / check-in           | [INSCRICOES.md](./INSCRICOES.md) — seção 23              |
+| Mexer na avaliação do evento / perguntas        | [AVALIACOES.md](./AVALIACOES.md)                         |
+| Ligar o envio automático da avaliação           | [AVALIACOES.md](./AVALIACOES.md) — seção 11              |
+| Ver os resultados / tabulação das respostas     | [RESULTADOS.md](./RESULTADOS.md)                         |
+| Exportar a planilha de resultados               | [RESULTADOS.md](./RESULTADOS.md) — seção 13              |
 | Mexer na Bolsa / boletins de preço              | [BOLSA.md](./BOLSA.md)                                   |
 | Mexer nas palestras / calendário                | [PALESTRAS.md](./PALESTRAS.md)                           |
 | Mexer nas enquetes / segmentação                | [ENQUETES.md](./ENQUETES.md)                             |

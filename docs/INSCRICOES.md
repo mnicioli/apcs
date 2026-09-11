@@ -1477,7 +1477,8 @@ src/lib/actions/event-presence.ts   a única porta de escrita da presença
 
 src/app/(app)/events/presence/
   page.tsx                    seleção de evento (reusa event_registration_summaries)
-  presence-event-search.tsx   busca de evento
+  (a busca de evento mora em ../event-search-box.tsx, compartilhada com
+   Inscrições e Avaliações)
   loading.tsx / error.tsx     estados do segmento (servem às duas telas)
   [eventId]/page.tsx          a lista, indicadores e tabela
   [eventId]/presence-filters.tsx  busca, presença, confirmação, ordenação (na URL)
@@ -1493,3 +1494,8 @@ QR Code, avaliação do evento, envio automático de avaliação, formulário,
 dashboard, gráficos e exportação de avaliação. Também **não há tela de
 histórico** de presença — o requisito era garantir que a trilha fosse registrada
 corretamente, e ela é.
+
+> **A avaliação do evento chegou no Prompt 2**, e a presença é o critério dela:
+> só quem está marcado como presente recebe. Ver
+> [AVALIACOES.md](./AVALIACOES.md). O QR Code continua fora — e a arquitetura
+> da presença já o espera (`set_participant_presence` aceita `p_source`).

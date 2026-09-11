@@ -290,6 +290,37 @@ export const NAV_SECTIONS: NavSection[] = [
         group: "Gestão do Evento",
         available: true,
       },
+      {
+        // ⚠️ SEGUNDO ITEM DO SUBGRUPO, e ele chegou exatamente onde o comentário
+        // acima previu — sem remexer em nada. A ordem dentro de "Gestão do
+        // Evento" é a da jornada: primeiro quem apareceu, depois o que eles
+        // acharam.
+        //
+        // ⚠️ E OS ITENS DO MESMO GRUPO PRECISAM FICAR ADJACENTES. A Sidebar
+        // decide desenhar o subtítulo comparando o item com o ANTERIOR, então
+        // separar os dois desenharia "Gestão do Evento" duas vezes. Existe um
+        // caso em `navigation.test.ts` para isso.
+        title: "Avaliações",
+        href: "/events/evaluations",
+        icon: ClipboardList,
+        permission: "evaluations.read",
+        group: "Gestão do Evento",
+        available: true,
+      },
+      {
+        // ⚠️ TERCEIRO E ÚLTIMO ITEM DO SUBGRUPO, fechando a jornada do escopo:
+        // quem apareceu → o que foi perguntado → o que responderam.
+        //
+        // ⚠️ PERMISSÃO PRÓPRIA, e não `evaluations.read`. Esta tela mostra o que
+        // cada pessoa respondeu, com nome — inclusive o comentário, que a APCS
+        // decidiu não anonimizar. Ver a matriz.
+        title: "Resultados",
+        href: "/events/results",
+        icon: BarChart3,
+        permission: "results.read",
+        group: "Gestão do Evento",
+        available: true,
+      },
     ],
   },
   {

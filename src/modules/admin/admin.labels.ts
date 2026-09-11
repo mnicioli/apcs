@@ -167,6 +167,30 @@ export const SETTING_KEYS = {
    * O formato aceito está em `src/modules/flow/flow.hours.ts`.
    */
   flowBusinessHours: "flow.business_hours",
+
+  /* ------------------------------------------------------------------------ */
+  /* Avaliação de Evento (Prompt 2)                                            */
+  /* ------------------------------------------------------------------------ */
+
+  /**
+   * §13. O CONVITE DA AVALIAÇÃO, e ele mora aqui pelo mesmo motivo das frases do
+   * robô: "não fixar esse texto diretamente no código".
+   *
+   * É a mensagem que uma granja recebe no WhatsApp horas depois do evento, e o
+   * tom dela é decisão da APCS — muda a assinatura, muda o "obrigado", muda o
+   * pedido. Cada ajuste desses viraria um deploy.
+   *
+   * ⚠️ AS VARIÁVEIS SÃO QUATRO E A LISTA É FECHADA: `{{nome}}`, `{{evento}}`,
+   * `{{data_evento}}` e `{{link_avaliacao}}`. Não há validação que impeça
+   * escrever `{{nome_completo}}` — uma variável desconhecida sai LITERAL na
+   * mensagem, de propósito (ver `renderEvaluationInvite`). Por isso a ajuda
+   * abaixo lista as quatro: é a única barreira que existe.
+   *
+   * ⚠️ E `{{link_avaliacao}}` NÃO É OPCIONAL NA PRÁTICA. Um texto sem ele manda
+   * um convite sem endereço — a pessoa lê, quer responder e não tem para onde
+   * ir. O padrão em `EVALUATION_INVITE_FALLBACK` sempre o inclui.
+   */
+  eventEvaluationInvite: "events.evaluation_invite",
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -223,6 +247,10 @@ export const SETTING_LABELS: Record<SettingKey, { title: string; help: string }>
   [SETTING_KEYS.flowBusinessHours]: {
     title: "Horário de atendimento",
     help: "Ex.: “seg-sex 08:00-18:00” ou “seg-qui 08:00-18:00, sex 08:00-12:00”. Dias em seg ter qua qui sex sab dom. VAZIO significa atender sempre. Isto não muda nada sozinho: ele liga a condição “horário de atendimento” dentro dos fluxos, e o que acontece fora dele é você quem desenha.",
+  },
+  [SETTING_KEYS.eventEvaluationInvite]: {
+    title: "Convite da avaliação de evento",
+    help: "O WhatsApp que quem esteve PRESENTE recebe depois do evento. Use {{nome}}, {{evento}}, {{data_evento}} e {{link_avaliacao}} — o link é obrigatório na prática, sem ele a pessoa não tem para onde ir. Variável escrita errado sai literal na mensagem.",
   },
 };
 

@@ -133,11 +133,24 @@ export async function updateSession(request: NextRequest) {
   // ⚠️ NÃO CONFUNDIR COM `/events`, que é a tela do CRM e continua protegida.
   // São duas rotas diferentes (uma em português, outra em inglês), e é o que
   // permite que a mesma informação tenha duas portas com regras opostas.
+  //
+  // ⚠️ `/avaliacoes` É A TERCEIRA, e ela é a mais delicada das três: chega-se a
+  // ela por um TOKEN mandado no WhatsApp, e não por um endereço que alguém
+  // divulga. Vale tudo o que vale para as outras duas — sem sessão, escrevendo
+  // por Server Action com `service_role`, com as tabelas fechadas para `anon` —
+  // e mais uma coisa: a função de leitura devolve `state: "not_found"` em vez de
+  // erro para um token desconhecido, para a página não virar um oráculo de
+  // quais tokens existem. Ver a decisão 5 de
+  // supabase/migrations/20261002000100_event_evaluation.sql.
+  //
+  // ⚠️ E NÃO CONFUNDIR COM `/events/evaluations`, que é a gestão no CRM. Mesmo
+  // par português/inglês de `/eventos` e `/events`.
   const isPublicRoute =
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/associe-se") ||
-    pathname.startsWith("/eventos");
+    pathname.startsWith("/eventos") ||
+    pathname.startsWith("/avaliacoes");
 
   // Não logado tentando acessar rota protegida → manda para o login.
   if (!user && !isPublicRoute) {

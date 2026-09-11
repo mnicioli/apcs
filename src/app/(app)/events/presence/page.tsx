@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { LANDING_STATUS_BADGE_VARIANT } from "../landing-pages/landing-badges";
-import { PresenceEventSearch } from "./presence-event-search";
+import { EventSearchBox } from "../event-search-box";
 
 export const metadata: Metadata = { title: "Lista de Presença" };
 
@@ -74,7 +74,12 @@ export default async function PresencePage({
         <p className="text-muted-foreground text-sm">{PRESENCE_MODULE_SUBTITLE}</p>
       </div>
 
-      <PresenceEventSearch query={busca} />
+      <EventSearchBox
+        query={busca}
+        href={(termo) => presenceHref(1, termo)}
+        label="Evento"
+        placeholder="Buscar por nome do evento"
+      />
 
       {rows.length === 0 ? (
         <Card>

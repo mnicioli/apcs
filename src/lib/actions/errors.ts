@@ -54,6 +54,17 @@ export type ActionErrorCode =
   | "registrationConsentRequired"
   | "registrationsEventPassed"
   | "registrationTooManyParticipants"
+  // Avaliação de Evento (Prompt 2). Mesmo raciocínio de sempre: cada código
+  // existe porque a frase precisa ser diferente — e três destes chegam numa
+  // PÁGINA PÚBLICA, onde "dados inválidos" mandaria uma pessoa que fez tudo
+  // certo procurar um campo errado.
+  | "evaluationNeedsEndTime"
+  | "evaluationNotEnabled"
+  | "evaluationInvalidStructure"
+  | "evaluationAlreadyAnswered"
+  | "evaluationExpired"
+  | "evaluationMissingRequired"
+  | "evaluationUnavailable"
   // Regras de negócio da Bolsa. Mesmo raciocínio: cada uma tem um texto que diz
   // O QUE FAZER em seguida.
   | "bulletinNeedsActiveVersion"
@@ -234,6 +245,26 @@ export const ACTION_ERROR_MESSAGES: Record<ActionErrorCode, string> = {
   registrationsEventPassed: "Este evento já aconteceu e não aceita mais inscrições.",
   registrationTooManyParticipants:
     "O limite de participantes por inscrição foi atingido. Faça uma segunda inscrição para os demais.",
+
+  // ⚠️ DIZ O QUE FAZER, E ONDE. O campo que falta é de OUTRA tela (o cadastro do
+  // evento), e sem essa indicação a pessoa procuraria o horário de término na
+  // tela de avaliação, onde ele não existe.
+  evaluationNeedsEndTime:
+    "Este evento não tem horário de término. Informe o término no cadastro do evento antes de habilitar a avaliação.",
+  evaluationNotEnabled:
+    "A avaliação deste evento ainda não foi configurada. Habilite-a antes de editar as perguntas.",
+  evaluationInvalidStructure:
+    "A avaliação está incompleta. Confira se todo bloco tem título e perguntas, e se as perguntas de nota têm valor em cada alternativa.",
+  // ⚠️ AGRADECE EM VEZ DE ACUSAR. Quem vê esta frase é, quase sempre, alguém que
+  // clicou duas vezes ou abriu o link de novo — e não alguém tentando burlar
+  // nada. "Já respondida" sozinho soa como recusa a quem fez tudo certo.
+  evaluationAlreadyAnswered: "Esta avaliação já foi respondida. Obrigado pela participação!",
+  evaluationExpired: "Esta avaliação não está mais disponível. O prazo de resposta terminou.",
+  evaluationMissingRequired:
+    "Falta responder alguma pergunta obrigatória. Confira as perguntas marcadas com *.",
+  // ⚠️ A MESMA FRASE PARA CANCELADA E PARA LINK INEXISTENTE (§33). Distinguir as
+  // duas contaria a quem estivesse adivinhando quando o palpite acertou.
+  evaluationUnavailable: "Esta avaliação não está disponível.",
   bulletinNeedsActiveVersion:
     "A Bolsa não pode ficar sem uma publicação ativa. Para trocar a publicação oficial, ative a desejada — a atual sai do ar automaticamente.",
   versionNotInBulletin: "Esta publicação não pertence a esta Bolsa.",
@@ -563,6 +594,23 @@ export function mapPostgresError(err: unknown): ActionErrorBody {
       return { code: "registrationsEventPassed" };
     case "RG010":
       return { code: "registrationTooManyParticipants" };
+    // Classe `AV` — Avaliação de Evento (Prompt 2), pela mesma razão das
+    // anteriores: a classe `P0` é RESERVADA pelo PL/pgSQL. Ver
+    // supabase/migrations/20261002000100_event_evaluation.sql.
+    case "AV001":
+      return { code: "evaluationNeedsEndTime" };
+    case "AV002":
+      return { code: "evaluationNotEnabled" };
+    case "AV003":
+      return { code: "evaluationInvalidStructure" };
+    case "AV004":
+      return { code: "evaluationAlreadyAnswered" };
+    case "AV005":
+      return { code: "evaluationExpired" };
+    case "AV006":
+      return { code: "evaluationMissingRequired" };
+    case "AV007":
+      return { code: "evaluationUnavailable" };
     // Classe `MB` — regras de negócio da Bolsa, pela mesma razão da `EV`: a
     // classe `P0` é RESERVADA pelo PL/pgSQL. Ver
     // supabase/migrations/20260814000000_create_market_bulletins.sql.
