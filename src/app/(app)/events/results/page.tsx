@@ -69,7 +69,7 @@ export default async function ResultsPage({
 
       <EventSearchBox
         query={busca}
-        href={(termo) => resultsHref(1, termo)}
+        basePath="/events/results"
         label="Evento"
         placeholder="Buscar por nome do evento"
       />

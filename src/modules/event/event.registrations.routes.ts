@@ -57,7 +57,7 @@ const PARAM = {
 } as const;
 
 export function registrationsHref(page = 1, query = ""): string {
-  return listaDeEventosHref("/events/registrations", page, query);
+  return eventListHref("/events/registrations", page, query);
 }
 
 export function eventRegistrationsHref(eventId: string, filters: RegistrationBoardFilters): string {
@@ -66,7 +66,7 @@ export function eventRegistrationsHref(eventId: string, filters: RegistrationBoa
 
 /** A tela inicial da Lista de Presença: os eventos, para escolher um (§8). */
 export function presenceHref(page = 1, query = ""): string {
-  return listaDeEventosHref("/events/presence", page, query);
+  return eventListHref("/events/presence", page, query);
 }
 
 /**
@@ -101,7 +101,31 @@ export function registrationsExportHref(
   )}`;
 }
 
-function listaDeEventosHref(base: string, page: number, query: string): string {
+/**
+ * O ENDEREÇO DE UMA TELA DE SELEÇÃO DE EVENTO — as quatro usam a mesma forma.
+ *
+ * ============================================================================
+ * ⚠️ ELE É EXPORTADO POR CAUSA DE UM DEFEITO QUE FOI PARA PRODUÇÃO.
+ * ============================================================================
+ * `EventSearchBox` é um Client Component, e a primeira versão dele recebia a
+ * função de endereço como PROPRIEDADE — `href={(t) => presenceHref(1, t)}`,
+ * escrito dentro de um Server Component.
+ *
+ * O Next recusa isso em runtime: função não atravessa a fronteira RSC, porque
+ * não é serializável. E nada avisou antes — `next build` compila, o
+ * `tsc` não modela a fronteira, e nenhum teste renderiza aquelas páginas. As
+ * quatro telas de seleção quebraram ao mesmo tempo, já no ar.
+ *
+ * ⚠️ O QUE ATRAVESSA AGORA É UMA STRING. O componente recebe `basePath` e monta
+ * o endereço com esta função — a MESMA que `presenceHref`, `registrationsHref`,
+ * `evaluationsHref` e `resultsHref` usam. Uma regra, um lugar, e nada de
+ * função cruzando a fronteira.
+ *
+ * ⚠️ E O NOME DELE ENTREGA O ESCOPO: só serve para as telas que listam EVENTOS
+ * para escolher um. As telas de DENTRO de um evento têm filtros próprios e
+ * serializadores próprios.
+ */
+export function eventListHref(base: string, page: number, query: string): string {
   const params = new URLSearchParams();
   if (query.trim()) params.set(PARAM.query, query.trim());
   if (page > 1) params.set(PARAM.page, String(page));

@@ -6,6 +6,7 @@ import {
   type ResultsFilters,
   type ResultsTab,
 } from "./event.results.types";
+import { eventListHref } from "./event.registrations.routes";
 
 /**
  * A SERIALIZAÇÃO DOS FILTROS DOS RESULTADOS.
@@ -29,13 +30,15 @@ const PARAM = {
   page: "page",
 } as const;
 
-/** A tela inicial: os eventos, para escolher um (§3). */
+/**
+ * A tela inicial: os eventos, para escolher um (§3).
+ *
+ * ⚠️ DELEGA PARA `eventListHref` — ver o cabeçalho daquela função. As quatro
+ * telas de seleção montam o mesmo endereço, e é ela que `EventSearchBox` chama
+ * a partir do `basePath` que recebe.
+ */
 export function resultsHref(page = 1, query = ""): string {
-  const params = new URLSearchParams();
-  if (query.trim()) params.set(PARAM.query, query.trim());
-  if (page > 1) params.set(PARAM.page, String(page));
-  const busca = params.toString();
-  return busca ? `/events/results?${busca}` : "/events/results";
+  return eventListHref("/events/results", page, query);
 }
 
 /**

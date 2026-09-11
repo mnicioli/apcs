@@ -69,7 +69,7 @@ export default async function RegistrationsPage({
 
       <EventSearchBox
         query={busca}
-        href={(termo) => registrationsHref(1, termo)}
+        basePath="/events/registrations"
         label="Evento ou endereço"
         placeholder="Buscar por nome do evento ou endereço"
       />

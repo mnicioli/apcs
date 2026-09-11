@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
+import { eventListHref } from "@/modules/event/event.registrations.routes";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -27,26 +28,49 @@ import { Label } from "@/components/ui/label";
  * para a próxima correção não chegar — e a terceira, a menos usada, seria a que
  * ficaria para trás.
  *
- * ⚠️ O QUE A INDIREÇÃO CUSTA CONTINUA VERDADE: lendo este arquivo não dá para
- * saber para onde a tela navega. O preço é pago em `href`, que é uma função
- * nomeada (`presenceHref`, `evaluationsHref`) passada pela página — então quem
- * lê a PÁGINA continua vendo o destino, que é onde a pergunta costuma nascer.
+ * ⚠️ E A EXTRAÇÃO COBROU UM PREÇO QUE EU NÃO TINHA PREVISTO. A primeira versão
+ * recebia a função de endereço como propriedade — e isso QUEBROU as quatro
+ * telas em produção, porque função não atravessa a fronteira RSC. Ver o
+ * comentário de `basePath` abaixo.
+ *
+ * O que atravessa agora é o começo do endereço, e quem monta o resto é
+ * `eventListHref` — a mesma função que `presenceHref` e companhia usam. Lendo a
+ * PÁGINA ainda dá para ver para onde ela navega: o caminho está escrito lá.
  */
 const DEBOUNCE_MS = 300;
 
 export interface EventSearchBoxProps {
   query: string;
   /**
-   * Monta o endereço da busca. ⚠️ Recebe SEMPRE a página 1: procurar estando na
-   * página 3 daria "nenhum evento encontrado" sobre um resultado que tem duas
-   * páginas, e a pessoa concluiria que o evento não existe.
+   * O começo do endereço — `/events/presence`, `/events/results`, ...
+   *
+   * ============================================================================
+   * ⚠️ UMA STRING, E NÃO A FUNÇÃO QUE MONTA O ENDEREÇO. ISSO JÁ FOI UM DEFEITO
+   * EM PRODUÇÃO.
+   * ============================================================================
+   * A primeira versão recebia `href: (query: string) => string`, e as páginas
+   * passavam `href={(t) => presenceHref(1, t)}`. Elas são SERVER COMPONENTS e
+   * este é um CLIENT COMPONENT — e função não atravessa a fronteira RSC, porque
+   * não é serializável. O Next recusa em runtime.
+   *
+   * ⚠️ E NADA AVISOU ANTES: `next build` compila, o `tsc` não modela a fronteira
+   * (para ele é só uma função) e nenhum teste renderiza aquelas páginas. As
+   * quatro telas de seleção de evento quebraram ao mesmo tempo, já no ar.
+   *
+   * ⚠️ POR QUE O `Pagination` PODE E ESTE NÃO. `Pagination` é Server Component:
+   * a função que ele recebe é chamada no servidor, e nada cruza fronteira
+   * nenhuma. A diferença não é a forma da propriedade — é o lado em que o
+   * componente roda.
+   *
+   * Regra prática: **toda propriedade de um componente `"use client"` tem de
+   * sobreviver a um `JSON.stringify`.**
    */
-  href: (query: string) => string;
+  basePath: string;
   label: string;
   placeholder: string;
 }
 
-export function EventSearchBox({ query, href, label, placeholder }: EventSearchBoxProps) {
+export function EventSearchBox({ query, basePath, label, placeholder }: EventSearchBoxProps) {
   const router = useRouter();
   const [term, setTerm] = useState(query);
   const id = useId();
@@ -56,17 +80,16 @@ export function EventSearchBox({ query, href, label, placeholder }: EventSearchB
 
     // O atraso é o que impede uma navegação por tecla digitada. `replace` e não
     // `push`: cada letra não deve virar uma parada no botão "voltar".
+    //
+    // ⚠️ SEMPRE A PÁGINA 1. Procurar estando na página 3 daria "nenhum evento
+    // encontrado" sobre um resultado que tem duas páginas — e a pessoa
+    // concluiria que o evento não existe.
     const timer = setTimeout(() => {
-      router.replace(href(term), { scroll: false });
+      router.replace(eventListHref(basePath, 1, term), { scroll: false });
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-    // ⚠️ `href` FICA FORA DAS DEPENDÊNCIAS DE PROPÓSITO. As páginas a declaram
-    // como seta inline, então ela é uma função NOVA a cada render — incluí-la
-    // reiniciaria o temporizador a cada tecla e a busca nunca dispararia.
-    // O que precisa disparar o efeito é o texto, e ele está aqui.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term, query, router]);
+  }, [term, query, router, basePath]);
 
   return (
     <div className="max-w-md space-y-2">

@@ -71,7 +71,7 @@ export default async function EvaluationsPage({
 
       <EventSearchBox
         query={busca}
-        href={(termo) => evaluationsHref(1, termo)}
+        basePath="/events/evaluations"
         label="Evento"
         placeholder="Buscar por nome do evento"
       />

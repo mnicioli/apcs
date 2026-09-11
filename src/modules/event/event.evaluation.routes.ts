@@ -4,6 +4,7 @@ import {
   type EvaluationParticipantFilter,
   type EvaluationParticipantFilters,
 } from "./event.evaluation.types";
+import { eventListHref } from "./event.registrations.routes";
 
 /**
  * A SERIALIZAÇÃO DOS FILTROS DE AVALIAÇÕES.
@@ -34,13 +35,16 @@ const PARAM = {
   page: "page",
 } as const;
 
-/** A tela inicial: os eventos, para escolher um (§21). */
+/**
+ * A tela inicial: os eventos, para escolher um (§21).
+ *
+ * ⚠️ DELEGA PARA `eventListHref`, e não repete a serialização. As quatro telas
+ * de seleção de evento montam o MESMO endereço (`?q=&page=`), e a cópia é o que
+ * envelhece — além de ser o que `EventSearchBox` precisa poder chamar a partir
+ * de um `basePath`. Ver o cabeçalho daquela função.
+ */
 export function evaluationsHref(page = 1, query = ""): string {
-  const params = new URLSearchParams();
-  if (query.trim()) params.set(PARAM.query, query.trim());
-  if (page > 1) params.set(PARAM.page, String(page));
-  const busca = params.toString();
-  return busca ? `/events/evaluations?${busca}` : "/events/evaluations";
+  return eventListHref("/events/evaluations", page, query);
 }
 
 /**

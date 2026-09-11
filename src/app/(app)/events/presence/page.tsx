@@ -76,7 +76,7 @@ export default async function PresencePage({
 
       <EventSearchBox
         query={busca}
-        href={(termo) => presenceHref(1, termo)}
+        basePath="/events/presence"
         label="Evento"
         placeholder="Buscar por nome do evento"
       />
